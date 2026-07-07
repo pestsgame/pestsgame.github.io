@@ -1147,7 +1147,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <div class="play-stat-value" id="pnl-deck">0/10</div>
             </div>
           </div>
-          <button class="play-battle-btn" onclick="startGame()">✦ Enter Battle ✦</button>
+          <button class="play-battle-btn" onclick="startGame()">✦ Practice vs AI ✦</button>
+          <button class="play-battle-btn" style="margin-top:10px;background:linear-gradient(135deg,#1a2a4a,#1e3a6a);border-color:#2563eb;" onclick="startMultiplayerGame()">⚔ Multiplayer Duel ⚔</button>
           <div class="play-record-sub" id="menu-win-record">0 Wins · 0 Losses</div>
         </div>
       </div>
@@ -1309,6 +1310,15 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <button class="bbtn bbtn-restart" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu()">← Main Menu</button>
     </div>
   </div>
+
+  <!-- Multiplayer matchmaking overlay -->
+  <div id="mp-queue-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.92);z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;">
+    <div style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ FINDING OPPONENT ✦</div>
+    <div style="width:46px;height:46px;border:4px solid rgba(167,139,250,.25);border-top-color:#a78bfa;border-radius:50%;animation:mp-spin 1s linear infinite;"></div>
+    <div style="font-size:.75rem;color:#94a3b8;letter-spacing:.05em;">Hang tight, matching you with another Pestmaster…</div>
+    <button class="bbtn bbtn-restart" style="padding:10px 26px;font-size:.85rem;" onclick="cancelMatchmaking()">Cancel</button>
+  </div>
+  <style>@keyframes mp-spin{to{transform:rotate(360deg);}}</style>
 
 </div><!-- /main -->
 
@@ -1939,6 +1949,8 @@ function createCard(baseId){
 const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,actedThisTurn:new Set(),
   player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]},
   enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]}};
+/* multiplayer flags — false/0 for the local practice-vs-AI mode (untouched by anything below) */
+State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';
 
 /* ── HAND TRAY ───────────────────────────────────────── */
 let _handVisible=false,_handHideTimer=null;
@@ -2030,6 +2042,12 @@ function deployFromInspect(target){
   if(index<0)return;
   const card=State.player.hand[index];
   if(!card)return;
+
+  if(State.mp){
+    // server owns the real hand/board — just send the intent and wait for the authoritative 'state' push
+    Net.send({type:'deploy', instanceId:card.instanceId});
+    return;
+  }
 
   const pw=Anim.power(card);
 
@@ -2165,6 +2183,11 @@ function aiSetupBoard(){
 }
 
 function readyToBattle(){
+  if(State.mp){
+    Net.send({type:'ready_battle'});
+    showToast('Waiting for opponent...');
+    return;
+  }
   // Player also silently fills any remaining empty slots they missed (optional QoL: we skip this and just flip)
   showCoinFlip(winner=>{
     setTimeout(()=>{
@@ -2275,7 +2298,10 @@ function startTurn(actor){
   if(actor==='ENEMY')setTimeout(executeAITurn,900);
   updateUI();
 }
-function endPlayerTurn(){if(State.turn!=='PLAYER')return;State.phase='END';startTurn('ENEMY');}
+function endPlayerTurn(){
+  if(State.mp){ if(State.turn==='PLAYER') Net.send({type:'end_turn'}); return; }
+  if(State.turn!=='PLAYER')return;State.phase='END';startTurn('ENEMY');
+}
 function endEnemyTurn(){State.phase='END';startTurn('PLAYER');}
 
 /* ── PLAYER ACTIONS ───────────────────────────────────── */
@@ -2342,6 +2368,12 @@ function cancelPending(){
 
 function executeChosenAttack(atkDefIndex){
   if(!State.selectedSlot||State.pendingTarget===null)return;
+  if(State.mp){
+    Net.send({type:'attack', slot:State.selectedSlot, target:State.pendingTarget, atkIndex:atkDefIndex});
+    State.selectedSlot=null;State.pendingTarget=null;
+    updateUI(); // server will follow up with the authoritative 'state' + animation events
+    return;
+  }
   const atkCard=State.selectedSlot==='slot1'?State.player.activeCard:State.player.activeCard2;
   if(!atkCard)return;
   const targetCard=State.pendingTarget==='slot1'?State.enemy.activeCard:State.pendingTarget==='slot2'?State.enemy.activeCard2:null;
@@ -2737,6 +2769,7 @@ function updateUI(){
 /* ── PLAYER PROFILE & PERSISTENCE ────────────────────── */
 const Player = {
   name: 'Pestmaster',
+  guestId: null, // stable id sent to the arena server so reconnects slot back into a live match
   wins: 0,
   losses: 0,
   gold: 500,
@@ -2816,6 +2849,7 @@ function enterArena(){
   const ss=document.getElementById('start-screen');
   ss.classList.add('fade-out');
   window._stopRuneEngine&&window._stopRuneEngine();
+  Net.connect();
   setTimeout(()=>{
     ss.style.display='none';
     showMenu();
@@ -2835,6 +2869,7 @@ function startGame(){
 }
 
 function returnToMenu(){
+  if(State.mp&&!State._mpOver){ Net.send({type:'forfeit'}); State.mp=false; }
   showMenu();
 }
 
@@ -2925,6 +2960,11 @@ function dbRemoveCard(i){
 }
 
 function saveDeck(){
+  if(Net.connected&&Net.authed){
+    Net.send({type:'save_deck', cardIds:[..._dbDeck]});
+    showToast('Saving deck…');
+    return;
+  }
   Player.deck=[..._dbDeck];
   savePlayer();
   refreshMenuUI();
@@ -3391,6 +3431,13 @@ function buildPackSVG(packDef){
 function buyPack(packId){
   const packDef=PACK_DEFS.find(p=>p.id===packId);
   if(!packDef) return;
+  if(Net.connected&&Net.authed){
+    const isGem=packDef.currency==='gems';
+    const balance=isGem?Player.gems:Player.gold;
+    if(balance<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
+    Net.send({type:'buy_pack', packId});
+    return;
+  }
   const isGem=packDef.currency==='gems';
   const balance=isGem?Player.gems:Player.gold;
   if(balance<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
@@ -4085,6 +4132,287 @@ function runImpactReveal(def,cardEl,onRevealed){
   playStarCollisionIntro(cardEl,cfg,()=>{
     doImpactFrame(cardEl,cfg,onRevealed);
   });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MULTIPLAYER NETWORK LAYER
+   Talks to the arena-server WebSocket. The server is authoritative for
+   combat, gold, gems, the card collection, and the saved deck — this
+   module only ever sends intents and renders whatever the server sends
+   back. Practice-vs-AI mode (everything above this point) is untouched
+   and keeps working exactly as before, online or offline.
+══════════════════════════════════════════════════════════════════ */
+
+/* Point this at your arena-server deployment. Override by setting
+   window.ARENA_WS_URL before this script runs, or add ?ws=wss://host to the URL. */
+function resolveArenaWsUrl(){
+  if(window.ARENA_WS_URL) return window.ARENA_WS_URL;
+  const q=new URLSearchParams(location.search).get('ws');
+  if(q) return q;
+  return 'ws://localhost:8787';
+}
+
+const Net={
+  ws:null, connected:false, authed:false, inQueue:false, matchId:null,
+  _reconnectTimer:null,
+
+  connect(){
+    if(this.ws&&(this.ws.readyState===0||this.ws.readyState===1))return; // already connecting/open
+    let url; try{ url=resolveArenaWsUrl(); }catch(e){ return; }
+    let ws;
+    try{ ws=new WebSocket(url); }catch(e){ log('Net: could not open websocket',e); return; }
+    this.ws=ws;
+    ws.addEventListener('open',()=>{ this.connected=true; this.authenticate(); });
+    ws.addEventListener('message',(ev)=>{
+      let msg; try{ msg=JSON.parse(ev.data); }catch(e){ return; }
+      this.handle(msg);
+    });
+    ws.addEventListener('close',()=>{
+      this.connected=false; this.authed=false;
+      // soft auto-reconnect if we were mid-match, so the 20s server-side grace window isn't wasted
+      if(State.mp&&!State._mpOver){
+        clearTimeout(this._reconnectTimer);
+        this._reconnectTimer=setTimeout(()=>this.connect(),1500);
+      }
+    });
+    ws.addEventListener('error',()=>{});
+  },
+
+  authenticate(){
+    if(!Player.guestId){
+      Player.guestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('g-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+      savePlayer();
+    }
+    this.send({type:'auth', guestId:Player.guestId, name:Player.name||'Pestmaster'});
+  },
+
+  send(obj){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj)); },
+
+  handle(msg){
+    switch(msg.type){
+      case 'auth_ok': this.authed=true; applyServerProfile(msg.profile); break;
+      case 'profile': applyServerProfile(msg.profile); break;
+      case 'queue_status': this.inQueue=msg.inQueue; break;
+      case 'match_found': this.matchId=msg.matchId; beginMultiplayerMatch(msg); break;
+      case 'state': applyServerState(msg); break;
+      case 'opponent_ready': showToast('Opponent is ready!'); break;
+      case 'opponent_disconnected': showToast('Opponent lost connection — waiting for them to return…',4000); break;
+      case 'opponent_reconnected': showToast('Opponent reconnected!'); break;
+      case 'match_over': handleMatchOver(msg); break;
+      case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
+      case 'pack_result': handlePackResult(msg); break;
+      case 'error': showToast('⚠ '+(msg.reason||'Something went wrong')); break;
+    }
+  },
+};
+
+function applyServerProfile(p){
+  if(!p)return;
+  Player.name=p.username||Player.name;
+  if(typeof p.gold==='number')Player.gold=p.gold;
+  if(typeof p.gems==='number')Player.gems=p.gems;
+  if(typeof p.wins==='number')Player.wins=p.wins;
+  if(typeof p.losses==='number')Player.losses=p.losses;
+  if(Array.isArray(p.collection))Player.collection=p.collection;
+  if(Array.isArray(p.deck))Player.deck=p.deck;
+  savePlayer();
+  refreshMenuUI();
+}
+
+/* ── MATCHMAKING ENTRY POINTS (wired to the new menu button) ── */
+function startMultiplayerGame(){
+  if(!Net.connected){
+    Net.connect();
+    showToast('Connecting to the arena…');
+    setTimeout(()=>{ if(Net.connected&&Net.authed) startMultiplayerGame(); else if(!Net.connected) showToast('Could not reach the arena server.'); },1400);
+    return;
+  }
+  if(!Net.authed){ setTimeout(startMultiplayerGame,300); return; }
+  document.getElementById('mp-queue-overlay').style.display='flex';
+  Net.send({type:'queue_join'});
+}
+function cancelMatchmaking(){
+  Net.send({type:'queue_leave'});
+  document.getElementById('mp-queue-overlay').style.display='none';
+}
+
+function beginMultiplayerMatch(msg){
+  document.getElementById('mp-queue-overlay').style.display='none';
+  State.mp=true; State.mySide=msg.youAre; State._mpOver=false;
+  State.opponentName=msg.opponentName||'Opponent';
+  State.selectedSlot=null; State.pendingTarget=null;
+  document.getElementById('game-over').style.display='none';
+  document.getElementById('coinflip-overlay').classList.remove('open');
+  _handVisible=false;
+  document.getElementById('hand-tray').classList.remove('visible');
+  showScreen('game');
+  initHandTray();
+  setTimeout(showHandTray,400);
+  if(!msg.resumed) showToast(`Matched vs ${State.opponentName}!`);
+}
+
+/* ── AUTHORITATIVE STATE APPLICATION ──────────────────────────────── */
+function applyServerState(msg){
+  State.mySide=msg.you;
+  // animate against the board as it currently looks (pre-mutation) before we overwrite it
+  playServerEvents(msg.events||[]);
+
+  const you=msg.state.you, opp=msg.state.opponent;
+  State.player.hp=you.hp; State.player.maxHp=you.maxHp;
+  State.player.activeCard=you.activeCard; State.player.activeCard2=you.activeCard2;
+  State.player.weaponCard=you.weaponCard; State.player.defenseCard=you.defenseCard;
+  State.player.hand=you.hand||[];
+  State.player.deck=new Array(you.deckCount||0);
+
+  State.enemy.hp=opp.hp; State.enemy.maxHp=opp.maxHp;
+  State.enemy.activeCard=opp.activeCard; State.enemy.activeCard2=opp.activeCard2;
+  State.enemy.weaponCard=opp.weaponCard; State.enemy.defenseCard=opp.defenseCard;
+  State.enemy.hand=new Array(opp.handCount||0);
+  State.enemy.deck=[];
+
+  State.phase=msg.phase;
+  // during SETUP both sides deploy simultaneously — the server's `turn` field is only
+  // meaningful once MAIN starts, so don't let it block either player's own inspectCard/deploy gating
+  State.turn=(msg.phase==='SETUP')?'PLAYER':((msg.turn===State.mySide)?'PLAYER':'ENEMY');
+  State.actedThisTurn=new Set(msg.state.actedThisTurn||[]);
+  if(!(State.turn==='PLAYER'&&State.phase==='MAIN')){ State.selectedSlot=null; State.pendingTarget=null; }
+
+  const lbl=document.getElementById('turn-label'), ph=document.getElementById('phase-label');
+  if(lbl&&ph){
+    if(State.phase==='SETUP'){ lbl.innerText='SETUP PHASE'; lbl.style.color='#a78bfa'; ph.innerText='DEPLOY YOUR CARDS'; }
+    else if(State.turn==='PLAYER'){ lbl.innerText="PLAYER'S TURN"; lbl.style.color='#93c5fd'; ph.innerText='MAIN PHASE'; }
+    else { lbl.innerText="ENEMY'S TURN"; lbl.style.color='#f87171'; ph.innerText='MAIN PHASE'; }
+  }
+  updateUI();
+}
+
+/* ── EVENT → ANIMATION REPLAY ─────────────────────────────────────── */
+function sideSlotToId(side,slot){
+  const mine=side===State.mySide;
+  if(slot==='slot1')return mine?'player-active-slot':'enemy-active-slot';
+  if(slot==='slot2')return mine?'player-active-slot-2':'enemy-active-slot-2';
+  return null;
+}
+function findCardBySideSlot(side,slot){
+  const entity=(side===State.mySide)?State.player:State.enemy;
+  if(slot==='slot1')return entity.activeCard;
+  if(slot==='slot2')return entity.activeCard2;
+  return null;
+}
+
+function playServerEvents(events){
+  if(!events||!events.length)return;
+  let delay=0;
+  events.forEach(e=>{
+    if(e.t==='coinflip'){ runNetCoinFlip(e.firstSide===State.mySide); return; }
+    setTimeout(()=>playSingleEvent(e),delay);
+    if(e.t!=='hit') delay+=420;
+  });
+}
+
+function playSingleEvent(e){
+  try{
+    switch(e.t){
+      case 'hit': {
+        const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
+        const atkCard=findCardBySideSlot(e.atkSide,e.atkSlot);
+        const tgtSlotId=e.direct?null:sideSlotToId(e.defSide,e.defSlot);
+        const tgtCard=e.direct?null:findCardBySideSlot(e.defSide,e.defSlot);
+        const isPlayerAttacking=(e.atkSide===State.mySide);
+        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,isPlayerAttacking);
+        break;
+      }
+      case 'dot': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusVfx(slotId,e.effect,false,e.dmg);
+        break;
+      }
+      case 'status': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusVfx(slotId,e.effect,e.hit,0);
+        break;
+      }
+      case 'miss': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusVfx(slotId,e.cause+'_miss');
+        break;
+      }
+      case 'death': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        const card=findCardBySideSlot(e.side,e.slot)||{classification:null,name:e.name};
+        if(slotId) Anim.deathAnim(slotId,card);
+        break;
+      }
+      case 'curse_recoil': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusFloat(slotId,`CURSE  -${e.dmg}`,'#a78bfa');
+        break;
+      }
+      case 'rocks': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusFloat(slotId,`ROCKS  -${e.dmg}`,'#facc15');
+        break;
+      }
+      case 'turn_skip':
+        showToast(e.side===State.mySide?'You were unable to act this turn!':'Opponent was unable to act this turn!');
+        break;
+      // 'weapon_use' / 'defense_use' / 'burn_penalty' / 'soak_reduce' / 'excess' / 'ability':
+      // no dedicated animation in the original client either — the hp/board redraw covers it.
+    }
+  }catch(err){ log('event replay error',err); }
+}
+
+/* ── PREDETERMINED COIN FLIP (server already rolled the winner) ── */
+function runNetCoinFlip(iWon){
+  const ov=document.getElementById('coinflip-overlay');
+  const coin=document.getElementById('coin');
+  const resultEl=document.getElementById('coinflip-result');
+  const subEl=document.getElementById('coinflip-sub');
+  resultEl.classList.remove('show');subEl.classList.remove('show');
+  resultEl.textContent='';subEl.textContent='';
+  coin.classList.remove('flipping');
+  void coin.offsetWidth;
+  ov.classList.add('open');
+  const finalRot=iWon?1800:1980;
+  coin.style.setProperty('--final-rot',finalRot+'deg');
+  setTimeout(()=>{
+    coin.classList.add('flipping');
+    setTimeout(()=>{
+      resultEl.textContent=iWon?'YOU GO FIRST!':'OPPONENT GOES FIRST!';
+      resultEl.style.color=iWon?'#3b82f6':'#ef4444';
+      subEl.textContent=iWon?'Your coin came up — strike first!':'The enemy coin came up — brace yourself!';
+      resultEl.classList.add('show');subEl.classList.add('show');
+      setTimeout(()=>{ov.classList.remove('open');},1900);
+    },3000);
+  },180);
+}
+
+/* ── MATCH END (server decides — never Player.wins++/gold+= locally) ── */
+function handleMatchOver(msg){
+  State._mpOver=true; State.mp=false;
+  applyServerProfile(msg.profile);
+  const won=msg.result==='win';
+  document.getElementById('game-over').style.display='flex';
+  const el=document.getElementById('game-over-text');
+  el.innerText=won?'VICTORY':'DEFEAT';
+  el.style.color=won?'#10b981':'#ef4444';
+  if(won&&msg.reward&&msg.reward.gold) showToast(`Victory! +${msg.reward.gold} Gold`);
+}
+
+/* ── PACK OPENING RESULT (server rolled the cards & debited currency) ── */
+function handlePackResult(msg){
+  const packDef=PACK_DEFS.find(p=>p.id===msg.packId);
+  if(!packDef)return;
+  if(msg.currency==='gems')Player.gems=msg.newBalance; else Player.gold=msg.newBalance;
+  savePlayer();
+  const gEl=document.getElementById('menu-gold'), mEl=document.getElementById('menu-gems');
+  if(gEl)gEl.textContent=Player.gold.toLocaleString();
+  if(mEl)mEl.textContent=Player.gems.toLocaleString();
+  refreshMenuUI();
+  // server only sends {id,name,rarity,image} — the full card definition (topEffect etc.) is the
+  // same static CardDB the client already has, so look it up locally for rendering.
+  _packCards=msg.cards.map(c=>CardDB.find(d=>d.id===c.id)).filter(Boolean);
+  openPackOverlay(packDef);
 }
 
 /* ── BOOT ─────────────────────────────────────────────── */
