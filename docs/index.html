@@ -4292,6 +4292,8 @@ function sideSlotToId(side,slot){
   const mine=side===State.mySide;
   if(slot==='slot1')return mine?'player-active-slot':'enemy-active-slot';
   if(slot==='slot2')return mine?'player-active-slot-2':'enemy-active-slot-2';
+  if(slot==='weapon')return mine?'player-weapon-slot':'enemy-weapon-slot';
+  if(slot==='defense')return mine?'player-defense-slot':'enemy-defense-slot';
   return null;
 }
 function findCardBySideSlot(side,slot){
@@ -4314,6 +4316,11 @@ function playServerEvents(events){
 function playSingleEvent(e){
   try{
     switch(e.t){
+      case 'deploy': {
+        const slotId=sideSlotToId(e.side,e.slotType);
+        if(slotId&&e.card){ const pw=Anim.power(e.card); setTimeout(()=>Anim.deployAnim(slotId,pw),20); }
+        break;
+      }
       case 'hit': {
         const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
         const atkCard=findCardBySideSlot(e.atkSide,e.atkSlot);
