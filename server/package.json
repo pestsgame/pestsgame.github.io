@@ -1,0 +1,19 @@
+{
+  "name": "arena-of-pests-server",
+  "version": "1.0.0",
+  "description": "Authoritative WebSocket combat server for Arena of PESTS. Validates every deploy/attack/end-turn, keeps gold/gems/collection/deck in Supabase Postgres, and only ever trusts the client to render.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
