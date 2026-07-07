@@ -264,17 +264,22 @@ class Match {
     if (card.cardType === 'weapon') {
       const old = entity.weaponCard; entity.weaponCard = card; entity.hand.splice(idx, 1);
       if (old) entity.hand.push(old);
+      events.push({ t:'deploy', side, slotType:'weapon', card });
     } else if (card.cardType === 'defense') {
       const old = entity.defenseCard; entity.defenseCard = card; entity.hand.splice(idx, 1);
       if (old) entity.hand.push(old);
+      events.push({ t:'deploy', side, slotType:'defense', card });
     } else if (!entity.activeCard) {
       entity.activeCard = card; entity.hand.splice(idx, 1);
       this.applyDeployAbility(side, card, events);
+      events.push({ t:'deploy', side, slotType:'slot1', card, swapped:false });
     } else if (!entity.activeCard2) {
       entity.activeCard2 = card; entity.hand.splice(idx, 1);
       this.applyDeployAbility(side, card, events);
+      events.push({ t:'deploy', side, slotType:'slot2', card, swapped:false });
     } else {
       // swap into slot1 — triggers rocks trap from the opposing active card, exactly like the client
+      events.push({ t:'deploy', side, slotType:'slot1', card, swapped:true });
       Engine.triggerRocks(this.sides[this.otherSide(side)], card, events, side, 'slot1');
       const old = entity.activeCard;
       entity.activeCard = card; entity.hand.splice(idx, 1); entity.hand.push(old);
