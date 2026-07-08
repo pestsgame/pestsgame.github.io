@@ -16,62 +16,20 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
-/* ── CARD DATABASE (verbatim from client) ─────────────────────────── */
-const CardDB = [
-  {id:"venom_spider",rarity:"common",name:"Skrix the Venom Weaver",hp:80,types:["mob"],classification:"pests",image:"spider.png",
-   topEffect:{type:"passive",name:"Toxic Hide",value:0,effects:[],
-     passiveReduction:{flat:10,exceptElements:['lightning']},
-     description:"−10 flat dmg. Immune to Poison. Lightning bypasses."},
-   bottomAttack:{name:"Venom Bite",damage:20,element:"poison",effects:[{type:"poison",duration:3}]}},
-  {id:"plague_rat",rarity:"common",name:"Gruk the Plague Spreader",hp:60,types:["mob"],classification:"pests",image:"rat.png",
-   topEffect:{type:"attack",name:"Gnaw",value:15,element:"shadow",effects:[{type:"bleed",duration:2}]},
-   bottomAttack:{name:"Plague Bite",damage:10,element:"poison",effects:[{type:"strongPoison",duration:2}]}},
-  {id:"ember_witch",rarity:"uncommon",name:"Solvara the Ember Witch",hp:70,types:["wizard"],classification:"pests",image:"witch.png",
-   topEffect:{type:"ability",name:"Hex Aura",value:0,element:"arcane",effects:[{type:"curse",duration:3}],description:"On deploy: enemy gains Curse."},
-   bottomAttack:{name:"Fireball",damage:30,element:"fire",effects:[{type:"burn",duration:2}]}},
-  {id:"frost_crawler",rarity:"uncommon",name:"Glacius the Frost Crawler",hp:100,types:["mob"],classification:"pests",image:"crawler.png",
-   topEffect:{type:"passive",name:"Icy Shell",value:0,element:null,effects:[{type:"soak",duration:9999}],
-     passiveReduction:{percent:0.35,exceptElements:['fire']},
-     description:"−35% incoming dmg. Fire bypasses. Always Soaked."},
-   bottomAttack:{name:"Frost Bite",damage:25,element:"ice",effects:[{type:"cryo",duration:2}]}},
-  {id:"shock_beetle",rarity:"common",name:"Zoltaxx the Storm Beetle",hp:65,types:["mob"],classification:"pests",image:"beetle.png",
-   topEffect:{type:"passive",name:"Static Field",value:0,element:"lightning",effects:[],
-     passiveReduction:{percent:0.20,exceptElements:['water','ice']},
-     description:"−20% incoming dmg. Water & Ice bypass."},
-   bottomAttack:{name:"Zap Sting",damage:22,element:"lightning",effects:[{type:"shock",duration:2},{type:"confusion",duration:1}]}},
-  {id:"shadow_rat",rarity:"common",name:"Nyxor the Shadow Gnawer",hp:55,types:["mob"],classification:"pests",image:"shadow_rat.png",
-   topEffect:{type:"attack",name:"Ambush",value:25,element:"shadow",effects:[{type:"paralyze",duration:1}]},
-   bottomAttack:{name:"Shadow Bite",damage:18,element:"shadow",effects:[{type:"sleep",duration:1}]}},
-  {id:"cursed_golem",rarity:"rare",name:"Thrakk the Cursed Colossus",hp:130,types:["mob"],classification:"pests",image:"golem.png",
-   topEffect:{type:"passive",name:"Stone Curse",value:0,element:null,effects:[{type:"curse",duration:9999}],
-     passiveReduction:{flat:18,exceptElements:['water']},
-     description:"−18 flat dmg. 25% recoil on attackers. Water bypasses."},
-   bottomAttack:{name:"Boulder Slam",damage:35,element:"earth",effects:[{type:"rocks",duration:2}]}},
-  {id:"swarm_queen",rarity:"rare",name:"Vexa the Swarm Empress",hp:120,types:["mob","wizard"],classification:"boss",image:"queen.png",
-   topEffect:{type:"attack",name:"Summon Swarm",value:30,element:"nature",effects:[{type:"bleed",duration:3},{type:"poison",duration:2}]},
-   bottomAttack:{name:"Queen's Wrath",damage:35,element:"poison",effects:[{type:"mythicPoison",duration:1}]}},
-  {id:"plague_dragon",rarity:"epic",name:"Morthaax the Plague Wyrm",hp:200,types:["dragon"],classification:"boss",image:"dragon.png",
-   topEffect:{type:"passive",name:"Plague Hide",value:0,element:"poison",effects:[],
-     passiveReduction:{percent:0.25,exceptElements:['wind','nature']},
-     description:"−25% incoming dmg. Wind & Nature bypass."},
-   bottomAttack:{name:"Dragon Crush",damage:55,element:"earth",effects:[{type:"rocks",duration:2},{type:"strongPoison",duration:3},{type:"burn",duration:2}]}},
-  {id:"the_overlord",rarity:"mythic",name:"Vaelkor the Infinite Overlord",hp:300,types:["mob","wizard","dragon"],classification:"overlord",image:"overlord.png",
-   topEffect:{type:"passive",name:"Void Mantle",value:0,element:"arcane",effects:[],
-     passiveReduction:{percent:0.40,flat:15,exceptElements:['arcane']},
-     description:"−40% then −15 flat incoming dmg. Arcane bypasses."},
-   bottomAttack:{name:"World's End",damage:90,element:"fire",effects:[{type:"bleed",duration:3},{type:"burn",duration:2},{type:"shock",duration:2},{type:"rocks",duration:2},{type:"mythicPoison",duration:2},{type:"curse",duration:3},{type:"cryo",duration:2}]}},
-  {id:"iron_blade",    rarity:"common",  cardType:"weapon", name:"Iron Blade",     flatBonus:15, maxDurability:3, image:"sword.png"},
-  {id:"venom_dagger",  rarity:"common",  cardType:"weapon", name:"Venom Dagger",   flatBonus:10, maxDurability:5, image:"dagger.png"},
-  {id:"war_axe",       rarity:"uncommon",cardType:"weapon", name:"War Axe",        flatBonus:28, maxDurability:2, image:"axe.png"},
-  {id:"cursed_blade",  rarity:"rare",    cardType:"weapon", name:"Cursed Blade",   flatBonus:20, maxDurability:3, image:"cblade.png"},
-  {id:"inferno_shard", rarity:"epic",    cardType:"weapon", name:"Inferno Shard",  flatBonus:35, maxDurability:1, image:"shard.png"},
-  {id:"wooden_shield", rarity:"common",  cardType:"defense", name:"Wooden Shield",  flatBonus:10, maxDurability:3, image:"shield.png"},
-  {id:"iron_armor",    rarity:"uncommon",cardType:"defense", name:"Iron Armor",     flatBonus:20, maxDurability:2, image:"armor.png"},
-  {id:"barrier_rune",  rarity:"common",  cardType:"defense", name:"Barrier Rune",   flatBonus:15, maxDurability:4, image:"rune.png"},
-  {id:"dragon_scale",  rarity:"epic",    cardType:"defense", name:"Dragon Scale",   flatBonus:30, maxDurability:2, image:"dscale.png"},
-  {id:"mirror_ward",   rarity:"legendary",cardType:"defense", name:"Mirror Ward",    flatBonus:12, maxDurability:5, image:"ward.png"}
-];
+/* ── CARD DATABASE ──────────────────────────────────────────────────
+ * Loaded from cards.json — the single canonical copy of every card's
+ * stats. The client fetches this exact file (see server.js's /cards.json
+ * route) instead of keeping its own hardcoded copy, and the server
+ * checks a hash of it during auth — so a modified/forked client can't
+ * sneak a buffed "god card" past matchmaking: either it's playing with
+ * the real numbers, or its hash won't match and it's refused. */
+const CARD_LIBRARY_PATH = path.join(__dirname, 'cards.json');
+const CARD_LIBRARY_RAW = fs.readFileSync(CARD_LIBRARY_PATH, 'utf8');
+const CARD_LIBRARY_HASH = crypto.createHash('sha256').update(CARD_LIBRARY_RAW).digest('hex');
+const CardDB = JSON.parse(CARD_LIBRARY_RAW);
 const CardById = Object.fromEntries(CardDB.map(c => [c.id, c]));
 
 const RARITY_ORDER = ['common','uncommon','rare','epic','legendary','mythic'];
@@ -255,10 +213,17 @@ function generateDeck(n) {
 }
 
 /** Builds a validated deck of live card instances from a list of owned card ids. */
+/** A deck is legal if it's 4–10 cards long and every single id in it exists
+ * in the canonical library — checked fresh every time a match is built, not
+ * just once when the deck was saved, so a stale/tampered deck never quietly
+ * slips through with some cards silently dropped. */
+function isDeckLegal(ids) {
+  return Array.isArray(ids) && ids.length >= 4 && ids.length <= 10 && ids.every(id => !!CardById[id]);
+}
+
 function buildDeckFromIds(ids) {
-  if (!Array.isArray(ids) || ids.length < 4) return generateDeck(10);
-  const cards = ids.map(id => createCard(id)).filter(Boolean);
-  return cards.length >= 4 ? cards : generateDeck(10);
+  if (!isDeckLegal(ids)) return generateDeck(10);
+  return ids.map(id => createCard(id));
 }
 
 /* ── PLAYER SIDE FACTORY ──────────────────────────────────────────── */
@@ -383,9 +348,9 @@ function isMatchOver(match) {
 }
 
 module.exports = {
-  CardDB, CardById, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
+  CardDB, CardById, CARD_LIBRARY_HASH, CARD_LIBRARY_RAW, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
   Effects, hasEffect, applyEffectToCard, processEffects, checkCardDeath,
-  createCard, generateDeck, buildDeckFromIds, freshSide,
+  createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
   executeAttack, triggerRocks, isMatchOver,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
 };
