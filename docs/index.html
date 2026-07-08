@@ -1147,8 +1147,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <div class="play-stat-value" id="pnl-deck">0/10</div>
             </div>
           </div>
-          <button class="play-battle-btn" onclick="startGame()">✦ Practice vs AI ✦</button>
-          <button class="play-battle-btn" style="margin-top:10px;background:linear-gradient(135deg,#1a2a4a,#1e3a6a);border-color:#2563eb;" onclick="startMultiplayerGame()">⚔ Multiplayer Duel ⚔</button>
+          <button class="play-battle-btn" onclick="startMultiplayerGame()">⚔ Find Match ⚔</button>
           <div class="play-record-sub" id="menu-win-record">0 Wins · 0 Losses</div>
         </div>
       </div>
@@ -1237,7 +1236,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <button class="bbtn bbtn-battle" id="btn-battle" onclick="readyToBattle()" style="display:none;">✦ BATTLE!</button>
       <button class="bbtn bbtn-endturn" id="btn-end-turn" onclick="endPlayerTurn()">End Turn →</button>
       <button class="bbtn bbtn-restart" onclick="returnToMenu()" style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);color:rgba(196,181,253,.7);margin-right:4px;">← Menu</button>
-      <button class="bbtn bbtn-restart" onclick="initGame()">↺ New Game</button>
     </div>
   </div>
 
@@ -1306,10 +1304,21 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   <div id="game-over">
     <h1 id="game-over-text">VICTORY</h1>
     <div style="display:flex;gap:12px;">
-      <button class="bbtn bbtn-endturn" style="padding:12px 30px;font-size:.9rem;" onclick="initGame()">↺ Play Again</button>
+      <button class="bbtn bbtn-endturn" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu();startMultiplayerGame()">↺ Play Again</button>
       <button class="bbtn bbtn-restart" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu()">← Main Menu</button>
     </div>
   </div>
+
+  <!-- Waiting on the arena server itself (connect + auth) before we can even queue -->
+  <div id="mp-connecting-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.92);z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;">
+    <div style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ REACHING THE ARENA ✦</div>
+    <div style="width:240px;height:10px;border-radius:6px;background:rgba(167,139,250,.15);overflow:hidden;">
+      <div id="mp-connecting-bar" style="width:40%;height:100%;border-radius:6px;background:linear-gradient(90deg,#7c3aed,#a78bfa);animation:mp-loadbar 1.1s ease-in-out infinite;"></div>
+    </div>
+    <div id="mp-connecting-status" style="font-size:.75rem;color:#94a3b8;letter-spacing:.05em;">Connecting to the arena…</div>
+    <button class="bbtn bbtn-restart" style="padding:10px 26px;font-size:.85rem;" onclick="cancelConnecting()">Cancel</button>
+  </div>
+  <style>@keyframes mp-loadbar{0%{transform:translateX(-120%);}50%{transform:translateX(60%);}100%{transform:translateX(260%);}}</style>
 
   <!-- Multiplayer matchmaking overlay -->
   <div id="mp-queue-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.92);z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;">
@@ -1856,7 +1865,6 @@ const Effects = {
   cryo:        {name:"Cryo",        type:"cryo",        color:"#0e7490",trigger:"onTurnStart",logic(c,x){const dmg=10;c.currentHp-=dmg;log(`${c.name} cryo 10!`);if(Math.random()<.5){log(`${c.name} frozen!`);x.skipTurn=true;if(x.slotId){setTimeout(()=>Anim.statusVfx(x.slotId,'cryo',true,dmg),(x.vfxDelay||0)+120);}}else{if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'cryo',false,dmg),(x.vfxDelay||0)+120);}}},
   rocks:       {name:"Rocks",       type:"rocks",       color:"#78716c",trigger:"onSwap",      logic(c,x){}}
 };
-function hasEffect(card,type){return card&&card.activeEffects.some(e=>e.type===type);}
 
 /* ── ELEMENT REGISTRY ─────────────────────────────────── */
 const Elements={
@@ -1873,62 +1881,13 @@ const Elements={
 };
 
 /* ── CARD DATABASE ────────────────────────────────────── */
-const CardDB=[
-  {id:"venom_spider",rarity:"common",name:"Skrix the Venom Weaver",hp:80,types:["mob"],classification:"pests",image:"spider.png",
-   topEffect:{type:"passive",name:"Toxic Hide",value:0,effects:[],
-     passiveReduction:{flat:10,exceptElements:['lightning']},
-     description:"−10 flat dmg. Immune to Poison. Lightning bypasses."},
-   bottomAttack:{name:"Venom Bite",damage:20,element:"poison",effects:[{type:"poison",duration:3}]}},
-  {id:"plague_rat",rarity:"common",name:"Gruk the Plague Spreader",hp:60,types:["mob"],classification:"pests",image:"rat.png",
-   topEffect:{type:"attack",name:"Gnaw",value:15,element:"shadow",effects:[{type:"bleed",duration:2}]},
-   bottomAttack:{name:"Plague Bite",damage:10,element:"poison",effects:[{type:"strongPoison",duration:2}]}},
-  {id:"ember_witch",rarity:"uncommon",name:"Solvara the Ember Witch",hp:70,types:["wizard"],classification:"pests",image:"witch.png",
-   topEffect:{type:"ability",name:"Hex Aura",value:0,element:"arcane",effects:[{type:"curse",duration:3}],description:"On deploy: enemy gains Curse."},
-   bottomAttack:{name:"Fireball",damage:30,element:"fire",effects:[{type:"burn",duration:2}]}},
-  {id:"frost_crawler",rarity:"uncommon",name:"Glacius the Frost Crawler",hp:100,types:["mob"],classification:"pests",image:"crawler.png",
-   topEffect:{type:"passive",name:"Icy Shell",value:0,element:null,effects:[{type:"soak",duration:9999}],
-     passiveReduction:{percent:0.35,exceptElements:['fire']},
-     description:"−35% incoming dmg. Fire bypasses. Always Soaked."},
-   bottomAttack:{name:"Frost Bite",damage:25,element:"ice",effects:[{type:"cryo",duration:2}]}},
-  {id:"shock_beetle",rarity:"common",name:"Zoltaxx the Storm Beetle",hp:65,types:["mob"],classification:"pests",image:"beetle.png",
-   topEffect:{type:"passive",name:"Static Field",value:0,element:"lightning",effects:[],
-     passiveReduction:{percent:0.20,exceptElements:['water','ice']},
-     description:"−20% incoming dmg. Water & Ice bypass."},
-   bottomAttack:{name:"Zap Sting",damage:22,element:"lightning",effects:[{type:"shock",duration:2},{type:"confusion",duration:1}]}},
-  {id:"shadow_rat",rarity:"common",name:"Nyxor the Shadow Gnawer",hp:55,types:["mob"],classification:"pests",image:"shadow_rat.png",
-   topEffect:{type:"attack",name:"Ambush",value:25,element:"shadow",effects:[{type:"paralyze",duration:1}]},
-   bottomAttack:{name:"Shadow Bite",damage:18,element:"shadow",effects:[{type:"sleep",duration:1}]}},
-  {id:"cursed_golem",rarity:"rare",name:"Thrakk the Cursed Colossus",hp:130,types:["mob"],classification:"pests",image:"golem.png",
-   topEffect:{type:"passive",name:"Stone Curse",value:0,element:null,effects:[{type:"curse",duration:9999}],
-     passiveReduction:{flat:18,exceptElements:['water']},
-     description:"−18 flat dmg. 25% recoil on attackers. Water bypasses."},
-   bottomAttack:{name:"Boulder Slam",damage:35,element:"earth",effects:[{type:"rocks",duration:2}]}},
-  {id:"swarm_queen",rarity:"rare",name:"Vexa the Swarm Empress",hp:120,types:["mob","wizard"],classification:"boss",image:"queen.png",
-   topEffect:{type:"attack",name:"Summon Swarm",value:30,element:"nature",effects:[{type:"bleed",duration:3},{type:"poison",duration:2}]},
-   bottomAttack:{name:"Queen's Wrath",damage:35,element:"poison",effects:[{type:"mythicPoison",duration:1}]}},
-  {id:"plague_dragon",rarity:"epic",name:"Morthaax the Plague Wyrm",hp:200,types:["dragon"],classification:"boss",image:"dragon.png",
-   topEffect:{type:"passive",name:"Plague Hide",value:0,element:"poison",effects:[],
-     passiveReduction:{percent:0.25,exceptElements:['wind','nature']},
-     description:"−25% incoming dmg. Wind & Nature bypass."},
-   bottomAttack:{name:"Dragon Crush",damage:55,element:"earth",effects:[{type:"rocks",duration:2},{type:"strongPoison",duration:3},{type:"burn",duration:2}]}},
-  {id:"the_overlord",rarity:"mythic",name:"Vaelkor the Infinite Overlord",hp:300,types:["mob","wizard","dragon"],classification:"overlord",image:"overlord.png",
-   topEffect:{type:"passive",name:"Void Mantle",value:0,element:"arcane",effects:[],
-     passiveReduction:{percent:0.40,flat:15,exceptElements:['arcane']},
-     description:"−40% then −15 flat incoming dmg. Arcane bypasses."},
-   bottomAttack:{name:"World's End",damage:90,element:"fire",effects:[{type:"bleed",duration:3},{type:"burn",duration:2},{type:"shock",duration:2},{type:"rocks",duration:2},{type:"mythicPoison",duration:2},{type:"curse",duration:3},{type:"cryo",duration:2}]}},
-  /* ── WEAPONS ── */
-  {id:"iron_blade",    rarity:"common",  cardType:"weapon", name:"Iron Blade",     flatBonus:15, maxDurability:3, image:"sword.png"},
-  {id:"venom_dagger",  rarity:"common",  cardType:"weapon", name:"Venom Dagger",   flatBonus:10, maxDurability:5, image:"dagger.png"},
-  {id:"war_axe",       rarity:"uncommon",cardType:"weapon", name:"War Axe",        flatBonus:28, maxDurability:2, image:"axe.png"},
-  {id:"cursed_blade",  rarity:"rare",    cardType:"weapon", name:"Cursed Blade",   flatBonus:20, maxDurability:3, image:"cblade.png"},
-  {id:"inferno_shard", rarity:"epic",    cardType:"weapon", name:"Inferno Shard",  flatBonus:35, maxDurability:1, image:"shard.png"},
-  /* ── DEFENSES ── */
-  {id:"wooden_shield", rarity:"common",  cardType:"defense", name:"Wooden Shield",  flatBonus:10, maxDurability:3, image:"shield.png"},
-  {id:"iron_armor",    rarity:"uncommon",cardType:"defense", name:"Iron Armor",     flatBonus:20, maxDurability:2, image:"armor.png"},
-  {id:"barrier_rune",  rarity:"common",  cardType:"defense", name:"Barrier Rune",   flatBonus:15, maxDurability:4, image:"rune.png"},
-  {id:"dragon_scale",  rarity:"epic",    cardType:"defense", name:"Dragon Scale",   flatBonus:30, maxDurability:2, image:"dscale.png"},
-  {id:"mirror_ward",   rarity:"legendary",cardType:"defense", name:"Mirror Ward",    flatBonus:12, maxDurability:5, image:"ward.png"}
-];
+/* Populated at boot by loadCardLibrary() from the arena server's /cards.json —
+ * the single canonical copy of every card's stats. The client never hardcodes
+ * its own card data anymore, so there's nothing here to tamper with: either
+ * you're playing with the server's real numbers, or the hash check at auth
+ * time refuses to let you queue at all. */
+let CardDB=[];
+let CardLibraryHash=null;
 
 /* ── CARD FACTORY ─────────────────────────────────────── */
 function createCard(baseId){
@@ -1950,7 +1909,7 @@ function createCard(baseId){
 const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,actedThisTurn:new Set(),
   player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]},
   enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]}};
-/* multiplayer flags — false/0 for the local practice-vs-AI mode (untouched by anything below) */
+/* multiplayer flags — false/0 until a real match is found and beginMultiplayerMatch() runs */
 State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';
 
 /* ── HAND TRAY ───────────────────────────────────────── */
@@ -2043,63 +2002,8 @@ function deployFromInspect(target){
   if(index<0)return;
   const card=State.player.hand[index];
   if(!card)return;
-
-  if(State.mp){
-    // server owns the real hand/board — just send the intent and wait for the authoritative 'state' push
-    Net.send({type:'deploy', instanceId:card.instanceId});
-    return;
-  }
-
-  const pw=Anim.power(card);
-
-  if(target==='weapon'){
-    const old=State.player.weaponCard;
-    State.player.weaponCard=card;State.player.hand.splice(index,1);
-    if(old)State.player.hand.push(old);
-    updateUI();
-    setTimeout(()=>Anim.deployAnim('player-weapon-slot',pw),20);
-
-  } else if(target==='defense'){
-    const old=State.player.defenseCard;
-    State.player.defenseCard=card;State.player.hand.splice(index,1);
-    if(old)State.player.hand.push(old);
-    updateUI();
-    setTimeout(()=>Anim.deployAnim('player-defense-slot',pw),20);
-
-  } else if(target==='slot1'){
-    if(!State.player.activeCard){
-      // empty — straight deploy
-      State.player.activeCard=card;State.player.hand.splice(index,1);
-      if(card.topEffect.type==='ability'&&card.topEffect.effects.length>0&&State.enemy.activeCard)
-        card.topEffect.effects.forEach(eff=>applyEffectToCard(State.enemy.activeCard,eff));
-      updateUI();
-      setTimeout(()=>Anim.deployAnim('player-active-slot',pw),20);
-    } else {
-      // swap
-      triggerRocks(State.enemy,card);
-      const old=State.player.activeCard;
-      Anim.swapAnim('player-active-slot',()=>{
-        State.player.activeCard=card;State.player.hand.splice(index,1);State.player.hand.push(old);
-        updateUI();
-      });
-    }
-
-  } else if(target==='slot2'){
-    if(!State.player.activeCard2){
-      State.player.activeCard2=card;State.player.hand.splice(index,1);
-      if(card.topEffect.type==='ability'&&card.topEffect.effects.length>0&&State.enemy.activeCard)
-        card.topEffect.effects.forEach(eff=>applyEffectToCard(State.enemy.activeCard,eff));
-      updateUI();
-      setTimeout(()=>Anim.deployAnim('player-active-slot-2',pw),20);
-    } else {
-      triggerRocks(State.enemy,card);
-      const old=State.player.activeCard2;
-      Anim.swapAnim('player-active-slot-2',()=>{
-        State.player.activeCard2=card;State.player.hand.splice(index,1);State.player.hand.push(old);
-        updateUI();
-      });
-    }
-  }
+  // server owns the real hand/board — just send the intent and wait for the authoritative 'state' push
+  Net.send({type:'deploy', instanceId:card.instanceId});
 }
 
 function renderHandTray(){
@@ -2140,210 +2044,12 @@ function initHandTray(){
   document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeInspect(); });
 }
 
-/* ── INIT ─────────────────────────────────────────────── */
-function initGame(){
-  document.getElementById('game-over').style.display='none';
-  document.getElementById('coinflip-overlay').classList.remove('open');
-  _handVisible=false;
-  document.getElementById('hand-tray').classList.remove('visible');
-  // Build player deck from saved deck or random
-  const buildPlayerDeck=()=>{
-    if(Player.deck&&Player.deck.length>=4){
-      const d=Player.deck.map(id=>createCard(id)).filter(Boolean);
-      if(d.length>=4) return d;
-    }
-    return generateDeck(10);
-  };
-  ['player','enemy'].forEach(s=>{
-    State[s].hp=100;State[s].activeCard=null;State[s].activeCard2=null;State[s].weaponCard=null;State[s].defenseCard=null;
-    State[s].deck=s==='player'?buildPlayerDeck():generateDeck(10);
-    State[s].hand=State[s].deck.splice(0,4);
-  });
-  State.turn='PLAYER';State.phase='SETUP';State.selectedSlot=null;State.pendingTarget=null;State.actedThisTurn=new Set();
-  aiSetupBoard();
-  const lbl=document.getElementById('turn-label');
-  const ph=document.getElementById('phase-label');
-  lbl.innerText='SETUP PHASE';lbl.style.color='#a78bfa';
-  ph.innerText='DEPLOY YOUR CARDS';
-  updateUI();
-}
-
-function aiSetupBoard(){
-  // Fill weapon
-  if(!State.enemy.weaponCard){const i=State.enemy.hand.findIndex(c=>c.cardType==='weapon');
-    if(i!==-1)State.enemy.weaponCard=State.enemy.hand.splice(i,1)[0];}
-  // Fill defense
-  if(!State.enemy.defenseCard){const i=State.enemy.hand.findIndex(c=>c.cardType==='defense');
-    if(i!==-1)State.enemy.defenseCard=State.enemy.hand.splice(i,1)[0];}
-  // Fill active slot 1
-  if(!State.enemy.activeCard){const i=State.enemy.hand.findIndex(c=>!c.cardType);
-    if(i!==-1)State.enemy.activeCard=State.enemy.hand.splice(i,1)[0];}
-  // Fill active slot 2
-  if(!State.enemy.activeCard2){const i=State.enemy.hand.findIndex(c=>!c.cardType);
-    if(i!==-1)State.enemy.activeCard2=State.enemy.hand.splice(i,1)[0];}
-}
-
 function readyToBattle(){
-  if(State.mp){
-    Net.send({type:'ready_battle'});
-    showToast('Waiting for opponent...');
-    return;
-  }
-  // Player also silently fills any remaining empty slots they missed (optional QoL: we skip this and just flip)
-  showCoinFlip(winner=>{
-    setTimeout(()=>{
-      document.getElementById('coinflip-overlay').classList.remove('open');
-      startTurn(winner);
-    },200);
-  });
+  Net.send({type:'ready_battle'});
+  showToast('Waiting for opponent...');
 }
-
-function showCoinFlip(callback){
-  const ov=document.getElementById('coinflip-overlay');
-  const coin=document.getElementById('coin');
-  const resultEl=document.getElementById('coinflip-result');
-  const subEl=document.getElementById('coinflip-sub');
-  // Reset
-  resultEl.classList.remove('show');subEl.classList.remove('show');
-  resultEl.textContent='';subEl.textContent='';
-  coin.classList.remove('flipping');
-  void coin.offsetWidth; // force reflow to restart animation
-  ov.classList.add('open');
-  const playerWins=Math.random()<0.5;
-  // rotateY lands on player face (0°/360°) or enemy face (180°)
-  // Base spin ~1800° + adjustment to land on correct face
-  const finalRot=playerWins?1800:1980;
-  coin.style.setProperty('--final-rot',finalRot+'deg');
-  setTimeout(()=>{
-    coin.classList.add('flipping');
-    setTimeout(()=>{
-      resultEl.textContent=playerWins?'YOU GO FIRST!':'OPPONENT GOES FIRST!';
-      resultEl.style.color=playerWins?'#3b82f6':'#ef4444';
-      subEl.textContent=playerWins?'Your coin came up — strike first!':'The enemy coin came up — brace yourself!';
-      resultEl.classList.add('show');subEl.classList.add('show');
-      setTimeout(()=>callback(playerWins?'PLAYER':'ENEMY'),1900);
-    },3000);
-  },180);
-}
-function generateDeck(n){
-  const creatures=CardDB.filter(c=>!c.cardType);
-  const equipment=CardDB.filter(c=>c.cardType==='weapon'||c.cardType==='defense');
-  const d=[];
-  for(let i=0;i<n;i++){
-    const useEquip=equipment.length>0&&Math.random()<0.3;
-    const pool=useEquip?equipment:creatures;
-    const p=pool[Math.floor(Math.random()*pool.length)];
-    const c=createCard(p.id);if(c)d.push(c);
-  }
-  return d;
-}
-
-/* ── EFFECT MECHANICS ─────────────────────────────────── */
-function applyEffectToCard(target,effectDef){
-  const eDef=Effects[effectDef.type];if(!eDef)return;
-  const ex=target.activeEffects.find(e=>e.type===effectDef.type);
-  if(ex){if(effectDef.duration<9999)ex.duration=Math.min(9999,ex.duration+effectDef.duration);}
-  else target.activeEffects.push({type:effectDef.type,duration:effectDef.duration});
-}
-/* set of effect types that produce a visible animation (used for stagger timing) */
-const VFX_EFFECTS=new Set(['bleed','poison','strongPoison','mythicPoison','burn','shock','cryo','sleep','paralyze']);
-const VFX_STAGGER=580; // ms between sequential status-effect visuals
-
-function processEffects(entity,trigger,ctx){
-  const isPlayer=entity===State.player;
-  let vfxDelay=0;
-  [[entity.activeCard,'slot1'],[entity.activeCard2,'slot2']].forEach(([card,slot])=>{
-    if(!card)return;
-    const slotId=isPlayer
-      ?(slot==='slot1'?'player-active-slot':'player-active-slot-2')
-      :(slot==='slot1'?'enemy-active-slot':'enemy-active-slot-2');
-    for(let i=card.activeEffects.length-1;i>=0;i--){
-      const ed=card.activeEffects[i];const eDef=Effects[ed.type];
-      if(!eDef||eDef.trigger!==trigger)continue;
-      ctx.slotId=slotId;
-      ctx.vfxDelay=vfxDelay;
-      eDef.logic(card,ctx);
-      if(VFX_EFFECTS.has(ed.type))vfxDelay+=VFX_STAGGER;
-      if(trigger==='onTurnStart'&&ed.duration<9999){ed.duration--;if(ed.duration<=0)card.activeEffects.splice(i,1);}
-    }
-  });
-}
-function checkCardDeath(actorKey){
-  const e=State[actorKey.toLowerCase()];
-  const pfx=actorKey==='PLAYER'?'player':'enemy';
-  if(e.activeCard&&e.activeCard.currentHp<=0){
-    Anim.deathAnim(`${pfx}-active-slot`,e.activeCard);
-    log(`${e.activeCard.name} destroyed!`);e.activeCard=null;
-  }
-  if(e.activeCard2&&e.activeCard2.currentHp<=0){
-    Anim.deathAnim(`${pfx}-active-slot-2`,e.activeCard2);
-    log(`${e.activeCard2.name} destroyed!`);e.activeCard2=null;
-  }
-}
-
-/* ── TURN FLOW ────────────────────────────────────────── */
-function startTurn(actor){
-  State.turn=actor;State.phase='START';State.selectedSlot=null;State.pendingTarget=null;State.actedThisTurn=new Set();
-  const lbl=document.getElementById('turn-label');
-  const ph=document.getElementById('phase-label');
-  if(actor==='PLAYER'){lbl.innerText="PLAYER'S TURN";lbl.style.color='#93c5fd';}
-  else{lbl.innerText="ENEMY'S TURN";lbl.style.color='#f87171';}
-  ph.innerText='START PHASE';
-  const entity=State[actor.toLowerCase()];
-  if(entity.deck.length>0&&entity.hand.length<6)entity.hand.push(entity.deck.pop());
-  const ctx={skipTurn:false};
-  if(entity.activeCard){processEffects(entity,'onTurnStart',ctx);checkCardDeath(actor);}
-  updateUI();
-  if(ctx.skipTurn){setTimeout(()=>{actor==='PLAYER'?endPlayerTurn():endEnemyTurn();},1400);return;}
-  State.phase='MAIN';ph.innerText='MAIN PHASE';
-  if(actor==='ENEMY')setTimeout(executeAITurn,900);
-  updateUI();
-}
-function endPlayerTurn(){
-  if(State.mp){ if(State.turn==='PLAYER') Net.send({type:'end_turn'}); return; }
-  if(State.turn!=='PLAYER')return;State.phase='END';startTurn('ENEMY');
-}
-function endEnemyTurn(){State.phase='END';startTurn('PLAYER');}
 
 /* ── PLAYER ACTIONS ───────────────────────────────────── */
-function playCard(index){
-  if(State.turn!=='PLAYER'||State.phase!=='MAIN')return;
-  const card=State.player.hand[index];
-  const pw=Anim.power(card);
-  let deploySlotId=null;
-  if(card.cardType==='weapon'){
-    const old=State.player.weaponCard;
-    State.player.weaponCard=card;State.player.hand.splice(index,1);
-    if(old)State.player.hand.push(old);
-    deploySlotId='player-weapon-slot';
-  }else if(card.cardType==='defense'){
-    const old=State.player.defenseCard;
-    State.player.defenseCard=card;State.player.hand.splice(index,1);
-    if(old)State.player.hand.push(old);
-    deploySlotId='player-defense-slot';
-  }else if(!State.player.activeCard){
-    State.player.activeCard=card;State.player.hand.splice(index,1);
-    if(card.topEffect.type==='ability'&&card.topEffect.effects.length>0&&State.enemy.activeCard)
-      card.topEffect.effects.forEach(eff=>applyEffectToCard(State.enemy.activeCard,eff));
-    deploySlotId='player-active-slot';
-  }else if(!State.player.activeCard2){
-    State.player.activeCard2=card;State.player.hand.splice(index,1);
-    if(card.topEffect.type==='ability'&&card.topEffect.effects.length>0&&State.enemy.activeCard)
-      card.topEffect.effects.forEach(eff=>applyEffectToCard(State.enemy.activeCard,eff));
-    deploySlotId='player-active-slot-2';
-  }else{
-    triggerRocks(State.enemy,card);
-    const old=State.player.activeCard;
-    Anim.swapAnim('player-active-slot',()=>{
-      State.player.activeCard=card;State.player.hand.splice(index,1);State.player.hand.push(old);
-      updateUI();
-    });
-    return;
-  }
-  updateUI();
-  if(deploySlotId)setTimeout(()=>Anim.deployAnim(deploySlotId,pw),20);
-}
-
 function selectCard(slot){
   if(State.turn!=='PLAYER'||State.phase!=='MAIN')return;
   const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
@@ -2367,218 +2073,17 @@ function cancelPending(){
   updateUI();
 }
 
+function endPlayerTurn(){
+  if(State.turn==='PLAYER') Net.send({type:'end_turn'});
+}
+
 function executeChosenAttack(atkDefIndex){
   if(!State.selectedSlot||State.pendingTarget===null)return;
-  if(State.mp){
-    Net.send({type:'attack', slot:State.selectedSlot, target:State.pendingTarget, atkIndex:atkDefIndex});
-    State.selectedSlot=null;State.pendingTarget=null;
-    updateUI(); // server will follow up with the authoritative 'state' + animation events
-    return;
-  }
-  const atkCard=State.selectedSlot==='slot1'?State.player.activeCard:State.player.activeCard2;
-  if(!atkCard)return;
-  const targetCard=State.pendingTarget==='slot1'?State.enemy.activeCard:State.pendingTarget==='slot2'?State.enemy.activeCard2:null;
-  const atkDef=atkDefIndex===0?atkCard.topEffect:null; // 0=top, 1=bottom
-  State.phase='ATTACK';
-  if(atkDefIndex===1){
-    // bottom attack
-    executeSingleHit(atkCard,State.player,State.enemy,targetCard,atkCard.bottomAttack);
-  }else{
-    // top attack (only if it's an attack type)
-    if(atkCard.topEffect.type==='attack'){
-      executeSingleHit(atkCard,State.player,State.enemy,targetCard,{name:atkCard.topEffect.name,damage:atkCard.topEffect.value,effects:atkCard.topEffect.effects,element:atkCard.topEffect.element});
-    }
-  }
-  State.actedThisTurn.add(State.selectedSlot);
-  State.selectedSlot=null;
-  State.pendingTarget=null;
-  State.phase='MAIN';
-  checkWin();
-  updateUI();
-  // auto-end if all occupied slots have acted
-  const slot1Done=!State.player.activeCard||State.actedThisTurn.has('slot1');
-  const slot2Done=!State.player.activeCard2||State.actedThisTurn.has('slot2');
-  if(slot1Done&&slot2Done)setTimeout(endPlayerTurn,600);
+  Net.send({type:'attack', slot:State.selectedSlot, target:State.pendingTarget, atkIndex:atkDefIndex});
+  State.selectedSlot=null;State.pendingTarget=null;
+  updateUI(); // server will follow up with the authoritative 'state' + animation events
 }
 
-function triggerRocks(rocksHolder,incoming){
-  if(!rocksHolder.activeCard)return;
-  const re=rocksHolder.activeCard.activeEffects.find(e=>e.type==='rocks');if(!re)return;
-  incoming.currentHp-=50;log(`Rocks deal 50 to incoming ${incoming.name}!`);
-}
-
-/* ── COMBAT PIPELINE ──────────────────────────────────── */
-function executeCardAttack(ac,atkEntity,defEntity,targetCard){
-  // AI path — randomly picks top (if attack type) or bottom
-  const isPlayer=atkEntity===State.player;
-  const atkSlotId=isPlayer
-    ?(ac===State.player.activeCard?'player-active-slot':'player-active-slot-2')
-    :(ac===State.enemy.activeCard?'enemy-active-slot':'enemy-active-slot-2');
-  if(hasEffect(ac,'confusion')&&Math.random()<.5){log(`${ac.name} confused, misses!`);Anim.statusVfx(atkSlotId,'confusion_miss');return;}
-  if(hasEffect(ac,'shock')&&Math.random()<.5){log(`${ac.name} shocked, misses!`);Anim.statusVfx(atkSlotId,'shock_miss');return;}
-  if(hasEffect(ac,'soak')&&Math.random()<.5){log(`${ac.name} waterlogged, fumbles!`);Anim.statusVfx(atkSlotId,'soak_miss');return;}
-  let wBonus=0;
-  if(atkEntity.weaponCard){wBonus=atkEntity.weaponCard.flatBonus;atkEntity.weaponCard.currentDurability--;
-    log(`${atkEntity.weaponCard.name} +${wBonus} (${atkEntity.weaponCard.currentDurability} left)`);
-    if(atkEntity.weaponCard.currentDurability<=0){log(`${atkEntity.weaponCard.name} breaks!`);atkEntity.weaponCard=null;}}
-  let dReduce=0;
-  if(defEntity.defenseCard){dReduce=defEntity.defenseCard.flatBonus;defEntity.defenseCard.currentDurability--;
-    log(`${defEntity.defenseCard.name} blocks ${dReduce} (${defEntity.defenseCard.currentDurability} left)`);
-    if(defEntity.defenseCard.currentDurability<=0){log(`${defEntity.defenseCard.name} shatters!`);defEntity.defenseCard=null;}}
-  const useTop=ac.topEffect.type==='attack'&&Math.random()<0.5;
-  const chosen=useTop?{name:ac.topEffect.name,damage:ac.topEffect.value,effects:ac.topEffect.effects}:ac.bottomAttack;
-  hitCard(ac,atkEntity,defEntity,targetCard,chosen,wBonus,dReduce);
-}
-
-function executeSingleHit(ac,atkEntity,defEntity,targetCard,chosenAtk){
-  // Player path — single chosen attack
-  const isPlayer=atkEntity===State.player;
-  const atkSlotId=isPlayer
-    ?(ac===State.player.activeCard?'player-active-slot':'player-active-slot-2')
-    :(ac===State.enemy.activeCard?'enemy-active-slot':'enemy-active-slot-2');
-  if(hasEffect(ac,'confusion')&&Math.random()<.5){log(`${ac.name} confused, misses!`);Anim.statusVfx(atkSlotId,'confusion_miss');return;}
-  if(hasEffect(ac,'shock')&&Math.random()<.5){log(`${ac.name} shocked, misses!`);Anim.statusVfx(atkSlotId,'shock_miss');return;}
-  if(hasEffect(ac,'soak')&&Math.random()<.5){log(`${ac.name} waterlogged, fumbles!`);Anim.statusVfx(atkSlotId,'soak_miss');return;}
-  let wBonus=0;
-  if(atkEntity.weaponCard){wBonus=atkEntity.weaponCard.flatBonus;atkEntity.weaponCard.currentDurability--;
-    log(`${atkEntity.weaponCard.name} +${wBonus} (${atkEntity.weaponCard.currentDurability} left)`);
-    if(atkEntity.weaponCard.currentDurability<=0){log(`${atkEntity.weaponCard.name} breaks!`);atkEntity.weaponCard=null;}}
-  let dReduce=0;
-  if(defEntity.defenseCard){dReduce=defEntity.defenseCard.flatBonus;defEntity.defenseCard.currentDurability--;
-    log(`${defEntity.defenseCard.name} blocks ${dReduce} (${defEntity.defenseCard.currentDurability} left)`);
-    if(defEntity.defenseCard.currentDurability<=0){log(`${defEntity.defenseCard.name} shatters!`);defEntity.defenseCard=null;}}
-  hitCard(ac,atkEntity,defEntity,targetCard,chosenAtk,wBonus,dReduce);
-}
-
-function hitCard(ac,atkEntity,defEntity,targetCard,atkDef,wBonus=0,dReduce=0){
-  /* ── ANIMATION PREP ── */
-  const isPlayer=atkEntity===State.player;
-  const attackerSlotId=isPlayer
-    ?(ac===State.player.activeCard?'player-active-slot':'player-active-slot-2')
-    :(ac===State.enemy.activeCard?'enemy-active-slot':'enemy-active-slot-2');
-  let targetSlotId=null;
-  if(targetCard){
-    targetSlotId=isPlayer
-      ?(targetCard===State.enemy.activeCard?'enemy-active-slot':'enemy-active-slot-2')
-      :(targetCard===State.player.activeCard?'player-active-slot':'player-active-slot-2');
-  }
-  // Pre-calc damage for anim
-  let preDmg=atkDef.damage+wBonus;
-  if(hasEffect(ac,'burn'))preDmg=Math.floor(preDmg*.5);
-  if(targetCard){
-    if(hasEffect(targetCard,'soak'))preDmg=Math.floor(preDmg*.5);
-    const _pr=targetCard.topEffect&&targetCard.topEffect.type==='passive'?targetCard.topEffect.passiveReduction:null;
-    if(_pr){const _byp=_pr.exceptElements&&_pr.exceptElements.includes(atkDef.element);
-      if(!_byp){if(_pr.percent)preDmg=Math.floor(preDmg*(1-_pr.percent));if(_pr.flat)preDmg=Math.max(0,preDmg-_pr.flat);}}
-    preDmg=Math.max(0,preDmg-dReduce);
-  } else preDmg=Math.max(0,preDmg-dReduce);
-  Anim.attackSequence(attackerSlotId,targetSlotId,ac,targetCard,preDmg,atkDef.element,isPlayer);
-  /* ── END ANIMATION PREP ── */
-
-  let dmg=atkDef.damage+wBonus;
-  if(hasEffect(ac,'burn')){dmg=Math.floor(dmg*.5);log(`Burn halves ${ac.name}'s attack!`);Anim.statusVfx(attackerSlotId,'burn',false,0);}
-  if(!targetCard){
-    dmg=Math.max(0,dmg-dReduce);defEntity.hp-=dmg;log(`${ac.name} → ${atkDef.name} deals ${dmg} direct!`);
-  }else{
-    if(hasEffect(targetCard,'soak')){dmg=Math.floor(dmg*.5);log(`${targetCard.name} soaks! Only ${dmg}`);}
-    // ── PASSIVE DAMAGE REDUCTION ──
-    const pr=targetCard.topEffect&&targetCard.topEffect.type==='passive'?targetCard.topEffect.passiveReduction:null;
-    if(pr){
-      const bypassed=pr.exceptElements&&pr.exceptElements.includes(atkDef.element);
-      if(bypassed){
-        log(`${atkDef.element} pierces ${targetCard.name}'s passive! Full damage.`);
-      }else{
-        if(pr.percent){const red=dmg-Math.floor(dmg*(1-pr.percent));dmg=Math.floor(dmg*(1-pr.percent));log(`${targetCard.name} passive: -${red} (${Math.round(pr.percent*100)}% reduction)`);}
-        if(pr.flat){const red=Math.min(dmg,pr.flat);dmg=Math.max(0,dmg-pr.flat);log(`${targetCard.name} passive: -${red} flat`);}
-      }
-    }
-    dmg=Math.max(0,dmg-dReduce);
-    targetCard.currentHp-=dmg;log(`${ac.name} hits ${targetCard.name} — ${atkDef.name} ${dmg} dmg`);
-    atkDef.effects.forEach(eff=>applyEffectToCard(targetCard,eff));
-    if(hasEffect(targetCard,'curse')){
-      const r=Math.floor(dmg*.25);ac.currentHp-=r;log(`Curse! ${r} recoil to ${ac.name}`);
-      if(ac.currentHp<=0){
-        log(`${ac.name} killed by Curse!`);
-        // Death anim for attacker
-        const atkSlot=document.getElementById(attackerSlotId);
-        if(atkSlot)Anim.deathAnim(attackerSlotId,ac);
-        if(atkEntity.activeCard===ac)atkEntity.activeCard=null;else atkEntity.activeCard2=null;
-        updateUI();return;
-      }
-    }
-    if(targetCard.currentHp<=0){
-      const ex=Math.abs(targetCard.currentHp);log(`${targetCard.name} destroyed!`);
-      // Death anim for target
-      if(targetSlotId)Anim.deathAnim(targetSlotId,targetCard);
-      if(defEntity.activeCard===targetCard)defEntity.activeCard=null;else defEntity.activeCard2=null;
-      if(ex>0){defEntity.hp-=ex;log(`${ex} excess dmg!`);}
-    }
-  }
-  updateUI();
-}
-
-function checkWin(){
-  if(State.enemy.hp<=0)showGameOver('VICTORY','#10b981');
-  else if(State.player.hp<=0)showGameOver('DEFEAT','#ef4444');
-}
-function showGameOver(t,c){document.getElementById('game-over').style.display='flex';const el=document.getElementById('game-over-text');el.innerText=t;el.style.color=c;}
-
-/* ── AI ───────────────────────────────────────────────── */
-function executeAITurn(){
-  if(State.turn!=='ENEMY'||State.phase!=='MAIN')return;
-  // equip from hand
-  if(!State.enemy.weaponCard){
-    const ei=State.enemy.hand.findIndex(c=>c.cardType==='weapon');
-    if(ei!==-1){State.enemy.weaponCard=State.enemy.hand.splice(ei,1)[0];updateUI();
-      setTimeout(()=>Anim.deployAnim('enemy-weapon-slot',Anim.power(State.enemy.weaponCard)),20);}
-  }
-  if(!State.enemy.defenseCard){
-    const ei=State.enemy.hand.findIndex(c=>c.cardType==='defense');
-    if(ei!==-1){State.enemy.defenseCard=State.enemy.hand.splice(ei,1)[0];updateUI();
-      setTimeout(()=>Anim.deployAnim('enemy-defense-slot',Anim.power(State.enemy.defenseCard)),20);}
-  }
-  // fill active slots
-  if(!State.enemy.activeCard){
-    const ri=State.enemy.hand.findIndex(c=>!c.cardType);
-    if(ri!==-1){State.enemy.activeCard=State.enemy.hand.splice(ri,1)[0];updateUI();
-      setTimeout(()=>Anim.deployAnim('enemy-active-slot',Anim.power(State.enemy.activeCard)),20);}
-  }
-  if(!State.enemy.activeCard2){
-    const ri=State.enemy.hand.findIndex(c=>!c.cardType);
-    if(ri!==-1){State.enemy.activeCard2=State.enemy.hand.splice(ri,1)[0];updateUI();
-      setTimeout(()=>Anim.deployAnim('enemy-active-slot-2',Anim.power(State.enemy.activeCard2)),20);}
-  }
-
-  // pick a random player target (slot1, slot2, or direct)
-  function pickTarget(){
-    const opts=[];
-    if(State.player.activeCard)opts.push(State.player.activeCard);
-    if(State.player.activeCard2)opts.push(State.player.activeCard2);
-    if(opts.length===0||Math.random()<0.2)return null; // direct
-    return opts[Math.floor(Math.random()*opts.length)];
-  }
-
-  // card 1 attacks
-  const doCard1=()=>{
-    if(State.enemy.activeCard&&!State.actedThisTurn.has('slot1')){
-      executeCardAttack(State.enemy.activeCard,State.enemy,State.player,pickTarget());
-      State.actedThisTurn.add('slot1');
-      checkWin();updateUI();
-    }
-  };
-  // card 2 attacks
-  const doCard2=()=>{
-    if(State.enemy.activeCard2&&!State.actedThisTurn.has('slot2')){
-      executeCardAttack(State.enemy.activeCard2,State.enemy,State.player,pickTarget());
-      State.actedThisTurn.add('slot2');
-      checkWin();updateUI();
-    }
-  };
-
-  setTimeout(()=>{doCard1();setTimeout(()=>{doCard2();setTimeout(endEnemyTurn,700);},700);},700);
-}
-
-/* ── EQUIPMENT CARD RENDERER ──────────────────────────── */
 function renderEquipCard(card,interactable,index=-1,extraClass=''){
   if(!card)return'';
   const onclick=interactable?`onclick="inspectCard(${index})"`:'';
@@ -2860,13 +2365,6 @@ function enterArena(){
 function showMenu(){
   refreshMenuUI();
   showScreen('menu-screen');
-}
-
-function startGame(){
-  showScreen('game');
-  initGame();
-  initHandTray();
-  setTimeout(showHandTray,400);
 }
 
 function returnToMenu(){
@@ -3698,17 +3196,6 @@ function closePack(){
   _packCards=[];_packFlipped=[];_packTorn=false;_packDef=null;
 }
 
-const _origShowGameOver=window.showGameOver||(()=>{});
-function showGameOver(t,c){
-  document.getElementById('game-over').style.display='flex';
-  const el=document.getElementById('game-over-text');
-  el.innerText=t;el.style.color=c;
-  if(t==='VICTORY'){ Player.wins++; Player.gold+=50; showToast(' Victory! +50 Gold'); }
-  else { Player.losses++; }
-  savePlayer();
-  refreshMenuUI();
-}
-
 /* ══════════════════════════════════════
    START SCREEN RUNE ENGINE
 ══════════════════════════════════════ */
@@ -4140,8 +3627,9 @@ function runImpactReveal(def,cardEl,onRevealed){
    Talks to the arena-server WebSocket. The server is authoritative for
    combat, gold, gems, the card collection, and the saved deck — this
    module only ever sends intents and renders whatever the server sends
-   back. Practice-vs-AI mode (everything above this point) is untouched
-   and keeps working exactly as before, online or offline.
+   back. Every match — including the quiet bot-fallback matches the
+   server hands out when no real opponent is found in time — flows
+   through this same layer, so the client can't tell the difference.
 ══════════════════════════════════════════════════════════════════ */
 
 /* Point this at your arena-server deployment. Override by setting
@@ -4151,6 +3639,28 @@ function resolveArenaWsUrl(){
   const q=new URLSearchParams(location.search).get('ws');
   if(q) return q;
   return 'ws://localhost:8787';
+}
+function resolveArenaHttpUrl(){
+  return resolveArenaWsUrl().replace(/^ws:/,'http:').replace(/^wss:/,'https:');
+}
+
+async function sha256Hex(text){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/** Fetches the one canonical card library from the arena server itself —
+ * the client never ships its own copy of card stats, so there's nothing
+ * local to tamper with. Must resolve before anything that reads CardDB
+ * (menu, deck builder, matches) is allowed to run. */
+async function loadCardLibrary(){
+  const res=await fetch(resolveArenaHttpUrl()+'/cards.json');
+  if(!res.ok) throw new Error('cards.json fetch failed: '+res.status);
+  const rawText=await res.text();
+  const parsed=JSON.parse(rawText);
+  if(!Array.isArray(parsed)||!parsed.length) throw new Error('cards.json was empty/invalid');
+  CardDB=parsed;
+  CardLibraryHash=await sha256Hex(rawText);
 }
 
 const Net={
@@ -4180,11 +3690,12 @@ const Net={
   },
 
   authenticate(){
+    if(!CardLibraryHash){ setTimeout(()=>this.authenticate(),200); return; }
     if(!Player.guestId){
       Player.guestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('g-'+Date.now()+'-'+Math.random().toString(16).slice(2));
       savePlayer();
     }
-    this.send({type:'auth', guestId:Player.guestId, name:Player.name||'Pestmaster'});
+    this.send({type:'auth', guestId:Player.guestId, name:Player.name||'Pestmaster', cardLibraryHash:CardLibraryHash});
   },
 
   send(obj){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj)); },
@@ -4202,7 +3713,17 @@ const Net={
       case 'match_over': handleMatchOver(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': handlePackResult(msg); break;
-      case 'error': showToast('⚠ '+(msg.reason||'Something went wrong')); break;
+      case 'error':
+        if(msg.reason==='card_library_mismatch'){
+          const overlay=document.getElementById('mp-connecting-overlay');
+          if(overlay&&overlay.style.display==='flex'){
+            hideConnectingOverlay();
+          }
+          showToast('⚠ Your game files are out of date — please hard-refresh (Ctrl/Cmd+Shift+R) and try again.', 6000);
+        } else {
+          showToast('⚠ '+(msg.reason||'Something went wrong'));
+        }
+        break;
     }
   },
 };
@@ -4221,16 +3742,40 @@ function applyServerProfile(p){
 }
 
 /* ── MATCHMAKING ENTRY POINTS (wired to the new menu button) ── */
+let _connectingInterval=null;
+function showConnectingOverlay(status){
+  document.getElementById('mp-connecting-overlay').style.display='flex';
+  document.getElementById('mp-connecting-status').textContent=status;
+}
+function hideConnectingOverlay(){
+  document.getElementById('mp-connecting-overlay').style.display='none';
+  clearInterval(_connectingInterval); _connectingInterval=null;
+}
+function cancelConnecting(){
+  hideConnectingOverlay();
+}
+
 function startMultiplayerGame(){
-  if(!Net.connected){
-    Net.connect();
-    showToast('Connecting to the arena…');
-    setTimeout(()=>{ if(Net.connected&&Net.authed) startMultiplayerGame(); else if(!Net.connected) showToast('Could not reach the arena server.'); },1400);
+  if(Net.connected&&Net.authed){
+    document.getElementById('mp-queue-overlay').style.display='flex';
+    Net.send({type:'queue_join'});
     return;
   }
-  if(!Net.authed){ setTimeout(startMultiplayerGame,300); return; }
-  document.getElementById('mp-queue-overlay').style.display='flex';
-  Net.send({type:'queue_join'});
+  if(_connectingInterval) return; // already trying — don't stack pollers
+  showConnectingOverlay('Connecting to the arena…');
+  Net.connect();
+  _connectingInterval=setInterval(()=>{
+    if(Net.connected&&Net.authed){
+      hideConnectingOverlay();
+      document.getElementById('mp-queue-overlay').style.display='flex';
+      Net.send({type:'queue_join'});
+    } else if(Net.connected){
+      showConnectingOverlay('Connected — waiting on the server…');
+    } else {
+      showConnectingOverlay('Could not reach the arena server — retrying…');
+      Net.connect();
+    }
+  },1200);
 }
 function cancelMatchmaking(){
   Net.send({type:'queue_leave'});
@@ -4424,12 +3969,25 @@ function handlePackResult(msg){
 }
 
 /* ── BOOT ─────────────────────────────────────────────── */
-window.onload=()=>{
-  loadPlayer();
+async function bootCardLibrary(){
+  for(;;){
+    try{ await loadCardLibrary(); return; }
+    catch(e){
+      console.error('[arena] failed to load card library', e);
+      showToast('⚠ Could not reach the arena server — retrying…', 4000);
+      await new Promise(r=>setTimeout(r,3000));
+    }
+  }
+}
+window.onload=async ()=>{
   Anim.init();
   // hide main board initially
   document.getElementById('main').style.display='none';
   window._startRuneEngine();
+  // the menu/deck-builder/matches all read CardDB, so it must be loaded from the
+  // server before any of that runs — there's no local fallback copy anymore.
+  await bootCardLibrary();
+  loadPlayer();
 };
 </script>
 </body>
