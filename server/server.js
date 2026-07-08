@@ -18,6 +18,8 @@
 
 require('dotenv').config();
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { createClient } = require('@supabase/supabase-js');
@@ -32,6 +34,36 @@ const WIN_GOLD_REWARD = 50;
 const TURN_TIME_MS = 45_000;      // auto end-turn after this long
 const SETUP_TIME_MS = 60_000;     // auto-ready after this long in setup
 const RECONNECT_GRACE_MS = 20_000;
+
+/* Real-opponent search window: if nobody else is in queue by the time this
+ * (randomized) window elapses, the player is quietly handed off to a
+ * server-controlled opponent instead of being left waiting. */
+const BOT_FALLBACK_MIN_MS = 13_000;
+const BOT_FALLBACK_MAX_MS = 17_000;
+
+/* ── BOT NAMES ────────────────────────────────────────────────────── */
+/** Pool of human-sounding usernames used for the fallback opponent, so it
+ * reads like any other player rather than an obvious "Bot #3". */
+let BOT_NAMES = ['Guest417', 'Player882', 'Newcomer19'];
+try {
+  const raw = fs.readFileSync(path.join(__dirname, 'names.json'), 'utf8');
+  const parsed = JSON.parse(raw);
+  if (Array.isArray(parsed) && parsed.length) BOT_NAMES = parsed;
+} catch (e) {
+  console.warn('[arena] names.json missing/invalid — falling back to a tiny built-in name list.');
+}
+const recentBotNames = []; // small rolling window to avoid back-to-back repeats
+function pickBotName() {
+  let name;
+  let attempts = 0;
+  do {
+    name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+    attempts++;
+  } while (recentBotNames.includes(name) && attempts < 8 && BOT_NAMES.length > recentBotNames.length);
+  recentBotNames.push(name);
+  if (recentBotNames.length > Math.min(6, Math.max(1, BOT_NAMES.length - 1))) recentBotNames.shift();
+  return name;
+}
 
 const supabase = HAS_SUPABASE
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
@@ -51,6 +83,8 @@ const activeMatchByUser = new Map();
 const matches = new Map();
 /** FIFO queue of userIds waiting for an opponent */
 const queue = [];
+/** userId -> pending bot-fallback Timeout, armed while that user sits in `queue` */
+const queueTimers = new Map();
 
 let nextGuestId = 1;
 
@@ -128,6 +162,10 @@ async function grantPack(userId, packId) {
   return { cards: result.cards, newBalance, currency: result.currency };
 }
 
+/** Bot opponents get a `bot:<uuid>` userId — never a real profile row, so
+ * nothing here should try to read/write one as if it belonged to a player. */
+const isBotId = id => typeof id === 'string' && id.startsWith('bot:');
+
 async function applyMatchReward(winnerId, loserId) {
   if (!HAS_SUPABASE) {
     const w = guestProfiles.get(winnerId), l = guestProfiles.get(loserId);
@@ -135,13 +173,20 @@ async function applyMatchReward(winnerId, loserId) {
     if (l) { l.losses++; }
     return { gold: WIN_GOLD_REWARD, gems: 0 };
   }
-  const { data: winner } = await supabase.from('profiles').select('gold,wins').eq('id', winnerId).maybeSingle();
-  if (winner) {
-    await supabase.from('profiles').update({ gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 }).eq('id', winnerId);
+  if (!isBotId(winnerId)) {
+    const { data: winner } = await supabase.from('profiles').select('gold,wins').eq('id', winnerId).maybeSingle();
+    if (winner) {
+      await supabase.from('profiles').update({ gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 }).eq('id', winnerId);
+    }
   }
-  const { data: loser } = await supabase.from('profiles').select('losses').eq('id', loserId).maybeSingle();
-  if (loser) await supabase.from('profiles').update({ losses: loser.losses + 1 }).eq('id', loserId);
-  await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0 });
+  if (!isBotId(loserId)) {
+    const { data: loser } = await supabase.from('profiles').select('losses').eq('id', loserId).maybeSingle();
+    if (loser) await supabase.from('profiles').update({ losses: loser.losses + 1 }).eq('id', loserId);
+  }
+  // don't log fake matches against a bot into permanent match history
+  if (!isBotId(winnerId) && !isBotId(loserId)) {
+    await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0 });
+  }
   return { gold: WIN_GOLD_REWARD, gems: 0 };
 }
 
@@ -151,6 +196,7 @@ class Connection {
     this.ws = ws;
     this.userId = null;
     this.username = null;
+    this.cardLibraryHash = null;
     this.alive = true;
     ws.on('pong', () => { this.alive = true; });
   }
@@ -387,16 +433,167 @@ class Match {
 }
 
 /* ── MATCHMAKING ──────────────────────────────────────────────────── */
+function clearQueueTimer(userId) {
+  const t = queueTimers.get(userId);
+  if (t) { clearTimeout(t); queueTimers.delete(userId); }
+}
+
+/** Arm (or re-arm) the randomized 13–17s window after which, if this user is
+ * still waiting, they're matched against a bot instead of a real opponent. */
+function armBotFallback(userId) {
+  clearQueueTimer(userId);
+  const delay = BOT_FALLBACK_MIN_MS + Math.floor(Math.random() * (BOT_FALLBACK_MAX_MS - BOT_FALLBACK_MIN_MS));
+  queueTimers.set(userId, setTimeout(() => startBotMatch(userId), delay));
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const randMs = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+
+/** Picks the next card the bot should play out of its hand: gear first (if it
+ * doesn't already have a weapon/defense equipped), then a creature/wizard
+ * card for whichever active slot is still open. Mirrors reasonable, if not
+ * perfectly optimal, human setup order. */
+function pickBotDeployCard(entity) {
+  if (!entity.weaponCard) {
+    const w = entity.hand.find(c => c.cardType === 'weapon');
+    if (w) return w;
+  }
+  if (!entity.defenseCard) {
+    const d = entity.hand.find(c => c.cardType === 'defense');
+    if (d) return d;
+  }
+  if (!entity.activeCard) {
+    const m = entity.hand.find(c => c.cardType !== 'weapon' && c.cardType !== 'defense');
+    if (m) return m;
+  }
+  if (!entity.activeCard2) {
+    const m = entity.hand.find(c => c.cardType !== 'weapon' && c.cardType !== 'defense');
+    if (m) return m;
+  }
+  return null;
+}
+
+/** Drives a bot side through an otherwise-normal Match: sets up its board
+ * during SETUP, then plays/attacks/ends turn during MAIN — all through the
+ * same handle* methods a real client's messages would hit, just with
+ * human-like pauses instead of instant, robotic timing. */
+function attachBotAI(match) {
+  const botSide = match.botSide;
+  const humanSide = match.otherSide(botSide);
+  let acting = false;
+
+  async function runSetup() {
+    while (!match.finished && match.phase === 'SETUP') {
+      const entity = match.sides[botSide];
+      const card = pickBotDeployCard(entity);
+      if (!card) break;
+      await sleep(randMs(700, 1700));
+      if (match.finished || match.phase !== 'SETUP') return;
+      match.handleDeploy(match.botUserId, { instanceId: card.instanceId });
+    }
+    if (match.finished || match.phase !== 'SETUP') return;
+    await sleep(randMs(500, 1300));
+    if (match.finished || match.phase !== 'SETUP') return;
+    match.handleReady(match.botUserId);
+  }
+
+  async function runMainTurn() {
+    if (acting) return;
+    acting = true;
+    try {
+      const entity = match.sides[botSide];
+      const stillBotsTurn = () => !match.finished && match.phase === 'MAIN' && match.turn === botSide;
+
+      // fill any open gear/creature slots before attacking, same priority as setup
+      let guard = 0;
+      let toDeploy = pickBotDeployCard(entity);
+      while (toDeploy && stillBotsTurn() && guard < 4) {
+        await sleep(randMs(500, 1300));
+        if (!stillBotsTurn()) break;
+        match.handleDeploy(match.botUserId, { instanceId: toDeploy.instanceId });
+        toDeploy = pickBotDeployCard(entity);
+        guard++;
+      }
+
+      for (const slotKey of ['slot1', 'slot2']) {
+        if (!stillBotsTurn()) break;
+        const card = slotKey === 'slot1' ? entity.activeCard : entity.activeCard2;
+        if (!card || match.actedThisTurn[botSide].has(slotKey)) continue;
+        await sleep(randMs(700, 1900));
+        if (!stillBotsTurn()) break;
+        const oppEntity = match.sides[humanSide];
+        const targetSlot = oppEntity.activeCard ? 'slot1' : (oppEntity.activeCard2 ? 'slot2' : null);
+        const atkIndex = (card.topEffect?.type === 'attack' && Math.random() < 0.5) ? 0 : 1;
+        match.handleAttack(match.botUserId, { slot: slotKey, target: targetSlot, atkIndex });
+      }
+
+      if (stillBotsTurn()) {
+        await sleep(randMs(400, 1000));
+        if (stillBotsTurn()) match.handleEndTurn(match.botUserId);
+      }
+    } finally {
+      acting = false;
+    }
+  }
+
+  runSetup();
+  const watcher = setInterval(() => {
+    if (match.finished) { clearInterval(watcher); return; }
+    if (match.phase === 'MAIN' && match.turn === botSide && !acting) runMainTurn();
+  }, 500);
+}
+
+/** Pulled from the queue once its randomized search window has elapsed with
+ * no real opponent found. Builds a normal two-sided Match — the human's
+ * client only ever sees a `match_found` with a human-sounding opponent name
+ * and never learns the other "player" is server-controlled. */
+async function startBotMatch(userId) {
+  queueTimers.delete(userId);
+  const i = queue.indexOf(userId);
+  if (i === -1) return; // already matched with a real opponent, or left the queue
+  queue.splice(i, 1);
+
+  const conn = connections.get(userId);
+  if (!conn || conn.ws.readyState !== conn.ws.OPEN) return;
+
+  try {
+    const profile = await fetchProfile(userId, conn.username);
+    const humanDeck = Engine.buildDeckFromIds(Engine.isDeckLegal(profile.deck) ? profile.deck : null);
+    const botDeck = Engine.buildDeckFromIds(null); // random deck, same as any fresh/guest opponent would get
+    const botUserId = `bot:${crypto.randomUUID()}`;
+    const botName = pickBotName();
+    const humanSide = Math.random() < 0.5 ? 0 : 1;
+
+    const uA = humanSide === 0 ? userId : botUserId;
+    const uB = humanSide === 0 ? botUserId : userId;
+    const dA = humanSide === 0 ? humanDeck : botDeck;
+    const dB = humanSide === 0 ? botDeck : humanDeck;
+
+    const match = new Match(uA, uB, dA, dB);
+    match.usernames = humanSide === 0 ? [profile.username, botName] : [botName, profile.username];
+    match.botSide = humanSide === 0 ? 1 : 0;
+    match.botUserId = botUserId;
+
+    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName });
+    match.broadcastState([]);
+    attachBotAI(match);
+  } catch (e) {
+    console.error('[arena] bot match failed', e);
+    conn.send({ type: 'error', reason: 'matchmaking_failed' });
+  }
+}
+
 async function tryMatch() {
   while (queue.length >= 2) {
     const uA = queue.shift(), uB = queue.shift();
+    clearQueueTimer(uA); clearQueueTimer(uB);
     const connA = connections.get(uA), connB = connections.get(uB);
-    if (!connA || connA.ws.readyState !== connA.ws.OPEN) { if (connB) queue.unshift(uB); continue; }
-    if (!connB || connB.ws.readyState !== connB.ws.OPEN) { queue.unshift(uA); continue; }
+    if (!connA || connA.ws.readyState !== connA.ws.OPEN) { if (connB) { queue.unshift(uB); armBotFallback(uB); } continue; }
+    if (!connB || connB.ws.readyState !== connB.ws.OPEN) { queue.unshift(uA); armBotFallback(uA); continue; }
     try {
       const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
-      const deckA = Engine.buildDeckFromIds(profileA.deck?.length >= 4 ? profileA.deck : null);
-      const deckB = Engine.buildDeckFromIds(profileB.deck?.length >= 4 ? profileB.deck : null);
+      const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
+      const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
       const match = new Match(uA, uB, deckA, deckB);
       match.usernames = [profileA.username, profileB.username];
       connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username });
@@ -413,6 +610,18 @@ async function tryMatch() {
 /* ── WS SERVER ────────────────────────────────────────────────────── */
 const server = http.createServer((req, res) => {
   if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({ ok:true, matches: matches.size, queue: queue.length })); return; }
+  if (req.url === '/cards.json') {
+    // The single canonical card library — the client fetches this instead of keeping
+    // its own hardcoded copy, so there's only ever one place "god card" stats could live.
+    res.writeHead(200, {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-cache',
+      'etag': Engine.CARD_LIBRARY_HASH,
+    });
+    res.end(Engine.CARD_LIBRARY_RAW);
+    return;
+  }
   res.writeHead(404); res.end();
 });
 const wss = new WebSocketServer({ server, perMessageDeflate: false });
@@ -427,6 +636,13 @@ wss.on('connection', (ws) => {
     // ── auth must come first ──
     if (msg.type === 'auth') {
       try {
+        // Every client must be running the exact same card library we are — this is the
+        // one gate that keeps a modified/forked client from ever getting to matchmake or
+        // play with buffed "god card" stats: if the hash of its cards.json doesn't match
+        // ours byte-for-byte, it never gets far enough to send a deploy/attack at all.
+        if (msg.cardLibraryHash !== Engine.CARD_LIBRARY_HASH) {
+          return conn.send({ type:'error', reason:'card_library_mismatch', expectedHash: Engine.CARD_LIBRARY_HASH });
+        }
         let userId, username;
         if (HAS_SUPABASE && msg.token) {
           const { data, error } = await supabase.auth.getUser(msg.token);
@@ -442,6 +658,7 @@ wss.on('connection', (ws) => {
         const existing = connections.get(userId);
         if (existing && existing.ws !== ws) existing.ws.close(4000, 'replaced');
         conn.userId = userId; conn.username = username;
+        conn.cardLibraryHash = msg.cardLibraryHash;
         connections.set(userId, conn);
 
         const inMatch = activeMatchByUser.get(userId);
@@ -462,13 +679,21 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
       case 'queue_join': {
         if (activeMatchByUser.has(userId)) return conn.send({ type:'error', reason:'already_in_match' });
+        // Re-check now, not just at auth: covers a server-side cards.json hot-reload that
+        // happened mid-session, and applies identically whether this queue_join ends up
+        // pairing with a real opponent or falling back to a bot — same gate, same code path.
+        if (conn.cardLibraryHash !== Engine.CARD_LIBRARY_HASH) {
+          return conn.send({ type:'error', reason:'card_library_mismatch', expectedHash: Engine.CARD_LIBRARY_HASH });
+        }
         if (!queue.includes(userId)) queue.push(userId);
+        armBotFallback(userId);
         conn.send({ type:'queue_status', inQueue:true });
         tryMatch();
         break;
       }
       case 'queue_leave': {
         const i = queue.indexOf(userId); if (i !== -1) queue.splice(i, 1);
+        clearQueueTimer(userId);
         conn.send({ type:'queue_status', inQueue:false });
         break;
       }
@@ -524,6 +749,7 @@ wss.on('connection', (ws) => {
     if (conn.userId && connections.get(conn.userId) === conn) {
       connections.delete(conn.userId);
       const i = queue.indexOf(conn.userId); if (i !== -1) queue.splice(i, 1);
+      clearQueueTimer(conn.userId);
       activeMatchByUser.get(conn.userId)?.handleDisconnect(conn.userId);
     }
   });
