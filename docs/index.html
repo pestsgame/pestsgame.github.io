@@ -1320,6 +1320,20 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   </div>
   <style>@keyframes mp-loadbar{0%{transform:translateX(-120%);}50%{transform:translateX(60%);}100%{transform:translateX(260%);}}</style>
 
+  <!-- Small non-blocking-feeling indicator for pack purchases — a quick round trip, not a whole screen -->
+  <div id="pack-loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.75);z-index:2100;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-family:'Cinzel',serif;">
+    <div style="display:flex;gap:8px;">
+      <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+      <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+      <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+    </div>
+    <div id="pack-loading-status" style="font-size:.75rem;color:#c4b5fd;letter-spacing:.05em;">Contacting The Archive...</div>
+  </div>
+  <style>
+    .pack-loading-dot{width:12px;height:12px;border-radius:50%;background:#a78bfa;animation:pack-dot-bounce 1s ease-in-out infinite;}
+    @keyframes pack-dot-bounce{0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;}}
+  </style>
+
   <!-- Multiplayer matchmaking overlay -->
   <div id="mp-queue-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.92);z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;">
     <div style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ FINDING OPPONENT ✦</div>
@@ -2352,14 +2366,11 @@ function switchMenuTab(tab){
 }
 
 function enterArena(){
-  const ss=document.getElementById('start-screen');
-  ss.classList.add('fade-out');
   window._stopRuneEngine&&window._stopRuneEngine();
-  Net.connect();
-  setTimeout(()=>{
-    ss.style.display='none';
+  beginServerWait(()=>{
+    document.getElementById('start-screen').style.display='none';
     showMenu();
-  },900);
+  });
 }
 
 function showMenu(){
@@ -2644,55 +2655,6 @@ const PACK_DEFS=[
    desc:'Guaranteed Epic+. No commons. Mythic is within reach.'},
 ];
 
-function rollRarityFromWeights(weights){
-  const total=Object.values(weights).reduce((s,w)=>s+w,0);
-  if(total===0) return 'common';
-  let roll=Math.random()*total;
-  for(const [key,w] of Object.entries(weights)){roll-=w;if(roll<=0)return key;}
-  return 'common';
-}
-
-function pickCardOfRarity(rarity, exclude=[], typeFilter=null){
-  const base = typeFilter ? CardDB.filter(typeFilter) : CardDB;
-  let pool = base.filter(c => c.rarity===rarity && !exclude.includes(c.id));
-
-  // Fallback: walk UP the rarity ladder to find the nearest available tier
-  if(!pool.length){
-    const order = ['common','uncommon','rare','epic','legendary','mythic'];
-    const startIdx = order.indexOf(rarity);
-    for(let i = startIdx - 1; i >= 0; i--){
-      pool = base.filter(c => c.rarity===order[i] && !exclude.includes(c.id));
-      if(pool.length) break;
-    }
-  }
-  // Last resort: anything not excluded
-  if(!pool.length) pool = base.filter(c => !exclude.includes(c.id));
-  if(!pool.length) pool = base.length ? base : CardDB;
-
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function generatePackCards(packDef){
-  const {size,weights,guarantees,filter}=packDef;
-  const cards=[],usedIds=[];
-  guarantees.forEach(minRarity=>{
-    const eligible=RARITY_ORDER.filter(r=>rarityRank(r)>=rarityRank(minRarity));
-    const sub={};eligible.forEach(r=>{if(weights[r])sub[r]=weights[r];});
-    const r=rollRarityFromWeights(Object.keys(sub).length?sub:{[minRarity]:1});
-    const card=pickCardOfRarity(r,usedIds,filter);
-    cards.push(card);usedIds.push(card.id);
-  });
-  for(let i=cards.length;i<size;i++){
-    const r=rollRarityFromWeights(weights);
-    const card=pickCardOfRarity(r,usedIds,filter);
-    cards.push(card);usedIds.push(card.id);
-  }
-  for(let i=cards.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]];
-  }
-  return cards;
-}
-
 function oddsHtml(weights){
   return Object.entries(weights).filter(([,w])=>w>0)
     .map(([r,w])=>`<span class="pack-odds-pip rarity-${r}">${RARITY_CONFIG[r].label} ${w}%</span>`).join('');
@@ -2927,26 +2889,48 @@ function buildPackSVG(packDef){
   </div>`;
 }
 
+let _packLoadingActive=false, _packLoadingPoll=null, _packLoadingTimeout=null;
+function showPackLoading(status){
+  document.getElementById('pack-loading-overlay').style.display='flex';
+  document.getElementById('pack-loading-status').textContent=status;
+}
+function hidePackLoading(){
+  document.getElementById('pack-loading-overlay').style.display='none';
+  clearInterval(_packLoadingPoll); _packLoadingPoll=null;
+  clearTimeout(_packLoadingTimeout); _packLoadingTimeout=null;
+  _packLoadingActive=false;
+}
+
 function buyPack(packId){
   const packDef=PACK_DEFS.find(p=>p.id===packId);
   if(!packDef) return;
-  if(Net.connected&&Net.authed){
-    const isGem=packDef.currency==='gems';
-    const balance=isGem?Player.gems:Player.gold;
-    if(balance<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
-    Net.send({type:'buy_pack', packId});
-    return;
-  }
   const isGem=packDef.currency==='gems';
-  const balance=isGem?Player.gems:Player.gold;
-  if(balance<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
-  if(isGem) Player.gems-=packDef.cost; else Player.gold-=packDef.cost;
-  savePlayer();
-  document.getElementById('menu-gold').textContent=Player.gold.toLocaleString();
-  document.getElementById('menu-gems').textContent=Player.gems.toLocaleString();
-  refreshMenuUI();
-  _packCards=generatePackCards(packDef);
-  openPackOverlay(packDef);
+  // Client-side balance check is just a friendly early heads-up — the server
+  // re-checks for real and is the only one that actually deducts anything.
+  if((isGem?Player.gems:Player.gold)<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
+  if(_packLoadingActive) return; // one purchase in flight at a time
+
+  _packLoadingActive=true;
+  const startedAt=Date.now();
+  const MIN_MS=450; // always visible for a beat, even if we're already connected
+  ensureCardLibrary();
+  Net.connect();
+  showPackLoading(serverIsReady()?'Contacting The Archive...':serverWaitStatusText());
+  _packLoadingPoll=setInterval(()=>{
+    if(serverIsReady() && Date.now()-startedAt>=MIN_MS){
+      clearInterval(_packLoadingPoll); _packLoadingPoll=null;
+      showPackLoading('Contacting The Archive...');
+      Net.send({type:'buy_pack', packId});
+      // safety net: if the server never answers, don't leave the dots spinning forever
+      _packLoadingTimeout=setTimeout(()=>{
+        hidePackLoading();
+        showToast('⚠ The Archive is taking too long to respond. Please try again.');
+      },12000);
+      return;
+    }
+    showPackLoading(serverWaitStatusText());
+    if(!Net.connected) Net.connect();
+  },200);
 }
 
 function openPackOverlay(packDef){
@@ -3663,6 +3647,32 @@ async function loadCardLibrary(){
   CardLibraryHash=await sha256Hex(rawText);
 }
 
+/** Memoized — the library is only ever actually downloaded once. Every call
+ * after the first (whether from boot, Enter Arena, Find Match, or opening a
+ * pack) just awaits the same in-flight/completed fetch instead of re-fetching. */
+let _cardLibraryPromise=null;
+function ensureCardLibrary(){
+  if(!_cardLibraryPromise){
+    _cardLibraryPromise=(async ()=>{
+      for(;;){
+        try{ await loadCardLibrary(); return; }
+        catch(e){ console.error('[arena] card library load failed, retrying…', e); await new Promise(r=>setTimeout(r,2500)); }
+      }
+    })();
+  }
+  return _cardLibraryPromise;
+}
+
+/** Single source of truth for "can we actually talk to the server right now" —
+ * used by every loading screen so they all agree on what "ready" means. */
+function serverIsReady(){ return !!CardLibraryHash && Net.connected && Net.authed; }
+function serverWaitStatusText(){
+  if(!CardLibraryHash) return 'Loading the card library…';
+  if(!Net.connected) return 'Could not reach the arena server — retrying…';
+  if(!Net.authed) return 'Connected — waiting on the server…';
+  return 'Ready!';
+}
+
 const Net={
   ws:null, connected:false, authed:false, inQueue:false, matchId:null,
   _reconnectTimer:null,
@@ -3712,8 +3722,9 @@ const Net={
       case 'opponent_reconnected': showToast('Opponent reconnected!'); break;
       case 'match_over': handleMatchOver(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
-      case 'pack_result': handlePackResult(msg); break;
+      case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
       case 'error':
+        hidePackLoading();
         if(msg.reason==='card_library_mismatch'){
           const overlay=document.getElementById('mp-connecting-overlay');
           if(overlay&&overlay.style.display==='flex'){
@@ -3755,27 +3766,35 @@ function cancelConnecting(){
   hideConnectingOverlay();
 }
 
+/** Shared by every "reach the server" action (Enter Arena, Find Match, and the
+ * connect-phase of a pack purchase). Always shows the loading bar the moment
+ * it's called — even if we think we're already connected — and only calls
+ * onReady() once the library is loaded, the socket is open, and auth actually
+ * came back. A small minimum display time keeps the bar from being an
+ * imperceptible flash on the common case where everything's already ready. */
+function beginServerWait(onReady){
+  const startedAt=Date.now();
+  const MIN_MS=450;
+  ensureCardLibrary();
+  Net.connect();
+  showConnectingOverlay(serverWaitStatusText());
+  clearInterval(_connectingInterval);
+  _connectingInterval=setInterval(()=>{
+    if(serverIsReady() && Date.now()-startedAt>=MIN_MS){
+      hideConnectingOverlay();
+      onReady();
+      return;
+    }
+    showConnectingOverlay(serverWaitStatusText());
+    if(!Net.connected) Net.connect();
+  },200);
+}
+
 function startMultiplayerGame(){
-  if(Net.connected&&Net.authed){
+  beginServerWait(()=>{
     document.getElementById('mp-queue-overlay').style.display='flex';
     Net.send({type:'queue_join'});
-    return;
-  }
-  if(_connectingInterval) return; // already trying — don't stack pollers
-  showConnectingOverlay('Connecting to the arena…');
-  Net.connect();
-  _connectingInterval=setInterval(()=>{
-    if(Net.connected&&Net.authed){
-      hideConnectingOverlay();
-      document.getElementById('mp-queue-overlay').style.display='flex';
-      Net.send({type:'queue_join'});
-    } else if(Net.connected){
-      showConnectingOverlay('Connected — waiting on the server…');
-    } else {
-      showConnectingOverlay('Could not reach the arena server — retrying…');
-      Net.connect();
-    }
-  },1200);
+  });
 }
 function cancelMatchmaking(){
   Net.send({type:'queue_leave'});
@@ -3969,25 +3988,15 @@ function handlePackResult(msg){
 }
 
 /* ── BOOT ─────────────────────────────────────────────── */
-async function bootCardLibrary(){
-  for(;;){
-    try{ await loadCardLibrary(); return; }
-    catch(e){
-      console.error('[arena] failed to load card library', e);
-      showToast('⚠ Could not reach the arena server — retrying…', 4000);
-      await new Promise(r=>setTimeout(r,3000));
-    }
-  }
-}
-window.onload=async ()=>{
+window.onload=()=>{
   Anim.init();
   // hide main board initially
   document.getElementById('main').style.display='none';
   window._startRuneEngine();
-  // the menu/deck-builder/matches all read CardDB, so it must be loaded from the
-  // server before any of that runs — there's no local fallback copy anymore.
-  await bootCardLibrary();
-  loadPlayer();
+  // Prefetch quietly in the background so it's likely ready by the time the player
+  // presses Enter — but Enter Arena/Find Match/pack purchases all await this same
+  // promise themselves too, showing their own loading UI if it isn't done yet.
+  ensureCardLibrary().then(loadPlayer);
 };
 </script>
 </body>
