@@ -20,7 +20,7 @@
           "lightning"
         ]
       },
-      "description": "−10 flat dmg. Immune to Poison. Lightning bypasses."
+      "description": "\u221210 flat dmg. Immune to Poison. Lightning bypasses."
     },
     "bottomAttack": {
       "name": "Venom Bite",
@@ -130,7 +130,7 @@
           "fire"
         ]
       },
-      "description": "−35% incoming dmg. Fire bypasses. Always Soaked."
+      "description": "\u221235% incoming dmg. Fire bypasses. Always Soaked."
     },
     "bottomAttack": {
       "name": "Frost Bite",
@@ -167,7 +167,7 @@
           "ice"
         ]
       },
-      "description": "−20% incoming dmg. Water & Ice bypass."
+      "description": "\u221220% incoming dmg. Water & Ice bypass."
     },
     "bottomAttack": {
       "name": "Zap Sting",
@@ -246,7 +246,7 @@
           "water"
         ]
       },
-      "description": "−18 flat dmg. 25% recoil on attackers. Water bypasses."
+      "description": "\u221218 flat dmg. 25% recoil on attackers. Water bypasses."
     },
     "bottomAttack": {
       "name": "Boulder Slam",
@@ -322,7 +322,7 @@
           "nature"
         ]
       },
-      "description": "−25% incoming dmg. Wind & Nature bypass."
+      "description": "\u221225% incoming dmg. Wind & Nature bypass."
     },
     "bottomAttack": {
       "name": "Dragon Crush",
@@ -369,7 +369,7 @@
           "arcane"
         ]
       },
-      "description": "−40% then −15 flat incoming dmg. Arcane bypasses."
+      "description": "\u221240% then \u221215 flat incoming dmg. Arcane bypasses."
     },
     "bottomAttack": {
       "name": "World's End",
@@ -496,5 +496,163 @@
     "flatBonus": 12,
     "maxDurability": 5,
     "image": "ward.png"
+  },
+  {
+    "id": "phoenix_moth",
+    "rarity": "epic",
+    "name": "Emberwing, the Phoenix Moth",
+    "hp": 90,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "moth.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Ashen Rebirth",
+      "value": 0,
+      "effects": [],
+      "revive": {
+        "guaranteed": 1,
+        "chance": 0.3,
+        "healPercent": 0.5
+      },
+      "description": "Revives once guaranteed at 50% HP. After that, 30% chance to revive again on any death."
+    },
+    "bottomAttack": {
+      "name": "Cinder Wing",
+      "damage": 20,
+      "element": "fire",
+      "effects": [
+        {
+          "type": "burn",
+          "duration": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "frenzied_mantis",
+    "rarity": "uncommon",
+    "name": "Frenzied Mantis",
+    "hp": 70,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "mantis.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "None",
+      "value": 0,
+      "effects": [],
+      "description": "No passive \u2014 multi-attack lives on its bottom attack instead."
+    },
+    "bottomAttack": {
+      "name": "Scythe Slash",
+      "damage": 18,
+      "element": "wind",
+      "effects": [],
+      "multiAttack": {
+        "chance": 0.35,
+        "maxExtra": 2
+      },
+      "description": "After landing a hit, 35% chance to strike again (up to 2 bonus swings)."
+    }
+  },
+  {
+    "id": "sap_priestess",
+    "rarity": "rare",
+    "name": "Sap Priestess",
+    "hp": 75,
+    "types": [
+      "wizard"
+    ],
+    "classification": "pests",
+    "image": "priestess.png",
+    "topEffect": {
+      "type": "ability",
+      "name": "Verdant Blessing",
+      "value": 0,
+      "element": "nature",
+      "effects": [],
+      "heal": {
+        "amount": 25,
+        "target": "ally"
+      },
+      "description": "On deploy: heals your other active card for 25."
+    },
+    "bottomAttack": {
+      "name": "Mending Vine",
+      "damage": 20,
+      "element": "nature",
+      "effects": [],
+      "heal": true,
+      "healTarget": "self",
+      "description": "Heals itself for 20 instead of dealing damage."
+    }
+  },
+  {
+    "id": "twin_fang_alpha",
+    "rarity": "rare",
+    "name": "Twin Fang \u2014 Alpha",
+    "hp": 60,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "fang_alpha.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Packbond (Alpha)",
+      "value": 0,
+      "effects": [],
+      "synergy": {
+        "partnerId": "twin_fang_beta",
+        "bonusHp": 15,
+        "bonusDamage": 10,
+        "shareAttack": true
+      },
+      "description": "Alone, this top slot does nothing. If Twin Fang \u2014 Beta is in your deck: +15 max HP, +10 dmg on all attacks, and this top slot becomes a copy of Beta's bottom attack."
+    },
+    "bottomAttack": {
+      "name": "Fang Rush",
+      "damage": 22,
+      "element": "shadow",
+      "effects": [
+        {
+          "type": "bleed",
+          "duration": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "twin_fang_beta",
+    "rarity": "rare",
+    "name": "Twin Fang \u2014 Beta",
+    "hp": 65,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "fang_beta.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Packbond (Beta)",
+      "value": 0,
+      "effects": [],
+      "synergy": {
+        "partnerId": "twin_fang_alpha",
+        "shareAttack": true
+      },
+      "description": "Alone, this top slot does nothing. If Twin Fang \u2014 Alpha is in your deck, this top slot becomes a copy of Alpha's bottom attack."
+    },
+    "bottomAttack": {
+      "name": "Claw Swipe",
+      "damage": 16,
+      "element": "shadow",
+      "effects": []
+    }
   }
 ]
