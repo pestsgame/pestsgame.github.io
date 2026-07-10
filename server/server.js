@@ -317,11 +317,11 @@ class Match {
       events.push({ t:'deploy', side, slotType:'defense', card });
     } else if (!entity.activeCard) {
       entity.activeCard = card; entity.hand.splice(idx, 1);
-      this.applyDeployAbility(side, card, events);
+      Engine.applyDeployAbility(this.sides, side, card, events);
       events.push({ t:'deploy', side, slotType:'slot1', card, swapped:false });
     } else if (!entity.activeCard2) {
       entity.activeCard2 = card; entity.hand.splice(idx, 1);
-      this.applyDeployAbility(side, card, events);
+      Engine.applyDeployAbility(this.sides, side, card, events);
       events.push({ t:'deploy', side, slotType:'slot2', card, swapped:false });
     } else {
       // swap into slot1 — triggers rocks trap from the opposing active card, exactly like the client
@@ -333,17 +333,6 @@ class Match {
     }
     this.broadcastState(events);
     if (this.phase === 'SETUP') this.armSetupTimer();
-  }
-
-  applyDeployAbility(side, card, events) {
-    if (card.topEffect?.type === 'ability' && card.topEffect.effects?.length) {
-      const opp = this.sides[this.otherSide(side)];
-      const target = opp.activeCard || opp.activeCard2;
-      if (target) {
-        card.topEffect.effects.forEach(eff => Engine.applyEffectToCard(target, eff));
-        events.push({ t:'ability', card: card.instanceId, target: target.instanceId });
-      }
-    }
   }
 
   handleReady(userId) {
@@ -359,7 +348,7 @@ class Match {
     if (this.phase !== 'MAIN' || this.turn !== side) return this.errTo(userId, 'not_your_turn');
     const slot = msg.slot === 'slot2' ? 'slot2' : 'slot1';
     const target = msg.target === 'slot1' || msg.target === 'slot2' ? msg.target : null;
-    const atkIndex = msg.atkIndex === 0 ? 0 : 1;
+    const atkIndex = [0, 1].includes(msg.atkIndex) ? msg.atkIndex : 1;
 
     const result = Engine.executeAttack(this, side, slot, target, atkIndex);
     if (!result.ok) return this.errTo(userId, result.reason);
