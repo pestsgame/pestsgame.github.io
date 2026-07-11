@@ -92,7 +92,9 @@ let nextGuestId = 1;
 // The server is the only thing that ever writes these fields, and it only
 // ever accepts values from these lists — an emoji/theme the client didn't
 // offer never reaches Postgres, no matter what a modified client sends.
-const PROFILE_ICONS = ['✦','🐛','🕷️','🦂','🐜','🦗','🪲','🐝','👑','💀','🔥','⚔️','🛡️','🌙','☠️','🧿'];
+// Icon values are ids (not emoji) — the client maps each id to a custom SVG
+// glyph it draws itself. Keep this list in sync with ICON_SVGS in docs/index.html.
+const PROFILE_ICONS = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'];
 const PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
 const BIO_MAX = 140;
 const USERNAME_MAX = 24;
@@ -127,7 +129,7 @@ async function fetchProfile(userId, fallbackName) {
   if (!HAS_SUPABASE) {
     if (!guestProfiles.has(userId)) {
       guestProfiles.set(userId, { id: userId, username: fallbackName || `Guest${nextGuestId++}`,
-        gold: 500, gems: 25, wins: 0, losses: 0, icon: '✦', banner: 'violet', bio: '', favoriteCards: [],
+        gold: 500, gems: 25, wins: 0, losses: 0, icon: 'star', banner: 'violet', bio: '', favoriteCards: [],
         collection: seedStarterIds(), deck: [] });
     }
     return guestProfiles.get(userId);
@@ -151,7 +153,7 @@ async function fetchProfile(userId, fallbackName) {
   return {
     id: profile.id, username: profile.username, gold: profile.gold, gems: profile.gems,
     wins: profile.wins, losses: profile.losses,
-    icon: profile.icon || '✦', banner: profile.banner || 'violet', bio: profile.bio || '',
+    icon: profile.icon || 'star', banner: profile.banner || 'violet', bio: profile.bio || '',
     favoriteCards: profile.favorite_cards || [],
     collection: (cardRows || []).flatMap(r => Array(r.quantity).fill(r.card_id)),
     deck: (deckRow && deckRow.card_ids) || [],
@@ -785,6 +787,21 @@ wss.on('connection', (ws) => {
       case 'get_profile': {
         try { conn.send({ type:'profile', profile: await fetchProfile(userId, conn.username) }); }
         catch (e) { conn.send({ type:'error', reason:'profile_fetch_failed' }); }
+        break;
+      }
+      case 'view_profile': {
+        // Read-only lookup of any player's profile (self or, in future, an
+        // opponent) — strips wallet balances and the full collection/deck,
+        // since only the requesting player's own client should ever see
+        // those for themselves via `get_profile`/`auth_ok`.
+        try {
+          const targetId = typeof msg.userId === 'string' && msg.userId ? msg.userId : userId;
+          const target = await fetchProfile(targetId, targetId === userId ? conn.username : undefined);
+          const { gold, gems, deck, ...publicFields } = target; // wallet + active deck stay private
+          conn.send({ type:'player_profile', profile: publicFields });
+        } catch (e) {
+          conn.send({ type:'error', reason:'profile_fetch_failed' });
+        }
         break;
       }
       case 'update_profile': {
