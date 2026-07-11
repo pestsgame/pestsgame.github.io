@@ -493,9 +493,12 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 
 /* top bar */
 .menu-topbar{height:62px;flex-shrink:0;background:rgba(6,6,16,.97);border-bottom:1px solid rgba(139,92,246,.18);display:flex;align-items:center;justify-content:space-between;padding:0 22px;box-shadow:0 2px 22px rgba(0,0,0,.55);gap:14px;}
-.profile-section{display:flex;align-items:center;gap:12px;flex-shrink:0;}
-.profile-avatar{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:radial-gradient(circle at 38% 35%,#1a0a3a,#060614);border:2px solid rgba(139,92,246,.6);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1rem;font-weight:900;color:#c4b5fd;box-shadow:0 0 16px rgba(139,92,246,.4);cursor:pointer;transition:box-shadow .2s,border-color .2s;}
+.profile-section{display:flex;align-items:center;gap:12px;flex-shrink:0;cursor:pointer;border-radius:10px;padding:4px 8px 4px 4px;transition:background .18s;}
+.profile-section:hover{background:rgba(139,92,246,.08);}
+.profile-section:hover .profile-name{color:#fff;}
+.profile-avatar{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:radial-gradient(circle at 38% 35%,#1a0a3a,#060614);border:2px solid rgba(139,92,246,.6);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1.05rem;font-weight:900;color:#c4b5fd;box-shadow:0 0 16px rgba(139,92,246,.4);cursor:pointer;transition:box-shadow .2s,border-color .2s;position:relative;}
 .profile-avatar:hover{border-color:rgba(196,181,253,.9);box-shadow:0 0 28px rgba(139,92,246,.7);}
+.profile-avatar::after{content:'';position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:22px;height:3px;border-radius:3px;background:var(--banner-grad,linear-gradient(90deg,#8b5cf6,#c4b5fd));}
 .profile-info{display:flex;flex-direction:column;gap:2px;}
 .profile-name{font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;color:#e9d5ff;letter-spacing:.07em;}
 .profile-stats{font-size:.6rem;font-weight:600;letter-spacing:.08em;color:rgba(196,181,253,.8);text-transform:uppercase;}
@@ -572,15 +575,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .deckbuilder-collection{padding:20px;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;}
 .deckbuilder-deck-panel{padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;background:rgba(0,0,0,.25);scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;}
 .card-grid-small{display:flex;flex-wrap:wrap;gap:10px;}
-.mini-card{width:130px;padding:10px 11px;border-radius:8px;background:linear-gradient(160deg,rgba(18,14,32,.97),rgba(8,6,18,.99));border:1px solid rgba(255,255,255,.08);cursor:pointer;transition:transform .18s,border-color .18s,box-shadow .18s;display:flex;flex-direction:column;gap:5px;position:relative;}
-.mini-card:hover{transform:translateY(-4px);border-color:rgba(139,92,246,.55);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
-.mini-card.in-deck{border-color:rgba(59,130,246,.6);box-shadow:0 0 12px rgba(59,130,246,.25);}
-.mini-card.in-deck::after{content:'✓';position:absolute;top:5px;right:7px;font-size:.65rem;font-weight:900;color:#60a5fa;font-family:'Cinzel',serif;}
-.mini-card-name{font-family:'Cinzel',serif;font-size:.62rem;font-weight:700;color:#eef2ff;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.mini-card-type{font-size:.55rem;color:rgba(156,163,175,.85);text-transform:uppercase;letter-spacing:.07em;}
-.mini-card-stat{font-size:.64rem;font-weight:700;color:#fca5a5;letter-spacing:.04em;}
-.mini-card-stat.weapon{color:#fde68a;}.mini-card-stat.defense{color:#60a5fa;}
-.mini-card-cls{font-size:.54rem;padding:1px 6px;border-radius:3px;background:rgba(139,92,246,.15);color:rgba(196,181,253,.85);letter-spacing:.08em;text-transform:uppercase;align-self:flex-start;}
+.db-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
+.db-card-slot .card{border-color:var(--rarity-color);cursor:pointer;}
+.db-card-slot:hover{transform:translateY(-4px);border-color:var(--rarity-color);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
+.db-card-slot.in-deck{border-color:#60a5fa;box-shadow:0 0 14px rgba(59,130,246,.35);}
+.db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
 .deck-list-inner{display:flex;flex-direction:column;gap:7px;flex:1;}
 .deck-slot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);font-family:'Cinzel',serif;font-size:.64rem;color:#e9d5ff;letter-spacing:.04em;}
 .deck-slot.empty{color:rgba(255,255,255,.15);border-style:dashed;justify-content:center;}
@@ -777,11 +776,9 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 /* collection */
 .shop-collection-wrap{padding:0 24px 28px;}
-.shop-collection-grid{display:flex;flex-wrap:wrap;gap:6px;}
-.shop-coll-card{padding:7px 9px;border-radius:7px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;gap:3px;width:116px;position:relative;}
-.shop-coll-card-name{font-family:'Cinzel',serif;font-size:.56rem;font-weight:700;color:#eef2ff;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:28px;}
-.shop-coll-card-type{font-size:.5rem;color:rgba(156,163,175,.7);text-transform:uppercase;letter-spacing:.06em;}
-.shop-coll-card-rarity{position:absolute;top:6px;right:6px;}
+.shop-collection-grid{display:flex;flex-wrap:wrap;gap:10px;}
+.shop-coll-card-slot{position:relative;}
+.shop-coll-qty{position:absolute;bottom:6px;right:6px;background:rgba(5,6,15,.88);border:1px solid rgba(167,139,250,.5);color:#e9d5ff;font-family:'Cinzel',serif;font-size:.6rem;font-weight:900;letter-spacing:.03em;padding:2px 7px;border-radius:20px;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
 .market-card-rarity{font-size:.48rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:3px;}
 
 /* toast */
@@ -800,12 +797,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 @keyframes mythicShimmer{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
 .rarity-mythic{background:linear-gradient(90deg,rgba(217,70,239,.22),rgba(99,102,241,.22),rgba(217,70,239,.22));background-size:200% 100%;animation:mythicShimmer 2.2s linear infinite;}
 
-/* mini-card rarity border tint */
-.mini-card[data-rarity="uncommon"]{border-color:rgba(52,211,153,.3);}
-.mini-card[data-rarity="rare"]{border-color:rgba(129,140,248,.4);}
-.mini-card[data-rarity="epic"]{border-color:rgba(245,158,11,.45);}
-.mini-card[data-rarity="legendary"]{border-color:rgba(239,68,68,.5);}
-.mini-card[data-rarity="mythic"]{border-color:rgba(217,70,239,.55);}
+
 
 /* market rarity border tint */
 .market-card[data-rarity="uncommon"]{border-color:rgba(52,211,153,.28);}
@@ -1045,6 +1037,68 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 #pack-collect-btn:hover{transform:translateY(-2px);box-shadow:0 4px 30px rgba(16,185,129,.4);}
 #pack-collect-btn.hidden{display:none;}
+
+/* ══════════════════════════════════════
+   PROFILE MODAL
+══════════════════════════════════════ */
+.banner-violet  {background:linear-gradient(120deg,#3b0764,#7c3aed 55%,#c4b5fd);}
+.banner-crimson {background:linear-gradient(120deg,#450a0a,#dc2626 55%,#fca5a5);}
+.banner-emerald {background:linear-gradient(120deg,#022c22,#059669 55%,#6ee7b7);}
+.banner-gold    {background:linear-gradient(120deg,#451a03,#d97706 55%,#fde68a);}
+.banner-azure   {background:linear-gradient(120deg,#0c1e3e,#2563eb 55%,#93c5fd);}
+.banner-obsidian{background:linear-gradient(120deg,#050508,#1f2937 55%,#9ca3af);}
+.banner-rose    {background:linear-gradient(120deg,#4a0a2a,#db2777 55%,#f9a8d4);}
+.banner-storm   {background:linear-gradient(120deg,#082f2c,#0891b2 55%,#67e8f9);}
+
+#profile-overlay{
+  display:none;position:fixed;inset:0;z-index:1100;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#profile-overlay.open{display:flex;}
+.profile-modal{
+  width:min(560px,92vw);max-height:88vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;
+  background:var(--panel);border:1px solid rgba(139,92,246,.25);border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  transform:scale(.94) translateY(10px);opacity:0;transition:transform .28s cubic-bezier(.34,1.44,.64,1),opacity .2s;
+}
+#profile-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
+.profile-modal-hero{position:relative;height:110px;border-radius:16px 16px 0 0;overflow:hidden;}
+.profile-modal-hero .close-x{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;z-index:2;}
+.profile-modal-hero .close-x:hover{background:rgba(0,0,0,.55);}
+.profile-modal-avatar{
+  position:absolute;left:22px;bottom:-30px;width:74px;height:74px;border-radius:50%;
+  background:radial-gradient(circle at 38% 35%,#1a0a3a,#060614);border:3px solid var(--bg);
+  display:flex;align-items:center;justify-content:center;font-size:2rem;box-shadow:0 6px 18px rgba(0,0,0,.5);
+}
+.profile-modal-body{padding:42px 24px 24px;display:flex;flex-direction:column;gap:22px;}
+.pf-field-label{font-family:'Cinzel',serif;font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(196,181,253,.75);margin-bottom:8px;display:block;}
+.pf-name-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:600;outline:none;transition:border-color .15s;}
+.pf-name-input:focus{border-color:rgba(139,92,246,.6);}
+.pf-bio-input{width:100%;min-height:64px;resize:vertical;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.85rem;outline:none;transition:border-color .15s;}
+.pf-bio-input:focus{border-color:rgba(139,92,246,.6);}
+.pf-bio-count{font-size:.58rem;color:var(--txt-muted);text-align:right;margin-top:4px;}
+.pf-icon-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.pf-icon-swatch{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.04);border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:1.15rem;cursor:pointer;transition:transform .15s,border-color .15s;}
+.pf-icon-swatch:hover{transform:translateY(-2px);}
+.pf-icon-swatch.selected{border-color:#a78bfa;box-shadow:0 0 12px rgba(139,92,246,.5);}
+.pf-banner-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.pf-banner-swatch{width:44px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;}
+.pf-banner-swatch:hover{transform:translateY(-2px);}
+.pf-banner-swatch.selected{border-color:#fff;box-shadow:0 0 12px rgba(139,92,246,.5);}
+.pf-fav-hint{font-size:.62rem;color:var(--txt-muted);margin-bottom:10px;}
+.pf-fav-grid{display:flex;flex-wrap:wrap;gap:10px;max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;padding:2px;}
+.fav-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
+.fav-card-slot .card{cursor:pointer;}
+.fav-card-slot:hover{transform:translateY(-4px);}
+.fav-card-slot.selected{border-color:#fbbf24;box-shadow:0 0 14px rgba(251,191,36,.4);}
+.fav-card-slot.selected::after{content:'★ SHOWCASE';position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#1a1400;background:linear-gradient(135deg,#fde68a,#f59e0b);padding:2px 8px;border-radius:20px;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
+.profile-modal-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:6px;border-top:1px solid rgba(255,255,255,.06);}
+.pf-btn{padding:10px 22px;border-radius:7px;cursor:pointer;font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fff;border:1px solid rgba(255,255,255,.15);transition:transform .12s,box-shadow .18s;}
+.pf-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5);}
+.pf-btn:active{transform:scale(.96);}
+.pf-btn-save{background:linear-gradient(135deg,#2d1a5e,#7c3aed);border-color:#5b21b6;}
+.pf-btn-cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--txt-muted);}
 </style>
 </head>
 <body>
@@ -1072,7 +1126,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
   <!-- top bar -->
   <div class="menu-topbar">
-    <div class="profile-section">
+    <div class="profile-section" onclick="openProfileModal()">
       <div class="profile-avatar" id="menu-avatar">✦</div>
       <div class="profile-info">
         <div class="profile-name" id="menu-profile-name">Pestmaster</div>
@@ -1156,7 +1210,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
             </div>
             <div class="play-stat-card">
               <div class="play-stat-label">Deck</div>
-              <div class="play-stat-value" id="pnl-deck">0/10</div>
+              <div class="play-stat-value" id="pnl-deck">0/16</div>
             </div>
           </div>
           <button class="play-battle-btn" onclick="startMultiplayerGame()">⚔ Find Match ⚔</button>
@@ -1168,7 +1222,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="menu-panel" id="menu-panel-deck">
         <div class="panel-topbar">
           <div class="panel-title">✦ Deck Builder</div>
-          <div class="panel-meta" id="menu-deck-count">0 / 10 cards in deck</div>
+          <div class="panel-meta" id="menu-deck-count">0 / 16 cards in deck</div>
         </div>
         <div class="deckbuilder-body">
           <div class="deckbuilder-collection">
@@ -1176,7 +1230,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
             <div class="card-grid-small" id="db-collection-grid"></div>
           </div>
           <div class="deckbuilder-deck-panel">
-            <div class="subscreen-section-label">Current Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/10</span></div>
+            <div class="subscreen-section-label">Current Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/16</span></div>
             <div class="deck-list-inner" id="db-deck-list"></div>
             <button class="deck-save-btn" onclick="saveDeck()">Save Deck</button>
           </div>
@@ -1402,6 +1456,44 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 <!-- ══════ ANIMATION LAYER ══════ -->
 <div id="anim-layer" style="position:fixed;inset:0;pointer-events:none;z-index:1100;overflow:hidden;"></div>
+
+<!-- ══════ PROFILE MODAL ══════ -->
+<div id="profile-overlay" onclick="handleProfileBackdrop(event)">
+  <div class="profile-modal" onclick="event.stopPropagation()">
+    <div class="profile-modal-hero banner-violet" id="pf-hero">
+      <div class="close-x" onclick="closeProfileModal()">✕</div>
+      <div class="profile-modal-avatar" id="pf-avatar-preview">✦</div>
+    </div>
+    <div class="profile-modal-body">
+      <div>
+        <label class="pf-field-label">Display Name</label>
+        <input type="text" id="pf-name-input" class="pf-name-input" maxlength="24" placeholder="Pestmaster">
+      </div>
+      <div>
+        <label class="pf-field-label">Icon</label>
+        <div class="pf-icon-grid" id="pf-icon-grid"></div>
+      </div>
+      <div>
+        <label class="pf-field-label">Banner</label>
+        <div class="pf-banner-grid" id="pf-banner-grid"></div>
+      </div>
+      <div>
+        <label class="pf-field-label">Description</label>
+        <textarea id="pf-bio-input" class="pf-bio-input" maxlength="140" placeholder="Say something about yourself…" oninput="updateBioCount()"></textarea>
+        <div class="pf-bio-count" id="pf-bio-count">0 / 140</div>
+      </div>
+      <div>
+        <label class="pf-field-label">Showcase Cards <span style="color:var(--txt-muted);text-transform:none;letter-spacing:0;">(pick up to 3)</span></label>
+        <div class="pf-fav-hint" id="pf-fav-hint">0 / 3 selected</div>
+        <div class="pf-fav-grid" id="pf-fav-grid"></div>
+      </div>
+      <div class="profile-modal-actions">
+        <button class="pf-btn pf-btn-cancel" onclick="closeProfileModal()">Cancel</button>
+        <button class="pf-btn pf-btn-save" onclick="saveProfileEdits()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══════ INSPECT OVERLAY ══════ -->
 <div id="inspect-overlay" onclick="handleInspectBackdrop(event)">
@@ -2169,7 +2261,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
   }
   const ba=card.bottomAttack;
   const baSfx=ba.effects.map(e=>{const n=Effects[e.type]?.name||e.type;return e.duration>=9999?n:`${n} (lasts ${e.duration} turns)`;}).join(', ');
-  const cls=card.classification?card.classification.toUpperCase():'';
+  const cls=(card.classification&&card.classification!=='normal')?card.classification.toUpperCase():'';
   const clsLabels=cls?`
     <div class="card-class-label left">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>
     <div class="card-class-label right">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>`:'';
@@ -2316,8 +2408,28 @@ const Player = {
   losses: 0,
   gold: 500,
   gems: 25,
+  icon: '✦',
+  banner: 'violet',
+  bio: '',
+  favoriteCards: [], // up to 3 card ids chosen to showcase on the profile
   collection: [], // array of card ids owned
-  deck: [],       // array of card ids in current deck (max 10)
+  deck: [],       // array of card ids in current deck (must be exactly DECK_SIZE)
+};
+
+// Default picker options — replaced with the server's exact allow-lists on auth_ok
+// so the UI never offers something the server would reject.
+let PROFILE_ICONS = ['✦','🐛','🕷️','🦂','🐜','🦗','🪲','🐝','👑','💀','🔥','⚔️','🛡️','🌙','☠️','🧿'];
+let PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
+let PROFILE_BIO_MAX = 140;
+const BANNER_GRADIENTS = {
+  violet:   'linear-gradient(90deg,#7c3aed,#c4b5fd)',
+  crimson:  'linear-gradient(90deg,#dc2626,#fca5a5)',
+  emerald:  'linear-gradient(90deg,#059669,#6ee7b7)',
+  gold:     'linear-gradient(90deg,#d97706,#fde68a)',
+  azure:    'linear-gradient(90deg,#2563eb,#93c5fd)',
+  obsidian: 'linear-gradient(90deg,#1f2937,#9ca3af)',
+  rose:     'linear-gradient(90deg,#db2777,#f9a8d4)',
+  storm:    'linear-gradient(90deg,#0891b2,#67e8f9)',
 };
 
 function savePlayer(){ try{localStorage.setItem('aop_player',JSON.stringify(Player));}catch(e){} }
@@ -2330,12 +2442,130 @@ function loadPlayer(){
   }catch(e){ seedStarterCollection(); }
 }
 function seedStarterCollection(){
-  // Give the player one of each card as a starter set
-  Player.collection = CardDB.slice(0,Math.min(12,CardDB.length)).map(c=>c.id);
+  // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
+  // (or special Pests-tier) cards at all, so it's legal by construction — a
+  // new player can hit "Save Deck" immediately using their whole starter
+  // collection as their first deck.
+  const equipment=CardDB.filter(c=>c.cardType==='weapon'||c.cardType==='defense').map(c=>c.id);
+  const normals=CardDB.filter(c=>!c.cardType&&c.classification==='normal').map(c=>c.id);
+  Player.collection=[...equipment,...normals].slice(0,DECK_SIZE);
   savePlayer();
 }
 
-/* ── TOAST ────────────────────────────────────────────── */
+/* ── PROFILE MODAL (edit name/icon/banner/bio/showcase cards) ───── */
+let _pfEditIcon='✦', _pfEditBanner='violet', _pfEditFavorites=[];
+
+function openProfileModal(){
+  _pfEditIcon = Player.icon || '✦';
+  _pfEditBanner = Player.banner || 'violet';
+  _pfEditFavorites = [...(Player.favoriteCards||[])].slice(0,3);
+  document.getElementById('pf-name-input').value = Player.name || '';
+  document.getElementById('pf-bio-input').value = Player.bio || '';
+  document.getElementById('pf-bio-input').maxLength = PROFILE_BIO_MAX;
+  updateBioCount();
+  renderProfileIconGrid();
+  renderProfileBannerGrid();
+  renderProfileFavGrid();
+  updatePfHeroPreview();
+  const ov=document.getElementById('profile-overlay');
+  ov.classList.add('open');
+}
+
+function closeProfileModal(){
+  document.getElementById('profile-overlay').classList.remove('open');
+}
+
+function handleProfileBackdrop(e){
+  if(e.target===document.getElementById('profile-overlay')) closeProfileModal();
+}
+
+function updatePfHeroPreview(){
+  document.getElementById('pf-avatar-preview').textContent=_pfEditIcon;
+  const hero=document.getElementById('pf-hero');
+  hero.className='profile-modal-hero banner-'+_pfEditBanner;
+}
+
+function renderProfileIconGrid(){
+  const grid=document.getElementById('pf-icon-grid');
+  grid.innerHTML='';
+  PROFILE_ICONS.forEach(icon=>{
+    const sel=icon===_pfEditIcon?' selected':'';
+    grid.innerHTML+=`<div class="pf-icon-swatch${sel}" onclick="selectProfileIcon('${icon}')">${icon}</div>`;
+  });
+}
+function selectProfileIcon(icon){
+  _pfEditIcon=icon;
+  renderProfileIconGrid();
+  updatePfHeroPreview();
+}
+
+function renderProfileBannerGrid(){
+  const grid=document.getElementById('pf-banner-grid');
+  grid.innerHTML='';
+  PROFILE_BANNERS.forEach(banner=>{
+    const sel=banner===_pfEditBanner?' selected':'';
+    grid.innerHTML+=`<div class="pf-banner-swatch banner-${banner}${sel}" onclick="selectProfileBanner('${banner}')" title="${banner}"></div>`;
+  });
+}
+function selectProfileBanner(banner){
+  _pfEditBanner=banner;
+  renderProfileBannerGrid();
+  updatePfHeroPreview();
+}
+
+function updateBioCount(){
+  const v=document.getElementById('pf-bio-input').value;
+  document.getElementById('pf-bio-count').textContent=`${v.length} / ${PROFILE_BIO_MAX}`;
+}
+
+function renderProfileFavGrid(){
+  const grid=document.getElementById('pf-fav-grid');
+  const hint=document.getElementById('pf-fav-hint');
+  hint.textContent=`${_pfEditFavorites.length} / 3 selected`;
+  grid.innerHTML='';
+  const owned=Player.collection.length?Player.collection:CardDB.map(c=>c.id);
+  const uniqueOwned=[...new Set(owned)];
+  if(!uniqueOwned.length){
+    grid.innerHTML='<div style="color:var(--txt-muted);font-size:.7rem;">No cards owned yet — open a pack first!</div>';
+    return;
+  }
+  uniqueOwned.forEach(id=>{
+    const def=CardDB.find(c=>c.id===id);
+    if(!def)return;
+    const isSel=_pfEditFavorites.includes(id);
+    const displayCard=defToDisplayCard(def);
+    grid.innerHTML+=`<div class="fav-card-slot${isSel?' selected':''}" onclick="toggleProfileFavorite('${id}')">
+      ${renderCard(displayCard,false,-1,'')}
+    </div>`;
+  });
+}
+
+function toggleProfileFavorite(id){
+  const idx=_pfEditFavorites.indexOf(id);
+  if(idx!==-1){
+    _pfEditFavorites.splice(idx,1);
+  } else {
+    if(_pfEditFavorites.length>=3){ showToast('You can only showcase 3 cards — remove one first.'); return; }
+    _pfEditFavorites.push(id);
+  }
+  renderProfileFavGrid();
+}
+
+function saveProfileEdits(){
+  const name=document.getElementById('pf-name-input').value.trim().slice(0,24);
+  const bio=document.getElementById('pf-bio-input').value.trim().slice(0,PROFILE_BIO_MAX);
+  if(!name){ showToast('⚠ Display name can\'t be empty.'); return; }
+  Net.send({
+    type:'update_profile',
+    username:name,
+    icon:_pfEditIcon,
+    banner:_pfEditBanner,
+    bio,
+    favoriteCards:_pfEditFavorites,
+  });
+}
+
+
 let _toastTimer=null;
 function showToast(msg,dur=2200){
   const t=document.getElementById('toast');
@@ -2349,15 +2579,18 @@ function refreshMenuUI(){
   document.getElementById('menu-gold').textContent = Player.gold.toLocaleString();
   document.getElementById('menu-gems').textContent = Player.gems.toLocaleString();
   document.getElementById('menu-profile-name').textContent = Player.name;
+  document.getElementById('menu-avatar').textContent = Player.icon || '✦';
+  const avatarEl=document.getElementById('menu-avatar');
+  avatarEl.style.setProperty('--banner-grad', BANNER_GRADIENTS[Player.banner] || BANNER_GRADIENTS.violet);
   const rank = Player.wins>=20?'Gold':Player.wins>=10?'Silver':'Bronze';
   document.getElementById('menu-profile-stats').textContent=`${Player.wins}W · ${Player.losses}L · Rank: ${rank}`;
   document.getElementById('menu-win-record').textContent=`${Player.wins} Wins · ${Player.losses} Losses`;
-  document.getElementById('menu-deck-count').textContent=`${Player.deck.length} / 10 cards in deck`;
+  document.getElementById('menu-deck-count').textContent=`${Player.deck.length} / ${DECK_SIZE} cards in deck`;
   document.getElementById('menu-collection-count').textContent=`${Player.collection.length} cards owned`;
   const ew=document.getElementById('pnl-wins');const el=document.getElementById('pnl-losses');
   const er=document.getElementById('pnl-rank');const ed=document.getElementById('pnl-deck');
   if(ew)ew.textContent=Player.wins;if(el)el.textContent=Player.losses;
-  if(er)er.textContent=rank;if(ed)ed.textContent=`${Player.deck.length}/10`;
+  if(er)er.textContent=rank;if(ed)ed.textContent=`${Player.deck.length}/${DECK_SIZE}`;
 }
 
 /* ── SCREEN NAVIGATION ────────────────────────────────── */
@@ -2420,6 +2653,41 @@ function openMarket(){
 function closeMarket(){ showMenu(); }
 
 /* ── DECK BUILDER ─────────────────────────────────────── */
+const DECK_SIZE=16; // must match Engine.DECK_SIZE on the server
+
+/** Mirrors the server's game-engine.js deckClassificationOk() rule:
+ * at most one BOSS-or-OVERLORD card total, and if that card is an
+ * OVERLORD, no PESTS or BOSS cards may ride along with it. */
+function deckComposition(ids){
+  return ids.map(id=>CardDB.find(c=>c.id===id)?.classification).filter(Boolean);
+}
+function isDeckCompositionLegal(ids){
+  const classes=deckComposition(ids);
+  const bossOrOverlordCount=classes.filter(c=>c==='boss'||c==='overlord').length;
+  if(bossOrOverlordCount>1) return false;
+  if(classes.includes('overlord') && classes.some(c=>c==='pests'||c==='boss')) return false;
+  return true;
+}
+/** Checks whether `id` can be added to the working deck right now, given the
+ * boss/overlord rule. Returns {ok:true} or {ok:false, reason}. */
+function canAddCardToDeck(id){
+  const def=CardDB.find(c=>c.id===id);
+  const cls=def?.classification;
+  if(!cls) return {ok:true}; // weapons/defense cards have no classification restriction
+  const existing=deckComposition(_dbDeck);
+  const hasBossOrOverlord=existing.some(c=>c==='boss'||c==='overlord');
+  if((cls==='boss'||cls==='overlord') && hasBossOrOverlord){
+    return {ok:false, reason:'Only one Boss or Overlord card is allowed per deck.'};
+  }
+  if(cls==='overlord' && existing.some(c=>c==='pests'||c==='boss')){
+    return {ok:false, reason:"An Overlord deck can't also include Pests or Boss cards."};
+  }
+  if(cls==='pests' && existing.includes('overlord')){
+    return {ok:false, reason:"Can't add Pests — this deck already has an Overlord."};
+  }
+  return {ok:true};
+}
+
 let _dbDeck=[]; // working copy
 
 function refreshDeckBuilder(){
@@ -2433,23 +2701,16 @@ function renderDBCollection(){
   if(!grid)return;
   grid.innerHTML='';
   const owned=Player.collection.length?Player.collection:CardDB.map(c=>c.id);
-  owned.forEach(id=>{
+  const uniqueOwned=[...new Set(owned)]; // one real card per owned id — duplicates don't add extra deck slots
+  uniqueOwned.forEach(id=>{
     const def=CardDB.find(c=>c.id===id);
     if(!def)return;
     const inDeck=_dbDeck.includes(id);
-    const isWeapon=def.cardType==='weapon';
-    const isDef=def.cardType==='defense';
-    const stat=isWeapon?`✦ ATK ${def.flatBonus??'—'}`:isDef?`⛨ DEF ${def.flatBonus??'—'}`:
-      `♥ ${def.hp??'—'} · ✦ ${def.bottomAttack?.damage??'—'}`;
-    const statCls=isWeapon?'weapon':isDef?'defense':'';
     const r=def.rarity||'common';
     const rcfg=RARITY_CONFIG[r]||RARITY_CONFIG.common;
-    grid.innerHTML+=`<div class="mini-card${inDeck?' in-deck':''}" data-rarity="${r}" onclick="dbToggleCard('${id}')">
-      <div class="mini-card-name">${def.name}</div>
-      <div class="mini-card-type">${def.cardType||'Creature'}</div>
-      <div class="mini-card-stat ${statCls}">${stat}</div>
-      <div class="pack-face-rarity rarity-${r}" style="font-size:.5rem;padding:2px 6px;border-radius:3px;align-self:flex-start;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">${rcfg.label}</div>
-      ${def.classification?`<div class="mini-card-cls">${def.classification}</div>`:''}
+    const displayCard=defToDisplayCard(def);
+    grid.innerHTML+=`<div class="db-card-slot${inDeck?' in-deck':''}" style="--rarity-color:${rcfg.color}" onclick="dbToggleCard('${id}')">
+      ${renderCard(displayCard,false,-1,'db-card')}
     </div>`;
   });
 }
@@ -2458,13 +2719,13 @@ function renderDBDeck(){
   const list=document.getElementById('db-deck-list');
   const counter=document.getElementById('db-deck-count');
   if(!list)return;
-  counter.textContent=`${_dbDeck.length}/10`;
+  counter.textContent=`${_dbDeck.length}/${DECK_SIZE}`;
   list.innerHTML='';
-  for(let i=0;i<10;i++){
+  for(let i=0;i<DECK_SIZE;i++){
     if(i<_dbDeck.length){
       const def=CardDB.find(c=>c.id===_dbDeck[i]);
       const name=def?def.name:'Unknown';
-      const type=def?(def.cardType||'Creature'):'';
+      const type=(def?.classification&&def.classification!=='normal')?def.classification.toUpperCase():(def?.cardType||'Creature');
       list.innerHTML+=`<div class="deck-slot">
         <span>${name}</span>
         <span class="deck-slot-type">${type}</span>
@@ -2478,9 +2739,16 @@ function renderDBDeck(){
 
 function dbToggleCard(id){
   const idx=_dbDeck.indexOf(id);
-  if(idx!==-1){ _dbDeck.splice(idx,1); }
-  else if(_dbDeck.length<10){ _dbDeck.push(id); }
-  else{ showToast(' Deck is full! Remove a card first.'); return; }
+  if(idx!==-1){
+    _dbDeck.splice(idx,1);
+    renderDBCollection();
+    renderDBDeck();
+    return;
+  }
+  if(_dbDeck.length>=DECK_SIZE){ showToast(`Deck is full! Remove a card first (max ${DECK_SIZE}).`); return; }
+  const check=canAddCardToDeck(id);
+  if(!check.ok){ showToast(`⚠ ${check.reason}`); return; }
+  _dbDeck.push(id);
   renderDBCollection();
   renderDBDeck();
 }
@@ -2492,6 +2760,14 @@ function dbRemoveCard(i){
 }
 
 function saveDeck(){
+  if(_dbDeck.length!==DECK_SIZE){
+    showToast(`⚠ Deck must be exactly ${DECK_SIZE} cards (currently ${_dbDeck.length}/${DECK_SIZE}).`);
+    return;
+  }
+  if(!isDeckCompositionLegal(_dbDeck)){
+    showToast('⚠ Deck breaks the Boss/Overlord rule — remove a card and try again.');
+    return;
+  }
   if(Net.connected&&Net.authed){
     Net.send({type:'save_deck', cardIds:[..._dbDeck]});
     showToast('Saving deck…');
@@ -2770,15 +3046,16 @@ function renderShopCollection(){
     return;
   }
   grid.innerHTML='';
-  Player.collection.forEach(id=>{
+  const counts={};
+  Player.collection.forEach(id=>{counts[id]=(counts[id]||0)+1;});
+  Object.keys(counts).forEach(id=>{
     const def=CardDB.find(c=>c.id===id);
     if(!def) return;
-    const r=def.rarity||'common';
-    const cfg=RARITY_CONFIG[r];
-    grid.innerHTML+=`<div class="shop-coll-card">
-      <div class="shop-coll-card-rarity"><span class="market-card-rarity rarity-${r}">${cfg.label}</span></div>
-      <div class="shop-coll-card-name">${def.name}</div>
-      <div class="shop-coll-card-type">${def.cardType||'Creature'}</div>
+    const qty=counts[id];
+    const displayCard=defToDisplayCard(def);
+    grid.innerHTML+=`<div class="shop-coll-card-slot">
+      ${renderCard(displayCard,false,-1,'')}
+      ${qty>1?`<div class="shop-coll-qty">×${qty}</div>`:''}
     </div>`;
   });
 }
@@ -3822,8 +4099,21 @@ const Net={
 
   handle(msg){
     switch(msg.type){
-      case 'auth_ok': this.authed=true; applyServerProfile(msg.profile); break;
+      case 'auth_ok':
+        this.authed=true;
+        applyServerProfile(msg.profile);
+        if(msg.profileOptions){
+          if(Array.isArray(msg.profileOptions.icons))PROFILE_ICONS=msg.profileOptions.icons;
+          if(Array.isArray(msg.profileOptions.banners))PROFILE_BANNERS=msg.profileOptions.banners;
+          if(typeof msg.profileOptions.bioMax==='number')PROFILE_BIO_MAX=msg.profileOptions.bioMax;
+        }
+        break;
       case 'profile': applyServerProfile(msg.profile); break;
+      case 'profile_updated':
+        applyServerProfile(msg.profile);
+        closeProfileModal();
+        showToast('✦ Profile saved!');
+        break;
       case 'queue_status': this.inQueue=msg.inQueue; break;
       case 'match_found': this.matchId=msg.matchId; beginMultiplayerMatch(msg); break;
       case 'state': applyServerState(msg); break;
@@ -3841,6 +4131,10 @@ const Net={
             hideConnectingOverlay();
           }
           showToast('⚠ Your game files are out of date — please hard-refresh (Ctrl/Cmd+Shift+R) and try again.', 6000);
+        } else if(msg.reason==='deck_wrong_size'){
+          showToast(`⚠ Deck must be exactly ${DECK_SIZE} cards.`);
+        } else if(msg.reason==='deck_composition_invalid'){
+          showToast('⚠ Deck breaks the Boss/Overlord rule — only one Boss or Overlord allowed, and Overlord decks can\'t include Pests or Boss cards.', 6000);
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
@@ -3856,6 +4150,10 @@ function applyServerProfile(p){
   if(typeof p.gems==='number')Player.gems=p.gems;
   if(typeof p.wins==='number')Player.wins=p.wins;
   if(typeof p.losses==='number')Player.losses=p.losses;
+  if(typeof p.icon==='string')Player.icon=p.icon;
+  if(typeof p.banner==='string')Player.banner=p.banner;
+  if(typeof p.bio==='string')Player.bio=p.bio;
+  if(Array.isArray(p.favoriteCards))Player.favoriteCards=p.favoriteCards;
   if(Array.isArray(p.collection))Player.collection=p.collection;
   if(Array.isArray(p.deck))Player.deck=p.deck;
   savePlayer();
