@@ -88,6 +88,38 @@ const queueTimers = new Map();
 
 let nextGuestId = 1;
 
+/* ── PROFILE CUSTOMIZATION (validated allow-lists) ────────────────── */
+// The server is the only thing that ever writes these fields, and it only
+// ever accepts values from these lists — an emoji/theme the client didn't
+// offer never reaches Postgres, no matter what a modified client sends.
+const PROFILE_ICONS = ['✦','🐛','🕷️','🦂','🐜','🦗','🪲','🐝','👑','💀','🔥','⚔️','🛡️','🌙','☠️','🧿'];
+const PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
+const BIO_MAX = 140;
+const USERNAME_MAX = 24;
+const FAVORITES_MAX = 3;
+
+/** Picks out only the whitelisted, well-formed fields from a client's
+ * `update_profile` message. Anything absent or invalid is simply omitted
+ * rather than erroring, so a client can update just one field at a time. */
+function sanitizeProfileFields(msg) {
+  const out = {};
+  if (typeof msg.username === 'string') {
+    const name = msg.username.trim().slice(0, USERNAME_MAX);
+    if (name.length) out.username = name;
+  }
+  if (typeof msg.icon === 'string' && PROFILE_ICONS.includes(msg.icon)) out.icon = msg.icon;
+  if (typeof msg.banner === 'string' && PROFILE_BANNERS.includes(msg.banner)) out.banner = msg.banner;
+  if (typeof msg.bio === 'string') out.bio = msg.bio.trim().slice(0, BIO_MAX);
+  return out;
+}
+
+/** Favorite cards must actually be owned — checked against the caller's own
+ * collection, never trusted from the client. */
+function sanitizeFavorites(favoriteCards, ownedSet) {
+  if (!Array.isArray(favoriteCards)) return undefined;
+  return [...new Set(favoriteCards)].filter(id => ownedSet.has(id)).slice(0, FAVORITES_MAX);
+}
+
 /* ── PROFILE LAYER (Supabase-backed, guest fallback) ─────────────── */
 const guestProfiles = new Map(); // only used when Supabase isn't configured
 
@@ -95,7 +127,8 @@ async function fetchProfile(userId, fallbackName) {
   if (!HAS_SUPABASE) {
     if (!guestProfiles.has(userId)) {
       guestProfiles.set(userId, { id: userId, username: fallbackName || `Guest${nextGuestId++}`,
-        gold: 500, gems: 25, wins: 0, losses: 0, collection: seedStarterIds(), deck: [] });
+        gold: 500, gems: 25, wins: 0, losses: 0, icon: '✦', banner: 'violet', bio: '', favoriteCards: [],
+        collection: seedStarterIds(), deck: [] });
     }
     return guestProfiles.get(userId);
   }
@@ -118,14 +151,57 @@ async function fetchProfile(userId, fallbackName) {
   return {
     id: profile.id, username: profile.username, gold: profile.gold, gems: profile.gems,
     wins: profile.wins, losses: profile.losses,
+    icon: profile.icon || '✦', banner: profile.banner || 'violet', bio: profile.bio || '',
+    favoriteCards: profile.favorite_cards || [],
     collection: (cardRows || []).flatMap(r => Array(r.quantity).fill(r.card_id)),
     deck: (deckRow && deckRow.card_ids) || [],
   };
 }
-function seedStarterIds() { return Engine.CardDB.slice(0, Math.min(12, Engine.CardDB.length)).map(c => c.id); }
+
+/** Validates and persists a profile customization update (name/icon/banner/
+ * bio/favorite cards). Silently drops anything that fails validation rather
+ * than erroring the whole request, then returns a fresh full profile
+ * snapshot so the client can re-render from one source of truth. */
+async function updateProfile(userId, msg, ownedSet) {
+  const fields = sanitizeProfileFields(msg);
+  const favoriteCards = sanitizeFavorites(msg.favoriteCards, ownedSet);
+
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId);
+    if (p) {
+      Object.assign(p, fields);
+      if (favoriteCards !== undefined) p.favoriteCards = favoriteCards;
+    }
+    return fetchProfile(userId);
+  }
+
+  const dbFields = { ...fields };
+  if (favoriteCards !== undefined) dbFields.favorite_cards = favoriteCards;
+  if (Object.keys(dbFields).length) {
+    const { error } = await supabase.from('profiles').update(dbFields).eq('id', userId);
+    if (error) throw error;
+  }
+  return fetchProfile(userId);
+}
+function seedStarterIds() {
+  // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
+  // (or special Pests-tier) cards at all, so it's legal by construction under
+  // Engine.deckClassificationOk — a new player can save their whole starter
+  // collection as their first deck.
+  const equipment = Engine.CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense').map(c => c.id);
+  const normals = Engine.CardDB.filter(c => !c.cardType && c.classification === 'normal').map(c => c.id);
+  return [...equipment, ...normals].slice(0, Engine.DECK_SIZE);
+}
 
 async function saveDeck(userId, cardIds, ownedSet) {
-  const clean = (Array.isArray(cardIds) ? cardIds : []).slice(0, 10).filter(id => ownedSet.has(id));
+  const ids = Array.isArray(cardIds) ? cardIds : [];
+  const owned = ids.filter(id => ownedSet.has(id));
+  if (!Engine.isDeckLegal(owned)) {
+    const e = new Error('deck_illegal');
+    e.code = owned.length !== Engine.DECK_SIZE ? 'deck_wrong_size' : 'deck_composition_invalid';
+    throw e;
+  }
+  const clean = owned;
   if (!HAS_SUPABASE) {
     const p = guestProfiles.get(userId); if (p) p.deck = clean;
     return clean;
@@ -654,7 +730,7 @@ wss.on('connection', (ws) => {
         if (inMatch) { inMatch.handleReconnect(userId); }
 
         const profile = await fetchProfile(userId, username);
-        conn.send({ type:'auth_ok', userId, profile });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX } });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -711,13 +787,26 @@ wss.on('connection', (ws) => {
         catch (e) { conn.send({ type:'error', reason:'profile_fetch_failed' }); }
         break;
       }
+      case 'update_profile': {
+        try {
+          const profile = await fetchProfile(userId, conn.username);
+          const owned = new Set(profile.collection);
+          const updated = await updateProfile(userId, msg, owned);
+          if (updated.username) conn.username = updated.username;
+          conn.send({ type:'profile_updated', profile: updated });
+        } catch (e) {
+          console.error('[arena] update_profile failed', e);
+          conn.send({ type:'error', reason: e.code || 'update_profile_failed' });
+        }
+        break;
+      }
       case 'save_deck': {
         try {
           const profile = await fetchProfile(userId, conn.username);
           const owned = new Set(profile.collection);
           const saved = await saveDeck(userId, msg.cardIds, owned);
           conn.send({ type:'deck_saved', cardIds: saved });
-        } catch (e) { conn.send({ type:'error', reason:'save_deck_failed' }); }
+        } catch (e) { conn.send({ type:'error', reason: e.code || 'save_deck_failed' }); }
         break;
       }
       case 'buy_pack': {
