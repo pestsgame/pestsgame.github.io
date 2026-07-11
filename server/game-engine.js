@@ -305,30 +305,58 @@ function applyDeployAbility(sides, side, card, events) {
   }
 }
 
+const DECK_SIZE = 16;
+
+/** A deck-legality check reused by generateDeck's fallback path and by
+ * isDeckLegal below, so the random "your deck was invalid" deck the server
+ * hands out never itself breaks the rule it's enforcing. */
+function deckClassificationOk(defs) {
+  const classes = defs.map(d => d.classification).filter(Boolean);
+  const bossOrOverlordCount = classes.filter(c => c === 'boss' || c === 'overlord').length;
+  if (bossOrOverlordCount > 1) return false;
+  if (classes.includes('overlord') && classes.some(c => c === 'pests' || c === 'boss')) return false;
+  return true;
+}
+
 function generateDeck(n) {
-  const creatures = CardDB.filter(c => !c.cardType);
+  const normals = CardDB.filter(c => !c.cardType && c.classification === 'normal');
+  const bosses = CardDB.filter(c => !c.cardType && c.classification === 'boss');
+  const overlords = CardDB.filter(c => !c.cardType && c.classification === 'overlord');
   const equipment = CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense');
-  const d = [];
-  for (let i = 0; i < n; i++) {
-    const useEquip = equipment.length > 0 && Math.random() < 0.3;
-    const pool = useEquip ? equipment : creatures;
-    const p = pool[Math.floor(Math.random() * pool.length)];
-    const c = createCard(p.id); if (c) d.push(c);
+  const pick = pool => pool[Math.floor(Math.random() * pool.length)];
+
+  const defs = [];
+  // Rare chance of an Overlord deck — if so, everything else must be Normal/equipment.
+  if (overlords.length && Math.random() < 0.08) {
+    defs.push(pick(overlords));
+    const fillPool = equipment.length ? equipment : (normals.length ? normals : overlords);
+    while (defs.length < n) defs.push(pick(fillPool));
+    return defs.map(d => createCard(d.id)).filter(Boolean);
   }
-  return d;
+  // Otherwise, at most one Boss, rest Normal/equipment.
+  if (bosses.length && Math.random() < 0.35) defs.push(pick(bosses));
+  while (defs.length < n) {
+    const useEquip = equipment.length > 0 && Math.random() < 0.3;
+    const pool = useEquip ? equipment : (normals.length ? normals : equipment);
+    defs.push(pick(pool));
+  }
+  return defs.slice(0, n).map(d => createCard(d.id)).filter(Boolean);
 }
 
 /** Builds a validated deck of live card instances from a list of owned card ids. */
-/** A deck is legal if it's 4–10 cards long and every single id in it exists
- * in the canonical library — checked fresh every time a match is built, not
- * just once when the deck was saved, so a stale/tampered deck never quietly
- * slips through with some cards silently dropped. */
+/** A deck is legal if it's exactly DECK_SIZE cards, every id exists in the
+ * canonical library, at most one BOSS-or-OVERLORD card is present, and — if
+ * that one card is an OVERLORD — no PESTS or BOSS cards ride along with it.
+ * Checked fresh every time a match is built, not just once when the deck was
+ * saved, so a stale/tampered deck never quietly slips through. */
 function isDeckLegal(ids) {
-  return Array.isArray(ids) && ids.length >= 4 && ids.length <= 10 && ids.every(id => !!CardById[id]);
+  if (!Array.isArray(ids) || ids.length !== DECK_SIZE) return false;
+  if (!ids.every(id => !!CardById[id])) return false;
+  return deckClassificationOk(ids.map(id => CardById[id]));
 }
 
 function buildDeckFromIds(ids) {
-  if (!isDeckLegal(ids)) return generateDeck(10);
+  if (!isDeckLegal(ids)) return generateDeck(DECK_SIZE);
   return ids.map(id => createCard(id));
 }
 
@@ -533,4 +561,5 @@ module.exports = {
   executeAttack, triggerRocks, isMatchOver, applyDeployAbility,
   tryRevive, applySynergies, attackDefFor,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
+  DECK_SIZE, deckClassificationOk,
 };
