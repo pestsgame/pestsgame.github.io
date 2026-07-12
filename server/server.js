@@ -302,6 +302,28 @@ class Match {
 
   conn(side) { return connections.get(this.users[side]) || null; }
 
+  /** Relays a chat line to both participants in this match only — never
+   * broadcast anywhere else. Silently drops empty/oversized text instead
+   * of erroring, since a stray keystroke shouldn't need a round trip. */
+  handleChat(userId, text) {
+    const clean = String(text || '').trim().slice(0, 240);
+    if (!clean) return;
+    const side = this.sideOf(userId);
+    if (side === -1) return;
+    const payload = {
+      type: 'battle_chat',
+      matchId: this.id,
+      from: userId,
+      name: this.conn(side)?.username || 'Pestmaster',
+      text: clean,
+      ts: Date.now(),
+    };
+    for (let s = 0; s < 2; s++) {
+      const c = this.conn(s);
+      if (c) c.send(payload);
+    }
+  }
+
   broadcastState(events) {
     for (let side = 0; side < 2; side++) {
       const c = this.conn(side);
@@ -795,6 +817,10 @@ wss.on('connection', (ws) => {
       }
       case 'forfeit': {
         activeMatchByUser.get(userId)?.handleForfeit(userId);
+        break;
+      }
+      case 'battle_chat': {
+        activeMatchByUser.get(userId)?.handleChat(userId, msg.text);
         break;
       }
       case 'get_profile': {
