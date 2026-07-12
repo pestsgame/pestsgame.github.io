@@ -555,7 +555,7 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 .panel-title{font-family:'Cinzel',serif;font-size:.7rem;font-weight:700;letter-spacing:.14em;color:#e9d5ff;text-transform:uppercase;}
 .panel-meta{font-size:.62rem;letter-spacing:.1em;color:rgba(156,163,175,.75);}
 #menu-panel-deck{overflow:hidden;}
-#menu-panel-deck .deckbuilder-body{flex:1;overflow:hidden;}
+#menu-panel-deck .deckbuilder-body{flex:1;overflow-y:auto;}
 #menu-panel-market{overflow:hidden;}
 #menu-panel-market .market-body{flex:1;overflow-y:auto;}
 img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:middle;display:inline-block;}
@@ -571,23 +571,48 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .subscreen-section-label{font-family:'Cinzel',serif;font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(196,181,253,.75);margin-bottom:12px;}
 
 /* deck builder */
-.deckbuilder-body{flex:1;display:grid;grid-template-columns:1fr 280px;gap:0;overflow:hidden;}
-.deckbuilder-collection{padding:20px;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;}
-.deckbuilder-deck-panel{padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;background:rgba(0,0,0,.25);scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;}
+.deckbuilder-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;display:flex;flex-direction:column;}
 .card-grid-small{display:flex;flex-wrap:wrap;gap:10px;}
 .db-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
 .db-card-slot .card{cursor:pointer;}
 .db-card-slot:hover{transform:translateY(-4px);border-color:rgba(139,92,246,.45);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
 .db-card-slot.in-deck{border-color:#60a5fa;box-shadow:0 0 14px rgba(59,130,246,.35);}
 .db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
-.deck-list-inner{display:flex;flex-direction:column;gap:7px;flex:1;}
-.deck-slot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);font-family:'Cinzel',serif;font-size:.64rem;color:#e9d5ff;letter-spacing:.04em;}
-.deck-slot.empty{color:rgba(255,255,255,.15);border-style:dashed;justify-content:center;}
-.deck-slot-remove{cursor:pointer;color:rgba(239,68,68,.5);font-size:.65rem;padding:0 3px;transition:color .15s;line-height:1;background:none;border:none;}
-.deck-slot-remove:hover{color:#ef4444;}
-.deck-slot-type{font-size:.56rem;color:rgba(156,163,175,.75);letter-spacing:.05em;text-transform:uppercase;}
-.deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;width:100%;margin-top:auto;}
+.deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;width:100%;}
 .deck-save-btn:hover{background:linear-gradient(135deg,#1a3460,#1d4ed8);border-color:rgba(99,160,255,.7);box-shadow:0 0 18px rgba(59,130,246,.3);}
+
+/* deck section — the main focus, pinned to the top of the panel */
+.db-deck-section{padding:20px;display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25);}
+.db-deck-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.db-page-tabs{display:flex;gap:6px;}
+.db-page-tab{font-family:'Cinzel',serif;font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(196,181,253,.6);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 16px;cursor:pointer;transition:all .16s;display:flex;flex-direction:column;align-items:center;gap:1px;}
+.db-page-tab:hover{border-color:rgba(139,92,246,.35);color:#e9d5ff;}
+.db-page-tab.active{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.55);color:#fff;}
+.db-page-tab-range{font-size:.5rem;font-weight:600;color:rgba(156,163,175,.65);letter-spacing:.04em;}
+.db-page-tab.active .db-page-tab-range{color:rgba(196,181,253,.8);}
+.db-deck-slot-grid{display:grid;grid-template-columns:repeat(4,144px);gap:12px;justify-content:center;}
+.db-deck-card-slot{position:relative;}
+.db-deck-card-slot .card{cursor:pointer;}
+.db-deck-empty-slot{width:144px;height:214px;border-radius:8px;border:2px dashed rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.16);font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;line-height:1.6;}
+.db-deck-remove-x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
+.db-deck-remove-x:hover{transform:scale(1.15);}
+
+/* collection browser — search + filters, then the results grid */
+.db-collection-section{padding:20px;display:flex;flex-direction:column;gap:16px;}
+.db-filters{display:flex;flex-direction:column;gap:11px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;}
+.db-search-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.85rem;outline:none;transition:border-color .15s;}
+.db-search-input:focus{border-color:rgba(139,92,246,.6);}
+.db-filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.db-filter-row-label{font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(196,181,253,.6);width:48px;flex-shrink:0;}
+.db-chip-group{display:flex;gap:6px;flex-wrap:wrap;}
+.db-chip{font-size:.6rem;font-weight:700;letter-spacing:.03em;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--txt-muted);cursor:pointer;transition:all .15s;text-transform:capitalize;}
+.db-chip:hover{border-color:rgba(139,92,246,.4);color:var(--txt);}
+.db-chip.active{background:rgba(139,92,246,.22);border-color:#a78bfa;color:#fff;}
+.db-hp-op,.db-hp-val{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.72rem;padding:6px 8px;outline:none;}
+.db-hp-val{width:80px;}
+.db-clear-filters-btn{margin-left:auto;font-size:.56rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(239,68,68,.75);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.db-clear-filters-btn:hover{background:rgba(239,68,68,.18);color:#fca5a5;}
+.db-empty-results{color:var(--txt-muted);font-size:.75rem;padding:24px 10px;text-align:center;width:100%;}
 
 /* ══ SHOP ══ */
 .market-body{flex:1;overflow-y:auto;padding:0;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.25) transparent;}
@@ -1264,14 +1289,50 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div class="panel-meta" id="menu-deck-count">0 / 16 cards in deck</div>
         </div>
         <div class="deckbuilder-body">
-          <div class="deckbuilder-collection">
-            <div class="subscreen-section-label">Your Collection</div>
-            <div class="card-grid-small" id="db-collection-grid"></div>
-          </div>
-          <div class="deckbuilder-deck-panel">
-            <div class="subscreen-section-label">Current Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/16</span></div>
-            <div class="deck-list-inner" id="db-deck-list"></div>
+          <!-- YOUR DECK — the main focus. 16 slots split across 2 pages of 8;
+               the page split is purely visual, both pages read/write the same
+               underlying _dbDeck array. -->
+          <div class="db-deck-section">
+            <div class="db-deck-section-head">
+              <div class="subscreen-section-label" style="margin-bottom:0;">Your Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/16</span></div>
+              <div class="db-page-tabs" id="db-page-tabs">
+                <button class="db-page-tab active" onclick="dbSetPage(0)">Page 1<span class="db-page-tab-range">1–8</span></button>
+                <button class="db-page-tab" onclick="dbSetPage(1)">Page 2<span class="db-page-tab-range">9–16</span></button>
+              </div>
+            </div>
+            <div class="db-deck-slot-grid" id="db-deck-slot-grid"></div>
             <button class="deck-save-btn" onclick="saveDeck()">Save Deck</button>
+          </div>
+
+          <!-- COLLECTION — search + filter, then tap a card to add/remove it -->
+          <div class="db-collection-section">
+            <div class="subscreen-section-label">Your Collection</div>
+            <div class="db-filters">
+              <input type="text" id="db-search-input" class="db-search-input" placeholder="Search by name…" oninput="dbOnSearchInput(this.value)">
+              <div class="db-filter-row">
+                <span class="db-filter-row-label">Class</span>
+                <div class="db-chip-group" id="db-class-chips"></div>
+              </div>
+              <div class="db-filter-row">
+                <span class="db-filter-row-label">Type</span>
+                <div class="db-chip-group" id="db-type-chips"></div>
+              </div>
+              <div class="db-filter-row">
+                <span class="db-filter-row-label">Element</span>
+                <div class="db-chip-group" id="db-elem-chips"></div>
+              </div>
+              <div class="db-filter-row">
+                <span class="db-filter-row-label">HP</span>
+                <select id="db-hp-op" class="db-hp-op" onchange="dbOnHpFilterChange()">
+                  <option value="">Any</option>
+                  <option value="gt">&gt; greater than</option>
+                  <option value="lt">&lt; less than</option>
+                </select>
+                <input type="number" id="db-hp-val" class="db-hp-val" placeholder="value" oninput="dbOnHpFilterChange()">
+                <button class="db-clear-filters-btn" onclick="dbClearFilters()">Clear Filters</button>
+              </div>
+            </div>
+            <div class="card-grid-small" id="db-collection-grid"></div>
           </div>
         </div>
       </div>
@@ -2877,11 +2938,85 @@ function canAddCardToDeck(id){
 }
 
 let _dbDeck=[]; // working copy
+let _dbPage=0;  // 0 or 1 — which 8-slot page of the SAME 16-card deck is shown; visual only
+const DB_CLASS_OPTIONS=['normal','pests','boss','overlord'];
+let _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
+
+function dbTypeOptions(){
+  // derived from the live card library rather than hardcoded, so a future
+  // card with a new `types` value just shows up as its own filter chip
+  return [...new Set(CardDB.flatMap(c=>Array.isArray(c.types)?c.types:[]))].sort();
+}
 
 function refreshDeckBuilder(){
   _dbDeck=[...Player.deck];
+  _dbPage=0;
+  dbRenderFilterChips();
+  renderDBDeckSlots();
   renderDBCollection();
-  renderDBDeck();
+}
+
+function toggleSetMember(set,v){ if(set.has(v))set.delete(v); else set.add(v); }
+
+function dbRenderChipGroup(containerId,options,activeSet,onToggleFn){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  el.innerHTML=options.map(opt=>
+    `<span class="db-chip${activeSet.has(opt)?' active':''}" onclick="${onToggleFn}('${opt}')">${opt}</span>`
+  ).join('')||'<span class="db-chip" style="cursor:default;opacity:.4;">none available</span>';
+}
+
+function dbRenderFilterChips(){
+  dbRenderChipGroup('db-class-chips', DB_CLASS_OPTIONS, _dbFilters.classes, 'dbToggleClassFilter');
+  dbRenderChipGroup('db-type-chips', dbTypeOptions(), _dbFilters.types, 'dbToggleTypeFilter');
+  dbRenderChipGroup('db-elem-chips', Object.keys(Elements), _dbFilters.elements, 'dbToggleElementFilter');
+}
+
+function dbToggleClassFilter(cls){ toggleSetMember(_dbFilters.classes,cls); dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleTypeFilter(t){ toggleSetMember(_dbFilters.types,t); dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleElementFilter(e){ toggleSetMember(_dbFilters.elements,e); dbRenderFilterChips(); renderDBCollection(); }
+
+function dbOnSearchInput(v){ _dbFilters.search=v.trim().toLowerCase(); renderDBCollection(); }
+function dbOnHpFilterChange(){
+  _dbFilters.hpOp=document.getElementById('db-hp-op').value;
+  _dbFilters.hpVal=parseFloat(document.getElementById('db-hp-val').value);
+  renderDBCollection();
+}
+
+function dbClearFilters(){
+  _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
+  const s=document.getElementById('db-search-input'); if(s)s.value='';
+  const op=document.getElementById('db-hp-op'); if(op)op.value='';
+  const val=document.getElementById('db-hp-val'); if(val)val.value='';
+  dbRenderFilterChips();
+  renderDBCollection();
+}
+
+/** True if `def` (a raw CardDB entry) passes every active filter. Filters
+ * combine with AND across categories (search AND class AND type AND
+ * element AND hp) but OR within a category (e.g. picking "mob" and
+ * "wizard" shows cards that are either). Weapon/defense cards have no
+ * classification, types, or hp, so they naturally drop out of results as
+ * soon as any of those filters are engaged — same as a card that plainly
+ * doesn't match. */
+function cardMatchesFilters(def){
+  const f=_dbFilters;
+  if(f.search && !def.name.toLowerCase().includes(f.search)) return false;
+  if(f.classes.size && !(def.classification && f.classes.has(def.classification))) return false;
+  if(f.types.size){
+    const types=Array.isArray(def.types)?def.types:[];
+    if(!types.some(t=>f.types.has(t))) return false;
+  }
+  if(f.elements.size){
+    const cardElements=[def.topEffect?.element, def.bottomAttack?.element].filter(Boolean);
+    if(!cardElements.some(e=>f.elements.has(e))) return false;
+  }
+  if(f.hpOp && Number.isFinite(f.hpVal)){
+    if(typeof def.hp!=='number') return false;
+    if(f.hpOp==='gt' && !(def.hp>f.hpVal)) return false;
+    if(f.hpOp==='lt' && !(def.hp<f.hpVal)) return false;
+  }
+  return true;
 }
 
 function renderDBCollection(){
@@ -2890,9 +3025,16 @@ function renderDBCollection(){
   grid.innerHTML='';
   const owned=Player.collection.length?Player.collection:CardDB.map(c=>c.id);
   const uniqueOwned=[...new Set(owned)]; // one real card per owned id — duplicates don't add extra deck slots
-  uniqueOwned.forEach(id=>{
+  const filtered=uniqueOwned.filter(id=>{
     const def=CardDB.find(c=>c.id===id);
-    if(!def)return;
+    return def && cardMatchesFilters(def);
+  });
+  if(!filtered.length){
+    grid.innerHTML='<div class="db-empty-results">No cards match these filters.</div>';
+    return;
+  }
+  filtered.forEach(id=>{
+    const def=CardDB.find(c=>c.id===id);
     const inDeck=_dbDeck.includes(id);
     const displayCard=defToDisplayCard(def);
     grid.innerHTML+=`<div class="db-card-slot${inDeck?' in-deck':''}" onclick="dbToggleCard('${id}')">
@@ -2901,26 +3043,36 @@ function renderDBCollection(){
   });
 }
 
-function renderDBDeck(){
-  const list=document.getElementById('db-deck-list');
-  const counter=document.getElementById('db-deck-count');
-  if(!list)return;
-  counter.textContent=`${_dbDeck.length}/${DECK_SIZE}`;
-  list.innerHTML='';
-  for(let i=0;i<DECK_SIZE;i++){
+/** Renders 8 slots for whichever page is active. Slot index `i` maps
+ * directly onto _dbDeck[i] — the page split is purely a viewport choice,
+ * there's exactly one 16-card deck underneath either page. */
+function renderDBDeckSlots(){
+  const grid=document.getElementById('db-deck-slot-grid');
+  if(!grid)return;
+  const counterText=`${_dbDeck.length}/${DECK_SIZE}`;
+  const counter=document.getElementById('db-deck-count'); if(counter)counter.textContent=counterText;
+  const topbarMeta=document.getElementById('menu-deck-count'); if(topbarMeta)topbarMeta.textContent=`${_dbDeck.length} / ${DECK_SIZE} cards in deck`;
+  document.querySelectorAll('#db-page-tabs .db-page-tab').forEach((el,idx)=>el.classList.toggle('active',idx===_dbPage));
+  grid.innerHTML='';
+  const start=_dbPage*8;
+  for(let i=start;i<start+8;i++){
     if(i<_dbDeck.length){
       const def=CardDB.find(c=>c.id===_dbDeck[i]);
-      const name=def?def.name:'Unknown';
-      const type=(def?.classification&&def.classification!=='normal')?def.classification.toUpperCase():(def?.cardType||'Creature');
-      list.innerHTML+=`<div class="deck-slot">
-        <span>${name}</span>
-        <span class="deck-slot-type">${type}</span>
-        <button class="deck-slot-remove" onclick="dbRemoveCard(${i})">✕</button>
+      if(!def){ grid.innerHTML+=`<div class="db-deck-empty-slot">Slot ${i+1}<br>Unknown</div>`; continue; }
+      const displayCard=defToDisplayCard(def);
+      grid.innerHTML+=`<div class="db-deck-card-slot">
+        <div class="db-deck-remove-x" onclick="dbRemoveCard(${i})" title="Remove from deck">✕</div>
+        ${renderCard(displayCard,false,-1,'db-card')}
       </div>`;
     } else {
-      list.innerHTML+=`<div class="deck-slot empty">— Empty Slot —</div>`;
+      grid.innerHTML+=`<div class="db-deck-empty-slot">Slot ${i+1}<br>Empty</div>`;
     }
   }
+}
+
+function dbSetPage(p){
+  _dbPage=p;
+  renderDBDeckSlots();
 }
 
 function dbToggleCard(id){
@@ -2928,7 +3080,7 @@ function dbToggleCard(id){
   if(idx!==-1){
     _dbDeck.splice(idx,1);
     renderDBCollection();
-    renderDBDeck();
+    renderDBDeckSlots();
     return;
   }
   if(_dbDeck.length>=DECK_SIZE){ showToast(`Deck is full! Remove a card first (max ${DECK_SIZE}).`); return; }
@@ -2936,13 +3088,16 @@ function dbToggleCard(id){
   if(!check.ok){ showToast(`⚠ ${check.reason}`); return; }
   _dbDeck.push(id);
   renderDBCollection();
-  renderDBDeck();
+  // jump to whichever page the newly-added card actually landed on, so
+  // filling page 1 and adding an 9th card doesn't add a card you can't see
+  const landedPage=Math.floor((_dbDeck.length-1)/8);
+  if(landedPage!==_dbPage) dbSetPage(landedPage); else renderDBDeckSlots();
 }
 
 function dbRemoveCard(i){
   _dbDeck.splice(i,1);
   renderDBCollection();
-  renderDBDeck();
+  renderDBDeckSlots();
 }
 
 function saveDeck(){
