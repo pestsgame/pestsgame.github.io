@@ -1790,14 +1790,9 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 </div>
 
 <script>window.ARENA_WS_URL = 'wss://pests-backend.onrender.com';</script>
-<!-- Global chat reads/writes Supabase directly (separate from the arena WS
-     server). Fill these in with your project's URL + anon (public) key —
-     the anon key is safe to expose client-side, RLS policies in
-     chat-schema.sql are what actually gate reads/writes. Leaving these
-     blank just disables the chat widget. -->
 <script>
-  window.SUPABASE_URL = window.SUPABASE_URL || '';
-  window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+  window.SUPABASE_URL = window.SUPABASE_URL || 'https://ropfrxyulrxcxggxijze.supabase.co';
+  window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || 'sb_publishable_soq4EX06uOLuw92UM7RMLw_IMPVkyUw';
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -5007,10 +5002,9 @@ function initGlobalChat(){
   window.addEventListener('resize',()=>{ el.style.top=clampChatTop(parseFloat(el.style.top)||0)+'px'; });
 
   if(!window.SUPABASE_URL||!window.SUPABASE_ANON_KEY||typeof window.supabase==='undefined'){
-    document.getElementById('gc-messages').innerHTML='<div class="gc-disabled-note">Global chat isn\'t configured on this deployment yet.</div>';
-    document.getElementById('gc-input').disabled=true;
-    document.querySelector('.gc-send-btn').disabled=true;
-    return;
+    document.getElementById('gc-messages').innerHTML='<div class="gc-disabled-note">Global chat isn\'t configured on this deployment yet.'
+      +(GlobalChat.mode==='global'?' You can still use Battle chat during a match.':'')+'</div>';
+    return; // battle chat doesn't need Supabase, so the input stays enabled
   }
   GlobalChat.sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY,{auth:{persistSession:false}});
   GlobalChat.enabled=true;
@@ -5184,7 +5178,10 @@ async function sendGlobalChat(e){
     return false;
   }
 
-  if(!GlobalChat.enabled)return false;
+  if(!GlobalChat.enabled){
+    showToast("Global chat isn't configured on this deployment.");
+    return false;
+  }
   const now=Date.now();
   if(now-GlobalChat.lastSentAt<1200){
     showToast('Slow down a little!');
