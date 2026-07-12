@@ -677,6 +677,19 @@ async function tryMatch() {
 /* ── WS SERVER ────────────────────────────────────────────────────── */
 const server = http.createServer((req, res) => {
   if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({ ok:true, matches: matches.size, queue: queue.length })); return; }
+  if (req.url === '/cards.hash') {
+    // Tiny endpoint for the "have I already got this?" check — a client with
+    // a cached copy in localStorage hits this instead of re-downloading the
+    // whole library on every load. Full body only comes down from /cards.json
+    // when this hash doesn't match what's cached.
+    res.writeHead(200, {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-cache',
+    });
+    res.end(JSON.stringify({ hash: Engine.CARD_LIBRARY_HASH }));
+    return;
+  }
   if (req.url === '/cards.json') {
     // The single canonical card library — the client fetches this instead of keeping
     // its own hardcoded copy, so there's only ever one place "god card" stats could live.
