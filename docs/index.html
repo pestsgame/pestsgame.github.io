@@ -103,6 +103,59 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   opacity:0;transition:opacity 0.45s 0.3s;
 }
 .coinflip-sub.show{opacity:1;}
+
+/* ══════════════════════════════════════
+   MATCH START TRANSITION — VS CLASH
+   Plays once, right when a fresh match begins (not on reconnect), so the
+   player lands in the arena instead of just materializing there.
+══════════════════════════════════════ */
+#battle-start-overlay{
+  display:none;position:fixed;inset:0;z-index:2050;
+  align-items:center;justify-content:center;flex-direction:column;
+  background:radial-gradient(circle at 50% 50%,#0c0c1c,#05060f);
+  overflow:hidden;transition:opacity .45s ease;opacity:1;
+}
+#battle-start-overlay.open{display:flex;}
+#battle-start-overlay.leaving{opacity:0;}
+.bs-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;}
+#battle-start-overlay.clash .bs-flash{animation:bs-flash-pulse .5s ease-out;}
+@keyframes bs-flash-pulse{0%{opacity:0;}18%{opacity:.9;}100%{opacity:0;}}
+.bs-vs-stage{position:relative;display:flex;align-items:center;justify-content:center;gap:8vw;width:100%;padding:0 6vw;}
+.bs-fighter{display:flex;flex-direction:column;align-items:center;gap:14px;transition:transform .6s cubic-bezier(.16,1,.3,1),opacity .35s;opacity:0;}
+.bs-fighter-left{transform:translateX(-140vw);}
+.bs-fighter-right{transform:translateX(140vw);}
+#battle-start-overlay.slide-in .bs-fighter{opacity:1;}
+#battle-start-overlay.slide-in .bs-fighter-left{transform:translateX(0);}
+#battle-start-overlay.slide-in .bs-fighter-right{transform:translateX(0);}
+#battle-start-overlay.clash .bs-fighter-left{animation:bs-shake-left .4s ease-out;}
+#battle-start-overlay.clash .bs-fighter-right{animation:bs-shake-right .4s ease-out;}
+@keyframes bs-shake-left{0%,100%{transform:translateX(0);}30%{transform:translateX(14px);}60%{transform:translateX(-8px);}}
+@keyframes bs-shake-right{0%,100%{transform:translateX(0);}30%{transform:translateX(-14px);}60%{transform:translateX(8px);}}
+.bs-fighter-avatar{
+  width:92px;height:92px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 40% 38%,#0d2048,#060614);
+  box-shadow:0 0 40px rgba(59,130,246,.55);border:3px solid #3b82f6;color:#93c5fd;
+}
+.bs-fighter-right .bs-fighter-avatar{
+  background:radial-gradient(circle at 40% 38%,#3b0a0a,#060614);
+  box-shadow:0 0 40px rgba(239,68,68,.55);border-color:#ef4444;color:#fca5a5;
+}
+.bs-fighter-name{
+  font-family:'Cinzel',serif;font-weight:900;letter-spacing:.06em;font-size:1.05rem;
+  color:#e2e8f0;text-align:center;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.bs-vs-text{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(2.2);opacity:0;
+  font-family:'Cinzel',serif;font-weight:900;font-size:2.4rem;letter-spacing:.1em;color:#fbbf24;
+  text-shadow:0 0 30px rgba(251,191,36,.7);transition:opacity .25s,transform .25s cubic-bezier(.34,1.56,.64,1);
+}
+#battle-start-overlay.clash .bs-vs-text{opacity:1;transform:translate(-50%,-50%) scale(1);}
+.bs-subtext{
+  margin-top:34px;font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.16em;color:var(--txt-dim);
+  text-transform:uppercase;opacity:0;transition:opacity .4s .5s;
+}
+#battle-start-overlay.clash .bs-subtext{opacity:1;}
+
 .setup-progress{
   font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.14em;
   color:var(--txt-muted);text-transform:uppercase;text-align:center;
@@ -253,11 +306,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:0.68rem;font-weight:700;color:#fff;text-shadow:0 0 5px rgba(0,0,0,1);
 }
-.hand-count-badge{
-  background:rgba(0,0,0,0.6);border:1px solid var(--border);border-radius:5px;
-  padding:3px 10px;font-size:0.6rem;font-weight:700;color:var(--txt-dim);
-  letter-spacing:0.06em;white-space:nowrap;
-}
+
 
 /* ══════════════════════════════════════
    ARENA TABLE
@@ -530,6 +579,11 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 .menu-tab-label{font-family:'Cinzel',serif;font-size:.64rem;font-weight:700;letter-spacing:.07em;color:rgba(196,181,253,.78);text-transform:uppercase;transition:color .18s;}
 .menu-tab.active .menu-tab-label,.menu-tab:hover .menu-tab-label{color:#e9d5ff;}
 .menu-tab-sub{font-size:.52rem;letter-spacing:.1em;color:rgba(156,163,175,.65);text-transform:uppercase;}
+.social-tab-badge{
+  position:absolute;top:8px;right:10px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;
+  background:#ef4444;color:#fff;font-size:.6rem;font-weight:800;line-height:16px;text-align:center;
+  box-shadow:0 0 0 2px var(--bg,#0a0a12);
+}
 
 /* content + panels */
 .menu-content{flex:1;position:relative;overflow:hidden;}
@@ -558,6 +612,38 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 #menu-panel-deck .deckbuilder-body{flex:1;overflow-y:auto;}
 #menu-panel-market{overflow:hidden;}
 #menu-panel-market .market-body{flex:1;overflow-y:auto;}
+#menu-panel-social{overflow:hidden;}
+#menu-panel-social .social-body{flex:1;overflow-y:auto;}
+.social-add-row{display:flex;gap:10px;margin:20px 24px 4px;}
+.social-add-row .pf-name-input{flex:1;}
+.social-list{display:flex;flex-direction:column;gap:8px;padding:0 24px 10px;}
+.social-row{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 14px;transition:border-color .15s;}
+.social-row:hover{border-color:rgba(139,92,246,.25);}
+.social-avatar-wrap{position:relative;flex-shrink:0;}
+.social-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#c4b5fd;cursor:pointer;}
+.social-status-dot{position:absolute;bottom:-1px;right:-1px;width:11px;height:11px;border-radius:50%;border:2px solid #141420;background:#4b5563;}
+.social-status-dot.online{background:#22c55e;}
+.social-row-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;cursor:pointer;}
+.social-row-username{font-weight:700;font-size:.8rem;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.social-row-status{font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;color:var(--txt-dim);}
+.social-row-actions{display:flex;gap:6px;flex-shrink:0;}
+.social-btn{border:none;border-radius:6px;padding:6px 10px;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:filter .15s,opacity .15s;font-family:'Rajdhani',sans-serif;white-space:nowrap;}
+.social-btn:hover{filter:brightness(1.18);}
+.social-btn.accept{background:#166534;color:#bbf7d0;}
+.social-btn.decline{background:rgba(255,255,255,.08);color:var(--txt-dim);}
+.social-btn.duel{background:linear-gradient(135deg,#1a3020,#15803d);color:#bbf7d0;}
+.social-btn.duel:disabled{opacity:.4;cursor:not-allowed;filter:none;}
+.social-btn.remove{background:rgba(239,68,68,.12);color:#fca5a5;}
+.social-btn.cancel{background:rgba(255,255,255,.08);color:var(--txt-dim);}
+#duel-invite-banner{
+  display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2200;
+  align-items:center;gap:14px;background:linear-gradient(135deg,#1a1a2e,#0f0f1a);
+  border:1px solid rgba(139,92,246,.4);border-radius:12px;padding:12px 18px;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);max-width:90vw;
+}
+#duel-invite-banner .social-avatar{width:34px;height:34px;cursor:default;}
+#duel-invite-text{font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--txt);white-space:nowrap;}
+#duel-invite-name{font-weight:700;color:#c4b5fd;}
 img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:middle;display:inline-block;}
 
 /* ══ SUBSCREEN (Deck Builder + Market) ══ */
@@ -1121,6 +1207,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pf-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5);}
 .pf-btn:active{transform:scale(.96);}
 .pf-btn-save{background:linear-gradient(135deg,#2d1a5e,#7c3aed);border-color:#5b21b6;}
+.pf-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3);}
 .pf-btn-cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--txt-muted);}
 
 /* ══════════════════════════════════════
@@ -1377,6 +1464,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <span class="menu-tab-sub">Open Packs</span>
         </div>
       </button>
+      <button class="menu-tab" onclick="switchMenuTab('social')" data-tab="social">
+        <span class="menu-tab-icon">☍</span>
+        <div class="menu-tab-text">
+          <span class="menu-tab-label">Social</span>
+          <span class="menu-tab-sub">Friends</span>
+        </div>
+        <span id="social-tab-badge" class="social-tab-badge" style="display:none;"></span>
+      </button>
     </div><!-- /menu-sidebar -->
 
     <!-- Right content panels -->
@@ -1512,6 +1607,36 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
       </div>
 
+      <!-- SOCIAL PANEL -->
+      <div class="menu-panel" id="menu-panel-social">
+        <div class="panel-topbar">
+          <div class="panel-title">☍ Social</div>
+          <div class="panel-meta" id="social-online-count">0 friends online</div>
+        </div>
+        <div class="social-body">
+
+          <div class="social-add-row">
+            <input type="text" id="social-add-input" class="pf-name-input" maxlength="24" placeholder="Add a friend by username..." onkeydown="if(event.key==='Enter')sendFriendRequestByUsername()">
+            <button class="bbtn bbtn-battle" style="padding:0 20px;font-size:.68rem;white-space:nowrap;" onclick="sendFriendRequestByUsername()">Add Friend</button>
+          </div>
+
+          <div id="social-incoming-section" style="display:none;">
+            <div class="shop-row-header"><div class="shop-row-header-label gold-label">Friend Requests</div><div class="shop-row-header-line gold-line"></div></div>
+            <div id="social-incoming-list" class="social-list"></div>
+          </div>
+
+          <div id="social-outgoing-section" style="display:none;">
+            <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Sent Requests</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
+            <div id="social-outgoing-list" class="social-list"></div>
+          </div>
+
+          <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Friends</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
+          <div id="social-friends-list" class="social-list"></div>
+          <div id="social-empty-msg" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:10px 24px 30px;">No friends yet — add one by username above.</div>
+
+        </div>
+      </div>
+
     </div><!-- /menu-content -->
   </div><!-- /menu-layout -->
 </div>
@@ -1530,8 +1655,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="banner-actions">
       <span id="action-hint" style="font-size:0.6rem;color:#fbbf24;letter-spacing:0.06em;"></span>
       <button class="bbtn bbtn-battle" id="btn-battle" onclick="readyToBattle()" style="display:none;">✦ BATTLE!</button>
-      <button class="bbtn bbtn-endturn" id="btn-end-turn" onclick="endPlayerTurn()">End Turn →</button>
-      <button class="bbtn bbtn-restart" onclick="returnToMenu()" style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);color:rgba(196,181,253,.7);margin-right:4px;">← Menu</button>
     </div>
   </div>
 
@@ -1539,15 +1662,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
     <!-- Enemy avatar + HP -->
     <div class="avatar-row">
-      <div class="avatar-circle avatar-enemy">P2</div>
+      <div class="avatar-circle avatar-enemy" id="enemy-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label">Enemy HP</div>
+        <div class="hp-label" id="enemy-hp-label">Enemy HP</div>
         <div class="hp-bar-wrap hp-bar-enemy">
           <div class="hp-bar-fill" id="enemy-hp-fill" style="width:100%"></div>
           <div class="hp-bar-text" id="enemy-hp-text">100 / 100</div>
         </div>
       </div>
-      <div class="hand-count-badge" id="enemy-hand-badge">Hand: 4</div>
     </div>
 
     <!-- Arena table -->
@@ -1583,7 +1705,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
     <!-- Player avatar + HP -->
     <div class="avatar-row">
-      <div class="avatar-circle avatar-player">P1</div>
+      <div class="avatar-circle avatar-player" id="player-avatar-circle"></div>
       <div class="hp-display">
         <div class="hp-label">Your HP</div>
         <div class="hp-bar-wrap hp-bar-player">
@@ -1591,7 +1713,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div class="hp-bar-text" id="player-hp-text">100 / 100</div>
         </div>
       </div>
-      <div class="hand-count-badge" id="player-hand-badge">Hand: 4 · Deck: 6</div>
     </div>
 
   </div><!-- /table-wrap -->
@@ -1638,6 +1759,20 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   .pack-loading-dot{width:12px;height:12px;border-radius:50%;background:#a78bfa;animation:pack-dot-bounce 1s ease-in-out infinite;}
   @keyframes pack-dot-bounce{0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;}}
 </style>
+
+<!-- Same quick round-trip pattern, used while waiting on the server's authoritative
+     profile for a 'view_profile' request (chat clicks) — the profile modal itself
+     stays closed/untouched until the data actually arrives, this just tells the
+     player something is happening instead of letting the click feel dead. -->
+<div id="profile-loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.75);z-index:2100;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-family:'Cinzel',serif;">
+  <div style="display:flex;gap:8px;">
+    <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+    <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+    <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+  </div>
+  <div style="font-size:.75rem;color:#c4b5fd;letter-spacing:.05em;">Loading profile...</div>
+</div>
+
 
 <!-- Multiplayer matchmaking overlay -->
 <div id="mp-queue-overlay" class="loading-screen-solid" style="display:none;position:fixed;inset:0;background:#05060f;z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;overflow:hidden;">
@@ -1703,6 +1838,9 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       </div>
       <div class="pfv-actions">
         <button class="pf-btn pf-btn-cancel" onclick="closeProfileView()">Close</button>
+        <button class="social-btn duel" id="pfv-duel-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestDuel(_pfvUserId);closeProfileView();">⚔ Duel</button>
+        <button class="social-btn remove" id="pfv-unfriend-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="removeFriend(_pfvUserId);closeProfileView();">Remove Friend</button>
+        <button class="pf-btn pf-btn-save" id="pfv-friend-btn" style="display:none;" onclick="handlePfvFriendAction()"></button>
         <button class="pf-btn pf-btn-save" id="pfv-edit-btn" onclick="editProfileFromView()">Edit Profile</button>
       </div>
     </div>
@@ -1766,6 +1904,31 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <div id="inspect-overlay" onclick="handleInspectBackdrop(event)">
   <div id="inspect-card-wrap"></div>
   <div id="inspect-actions"></div>
+</div>
+
+<!-- ══════ DUEL INVITE BANNER ══════ -->
+<div id="duel-invite-banner">
+  <div class="social-avatar" id="duel-invite-avatar"></div>
+  <div id="duel-invite-text"><span id="duel-invite-name"></span> challenges you to a duel!</div>
+  <button class="social-btn accept" onclick="respondToDuel(true)">Accept</button>
+  <button class="social-btn decline" onclick="respondToDuel(false)">Decline</button>
+</div>
+
+<!-- ══════ MATCH START TRANSITION ══════ -->
+<div id="battle-start-overlay">
+  <div class="bs-flash"></div>
+  <div class="bs-vs-stage">
+    <div class="bs-fighter bs-fighter-left">
+      <div class="bs-fighter-avatar" id="bs-player-avatar"></div>
+      <div class="bs-fighter-name" id="bs-player-name"></div>
+    </div>
+    <div class="bs-vs-text">VS</div>
+    <div class="bs-fighter bs-fighter-right">
+      <div class="bs-fighter-avatar" id="bs-opponent-avatar"></div>
+      <div class="bs-fighter-name" id="bs-opponent-name"></div>
+    </div>
+  </div>
+  <div class="bs-subtext">Entering the Arena</div>
 </div>
 
 <!-- ══════ COIN FLIP OVERLAY ══════ -->
@@ -2310,7 +2473,7 @@ const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,act
   player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]},
   enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]}};
 /* multiplayer flags — false/0 until a real match is found and beginMultiplayerMatch() runs */
-State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';
+State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';
 
 /* ── HAND TRAY ───────────────────────────────────────── */
 let _handVisible=false,_handHideTimer=null;
@@ -2473,6 +2636,7 @@ function cancelPending(){
   updateUI();
 }
 
+let _autoEndTurnTimer=null;
 function endPlayerTurn(){
   if(State.turn==='PLAYER') Net.send({type:'end_turn'});
 }
@@ -2580,10 +2744,6 @@ function updateUI(){
   setHp('player-hp-fill','player-hp-text',State.player.hp,State.player.maxHp);
   setHp('enemy-hp-fill', 'enemy-hp-text', State.enemy.hp, State.enemy.maxHp);
 
-  // Badges
-  document.getElementById('player-hand-badge').innerText=`Hand: ${State.player.hand.length} · Deck: ${State.player.deck.length}`;
-  document.getElementById('enemy-hand-badge').innerText =`Hand: ${State.enemy.hand.length}`;
-
   // Battlefield
   const canAct=State.turn==='PLAYER'&&State.phase==='MAIN';
   const sel=State.selectedSlot;
@@ -2663,9 +2823,19 @@ function updateUI(){
   // Buttons
   const battleBtn=document.getElementById('btn-battle');
   if(battleBtn)battleBtn.style.display=State.phase==='SETUP'?'':'none';
-  document.getElementById('btn-end-turn').disabled=!canAct||State.phase==='SETUP';
 
-  // Action hint
+  // Action hint + auto end-turn — once both card slots have acted there's
+  // nothing left to decide, so the turn ends itself instead of waiting on
+  // a button the player has to remember to press.
+  const canAttack1=State.player.activeCard&&!State.actedThisTurn.has('slot1');
+  const canAttack2=State.player.activeCard2&&!State.actedThisTurn.has('slot2');
+  if(canAct&&!canAttack1&&!canAttack2&&!_autoEndTurnTimer){
+    _autoEndTurnTimer=setTimeout(()=>{
+      _autoEndTurnTimer=null;
+      if(State.turn==='PLAYER'&&State.phase==='MAIN')endPlayerTurn();
+    },900);
+  }
+
   const hint=document.getElementById('action-hint');
   if(hint){
     if(State.phase==='SETUP'){
@@ -2678,9 +2848,7 @@ function updateUI(){
       hint.textContent=`${selCard?.name||''} selected — click an enemy slot to attack`;
       hint.style.color='#fbbf24';
     }else{
-      const canAttack1=State.player.activeCard&&!State.actedThisTurn.has('slot1');
-      const canAttack2=State.player.activeCard2&&!State.actedThisTurn.has('slot2');
-      hint.textContent=(canAttack1||canAttack2)?'Click your card to select it, then click an enemy slot':'All cards have acted — End Turn';
+      hint.textContent=(canAttack1||canAttack2)?'Click your card to select it, then click an enemy slot':'All cards have acted — ending your turn…';
       hint.style.color='#fbbf24';
     }
   }
@@ -2733,6 +2901,13 @@ const ICON_SVGS = {
   serpent:  '<path d="M5.5 19.3c0-2.2 4-2.1 4-4.9s-4-2.7-4-5.5 4-3.6 8.7-3.6"/><circle cx="15.3" cy="5.1" r="1.35"/><path d="M16.9 4.6l1.7-.7M16.9 5.5l1.7.7"/>',
   laurel:   '<path d="M12 20V5"/><path d="M12 6c-2-1.6-2-4 0-4M12 9c-2.4-1.4-2.6-4.2-.6-4.8M12 12c-2.6-1-3-3.8-1.1-4.7M12 15c-2.8-.6-3.4-3.3-1.6-4.5M12 6c2-1.6 2-4 0-4M12 9c2.4-1.4 2.6-4.2.6-4.8M12 12c2.6-1 3-3.8 1.1-4.7M12 15c2.8-.6 3.4-3.3 1.6-4.5"/>',
 };
+/** Usernames are player-controlled text — this keeps them from being
+ * interpreted as markup wherever they're interpolated into an innerHTML
+ * template string (the Social panel's friend/request rows). */
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderIcon(id,size=20){
   const inner=ICON_SVGS[id]||ICON_SVGS.star;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -2882,20 +3057,26 @@ function saveProfileEdits(){
 }
 
 
-/* ── PROFILE VIEW (read-only — own profile today; built to take any
-   profile object, so a future "view opponent" entry point can call
-   openProfileView(theirProfile,{isOwn:false}) without changes here) ───── */
+/* ── PROFILE VIEW (read-only) — used for both your own profile and any
+   other player's (battle chat, global chat, Social tab), with friend
+   actions layered on for the latter. ───── */
 let _pfvIsOwn=true;
+let _pfvUserId=null;
+let _pfvFriendship=null;
 
 function openOwnProfileView(){
   openProfileView(Player,{isOwn:true});
 }
 
 /** Renders any profile-shaped object in read-only form. `opts.isOwn`
- * controls whether the "Edit Profile" button appears. */
+ * controls whether the "Edit Profile" button appears; `opts.friendship`
+ * (one of 'none'|'outgoing'|'incoming'|'friends'|null for self/bots)
+ * controls which friend-related action button appears instead. */
 function openProfileView(profile,opts={}){
   if(!profile)return;
   _pfvIsOwn=!!opts.isOwn;
+  _pfvUserId=profile.id||null;
+  _pfvFriendship=opts.friendship||null;
   document.getElementById('pfv-hero').className='pfv-hero banner-'+(profile.banner||'violet');
   document.getElementById('pfv-avatar').innerHTML=renderIcon(profile.icon||'star',40);
   document.getElementById('pfv-name').textContent=profile.name||profile.username||'Pestmaster';
@@ -2910,7 +3091,38 @@ function openProfileView(profile,opts={}){
   bioEl.classList.toggle('empty',!bio);
   renderProfileViewFavGrid(profile);
   document.getElementById('pfv-edit-btn').style.display=_pfvIsOwn?'':'none';
+  updatePfvFriendButtons();
   document.getElementById('profile-view-overlay').classList.add('open');
+}
+
+/** Shows exactly one friend-related action, based on the relationship
+ * the server told us about when this profile was fetched. */
+function updatePfvFriendButtons(){
+  const duelBtn=document.getElementById('pfv-duel-btn');
+  const unfriendBtn=document.getElementById('pfv-unfriend-btn');
+  const actionBtn=document.getElementById('pfv-friend-btn');
+  duelBtn.style.display='none'; unfriendBtn.style.display='none'; actionBtn.style.display='none';
+  if(_pfvIsOwn||!_pfvUserId||!_pfvFriendship) return;
+  if(_pfvFriendship==='friends'){
+    duelBtn.style.display=''; unfriendBtn.style.display='';
+  } else if(_pfvFriendship==='outgoing'){
+    actionBtn.style.display=''; actionBtn.disabled=true; actionBtn.textContent='Request Sent';
+  } else if(_pfvFriendship==='incoming'){
+    actionBtn.style.display=''; actionBtn.disabled=false; actionBtn.textContent='Accept Friend Request';
+  } else {
+    actionBtn.style.display=''; actionBtn.disabled=false; actionBtn.textContent='Add Friend';
+  }
+}
+
+function handlePfvFriendAction(){
+  if(!_pfvUserId) return;
+  if(_pfvFriendship==='incoming'){
+    Net.send({type:'friend_respond', userId:_pfvUserId, accept:true});
+  } else if(_pfvFriendship==='none'){
+    Net.send({type:'friend_request', userId:_pfvUserId});
+    showToast('👥 Friend request sent!');
+  }
+  closeProfileView();
 }
 
 function renderProfileViewFavGrid(profile){
@@ -2942,11 +3154,27 @@ function editProfileFromView(){
   openProfileModal();
 }
 
+let _profileLoadingTimeout=null;
+function showProfileLoading(){
+  document.getElementById('profile-loading-overlay').style.display='flex';
+  clearTimeout(_profileLoadingTimeout);
+  // safety net: if the server never answers, don't leave the dots spinning forever
+  _profileLoadingTimeout=setTimeout(()=>{
+    hideProfileLoading();
+    showToast('⚠ Could not load that profile. Please try again.');
+  },8000);
+}
+function hideProfileLoading(){
+  document.getElementById('profile-loading-overlay').style.display='none';
+  clearTimeout(_profileLoadingTimeout); _profileLoadingTimeout=null;
+}
+
 /** Stub for viewing another player's profile — not wired to a UI entry
  * point yet (there's no opponent roster to click from today), but the
  * client/server plumbing is in place for when one exists. Server responds
  * with a `player_profile` message carrying only public-safe fields. */
 function viewPlayerProfile(userId){
+  showProfileLoading();
   Net.send({type:'view_profile', userId});
 }
 
@@ -2997,6 +3225,121 @@ function showScreen(id){
   }
 }
 
+/* ══════════════════════════════════════
+   SOCIAL: FRIENDS + PRESENCE + DUELS
+══════════════════════════════════════ */
+let SocialState={friends:[],incoming:[],outgoing:[]};
+
+function updateSocialBadge(data){
+  const n=(data.incoming||[]).length;
+  const badge=document.getElementById('social-tab-badge');
+  if(n>0){ badge.style.display='block'; badge.textContent=n>9?'9+':String(n); }
+  else badge.style.display='none';
+}
+
+function socialRow({userId,username,icon,statusText,online,showDot,actionsHtml}){
+  return `<div class="social-row">
+    <div class="social-avatar-wrap">
+      <div class="social-avatar" onclick="viewPlayerProfile('${userId}')">${renderIcon(icon||'star',18)}</div>
+      ${showDot?`<div class="social-status-dot ${online?'online':''}"></div>`:''}
+    </div>
+    <div class="social-row-name" onclick="viewPlayerProfile('${userId}')">
+      <span class="social-row-username">${escapeHtml(username)}</span>
+      <span class="social-row-status">${statusText}</span>
+    </div>
+    <div class="social-row-actions">${actionsHtml}</div>
+  </div>`;
+}
+
+function renderSocial(data){
+  SocialState=data;
+  updateSocialBadge(data);
+
+  const friends=[...(data.friends||[])].sort((a,b)=>(b.online?1:0)-(a.online?1:0)||a.username.localeCompare(b.username));
+  const onlineCount=friends.filter(f=>f.online).length;
+  document.getElementById('social-online-count').textContent=`${onlineCount} friend${onlineCount===1?'':'s'} online`;
+
+  const incoming=data.incoming||[];
+  document.getElementById('social-incoming-section').style.display=incoming.length?'':'none';
+  document.getElementById('social-incoming-list').innerHTML=incoming.map(f=>socialRow({
+    ...f, statusText:'Wants to be friends', showDot:false,
+    actionsHtml:`<button class="social-btn accept" onclick="respondFriendRequest('${f.userId}',true)">Accept</button>
+                 <button class="social-btn decline" onclick="respondFriendRequest('${f.userId}',false)">Decline</button>`
+  })).join('');
+
+  const outgoing=data.outgoing||[];
+  document.getElementById('social-outgoing-section').style.display=outgoing.length?'':'none';
+  document.getElementById('social-outgoing-list').innerHTML=outgoing.map(f=>socialRow({
+    ...f, statusText:'Request sent', showDot:false,
+    actionsHtml:`<button class="social-btn cancel" onclick="removeFriend('${f.userId}')">Cancel</button>`
+  })).join('');
+
+  document.getElementById('social-empty-msg').style.display=friends.length?'none':'block';
+  document.getElementById('social-friends-list').innerHTML=friends.map(f=>socialRow({
+    ...f, statusText:f.online?'Online':'Offline', showDot:true,
+    actionsHtml:`<button class="social-btn duel" ${f.online?'':'disabled'} onclick="requestDuel('${f.userId}')">⚔ Duel</button>
+                 <button class="social-btn remove" onclick="removeFriend('${f.userId}')">Remove</button>`
+  })).join('');
+}
+
+function sendFriendRequestByUsername(){
+  const input=document.getElementById('social-add-input');
+  const username=input.value.trim();
+  if(!username) return;
+  Net.send({type:'friend_request', username});
+  input.value='';
+}
+
+function respondFriendRequest(userId,accept){ Net.send({type:'friend_respond', userId, accept}); }
+function removeFriend(userId){ Net.send({type:'friend_remove', userId}); }
+
+/** Patches a single friend's live online/offline status in place instead
+ * of waiting on a full friends_list round trip, so the dot flips the
+ * instant a presence_update arrives. */
+function updateFriendPresence(userId,online){
+  const f=(SocialState.friends||[]).find(x=>x.userId===userId);
+  if(f){ f.online=online; renderSocial(SocialState); }
+}
+
+function nameForSocialUser(userId){
+  const all=[...(SocialState.friends||[]),...(SocialState.incoming||[]),...(SocialState.outgoing||[])];
+  return all.find(f=>f.userId===userId)?.username;
+}
+
+/* ── Duels ── */
+let _pendingDuelFrom=null;
+function requestDuel(userId){
+  Net.send({type:'duel_request', userId});
+  showToast('⚔ Duel request sent!');
+}
+function showDuelInvite(fromId,username,icon){
+  _pendingDuelFrom=fromId;
+  document.getElementById('duel-invite-avatar').innerHTML=renderIcon(icon||'star',18);
+  document.getElementById('duel-invite-name').textContent=username||'A friend';
+  document.getElementById('duel-invite-banner').style.display='flex';
+}
+function hideDuelInvite(){
+  document.getElementById('duel-invite-banner').style.display='none';
+  _pendingDuelFrom=null;
+}
+function respondToDuel(accept){
+  if(!_pendingDuelFrom) return;
+  Net.send({type:'duel_respond', userId:_pendingDuelFrom, accept});
+  hideDuelInvite();
+}
+
+/* ── Presence heartbeat — starts only once the player is actually "on"
+ * (past auth, into the app), never before. Fires every couple of minutes
+ * to tell the server "still here"; if it stops, the server's own sweep
+ * (and the friends who see it) treats the player as offline. ── */
+const PRESENCE_HEARTBEAT_MS=2*60*1000;
+let _presenceTimer=null;
+function startPresenceHeartbeat(){
+  if(_presenceTimer) return; // already running — never restarts mid-session
+  Net.send({type:'heartbeat'});
+  _presenceTimer=setInterval(()=>Net.send({type:'heartbeat'}), PRESENCE_HEARTBEAT_MS);
+}
+
 function switchMenuTab(tab){
   document.querySelectorAll('.menu-tab').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.tab===tab);
@@ -3008,6 +3351,7 @@ function switchMenuTab(tab){
   if(panel) panel.classList.add('active');
   if(tab==='deck') refreshDeckBuilder();
   if(tab==='market') renderShop();
+  if(tab==='social') Net.send({type:'friends_list'});
 }
 
 function enterArena(){
@@ -4639,9 +4983,12 @@ const Net={
           if(Array.isArray(msg.profileOptions.banners))PROFILE_BANNERS=msg.profileOptions.banners;
           if(typeof msg.profileOptions.bioMax==='number')PROFILE_BIO_MAX=msg.profileOptions.bioMax;
         }
+        // Presence starts here — the moment the player is actually "on,"
+        // never before (not during load, not before auth completes).
+        startPresenceHeartbeat();
         break;
       case 'profile': applyServerProfile(msg.profile); break;
-      case 'player_profile': if(msg.profile) openProfileView(msg.profile,{isOwn:false}); break;
+      case 'player_profile': hideProfileLoading(); if(msg.profile) openProfileView(msg.profile,{isOwn:false, friendship:msg.friendship}); break;
       case 'profile_updated':
         applyServerProfile(msg.profile);
         closeProfileModal();
@@ -4657,8 +5004,18 @@ const Net={
       case 'battle_chat': handleBattleChatMessage(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
+      case 'friends_list': renderSocial(msg); break;
+      case 'friend_request_received':
+        showToast(`👥 ${msg.username||'Someone'} sent you a friend request!`);
+        Net.send({type:'friends_list'});
+        break;
+      case 'presence_update': updateFriendPresence(msg.userId, msg.online); break;
+      case 'duel_request_received': showDuelInvite(msg.userId, msg.username, msg.icon); break;
+      case 'duel_request_sent': break; // already toasted optimistically by requestDuel()
+      case 'duel_declined': showToast(`${nameForSocialUser(msg.userId)||'They'} declined the duel.`); break;
       case 'error':
         hidePackLoading();
+        hideProfileLoading();
         if(msg.reason==='card_library_mismatch'){
           const overlay=document.getElementById('mp-connecting-overlay');
           if(overlay&&overlay.style.display==='flex'){
@@ -4669,6 +5026,22 @@ const Net={
           showToast(`⚠ Deck must be exactly ${DECK_SIZE} cards.`);
         } else if(msg.reason==='deck_composition_invalid'){
           showToast('⚠ Deck breaks the Boss/Overlord rule — only one Boss or Overlord allowed, and Overlord decks can\'t include Pests or Boss cards.', 6000);
+        } else if(msg.reason==='user_not_found'){
+          showToast('⚠ No player found with that username.');
+        } else if(msg.reason==='cannot_friend_self'){
+          showToast("⚠ You can't friend yourself.");
+        } else if(msg.reason==='already_friends'){
+          showToast('⚠ You\'re already friends with that player.');
+        } else if(msg.reason==='request_already_pending'){
+          showToast('⚠ A friend request with that player is already pending.');
+        } else if(msg.reason==='friend_offline'){
+          showToast('⚠ That friend is offline right now.');
+        } else if(msg.reason==='friend_busy'){
+          showToast('⚠ That friend is already in a match.');
+        } else if(msg.reason==='not_friends'){
+          showToast('⚠ You can only duel friends.');
+        } else if(msg.reason==='duel_unavailable'){
+          showToast('⚠ That duel is no longer available.');
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
@@ -4760,23 +5133,53 @@ function cancelMatchmaking(){
   hideQueueOverlay();
 }
 
+/** Plays the VS-clash intro once, right when a fresh match begins (skipped
+ * on reconnect, since that's not really a "start"). Resolves once the
+ * overlay has fully cleared, so the caller can chain the actual screen
+ * swap after it instead of racing the animation. */
+function playMatchStartTransition(oppName,oppIcon){
+  return new Promise(resolve=>{
+    const ov=document.getElementById('battle-start-overlay');
+    ov.classList.remove('leaving','slide-in','clash');
+    document.getElementById('bs-player-avatar').innerHTML=renderIcon(Player.icon||'star',44);
+    document.getElementById('bs-player-name').textContent=Player.name||'Pestmaster';
+    document.getElementById('bs-opponent-avatar').innerHTML=renderIcon(oppIcon||'star',44);
+    document.getElementById('bs-opponent-name').textContent=oppName||'Opponent';
+    ov.classList.add('open');
+    void ov.offsetWidth;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ ov.classList.add('slide-in'); }));
+    setTimeout(()=>{ ov.classList.add('clash'); },620);
+    setTimeout(()=>{ ov.classList.add('leaving'); },1650);
+    setTimeout(()=>{ ov.classList.remove('open','leaving','slide-in','clash'); resolve(); },2050);
+  });
+}
+
 function beginMultiplayerMatch(msg){
   hideQueueOverlay();
   State.mp=true; State.mySide=msg.youAre; State._mpOver=false;
   State.opponentName=msg.opponentName||'Opponent';
+  State.opponentIcon=msg.opponentIcon||'star';
   State.selectedSlot=null; State.pendingTarget=null;
   document.getElementById('game-over').style.display='none';
   document.getElementById('coinflip-overlay').classList.remove('open');
   _handVisible=false;
   document.getElementById('hand-tray').classList.remove('visible');
-  showScreen('game');
-  initHandTray();
-  setTimeout(showHandTray,400);
-  if(!msg.resumed) showToast(`Matched vs ${State.opponentName}!`);
+  const enterGame=()=>{
+    document.getElementById('enemy-avatar-circle').innerHTML=renderIcon(State.opponentIcon||'star',26);
+    document.getElementById('player-avatar-circle').innerHTML=renderIcon(Player.icon||'star',26);
+    const enemyLabel=document.getElementById('enemy-hp-label');
+    if(enemyLabel) enemyLabel.textContent=`${State.opponentName||'Enemy'}'s HP`;
+    showScreen('game');
+    initHandTray();
+    setTimeout(showHandTray,400);
+  };
+  if(msg.resumed){ enterGame(); }
+  else { playMatchStartTransition(State.opponentName,State.opponentIcon).then(enterGame); }
 }
 
 /* ── AUTHORITATIVE STATE APPLICATION ──────────────────────────────── */
 function applyServerState(msg){
+  clearTimeout(_autoEndTurnTimer); _autoEndTurnTimer=null;
   State.mySide=msg.you;
   // animate against the board as it currently looks (pre-mutation) before we overwrite it
   playServerEvents(msg.events||[]);
@@ -4971,6 +5374,17 @@ const GlobalChat = {
 };
 const BattleChat = { lastSentAt: 0 };
 
+/** Best-effort local lookup against the last-known friends_list snapshot —
+ * used for global chat, which renders profiles from a local snapshot with
+ * no server round trip, unlike battle chat's view_profile flow. */
+function friendshipStatusFor(userId){
+  if(!userId) return null;
+  if((SocialState.friends||[]).some(f=>f.userId===userId)) return 'friends';
+  if((SocialState.outgoing||[]).some(f=>f.userId===userId)) return 'outgoing';
+  if((SocialState.incoming||[]).some(f=>f.userId===userId)) return 'incoming';
+  return 'none';
+}
+
 function ensureChatIdentity(){
   // Reuses the same stable guestId the arena WS server uses for reconnects,
   // so a player's chat identity and match identity line up. Generated once
@@ -5060,6 +5474,7 @@ function renderChatMessage(row,opts={}){
   wrap.querySelector('.gc-msg-text').textContent=row.message||'';
   wrap.addEventListener('click',()=>{
     openProfileView({
+      id:row.sender_id,
       name:row.sender_name,
       icon:row.sender_icon,
       banner:row.sender_banner,
@@ -5068,7 +5483,7 @@ function renderChatMessage(row,opts={}){
       losses:row.sender_losses,
       collection:new Array(row.sender_cards_count||0),
       favoriteCards:row.sender_favorite_cards||[],
-    },{isOwn});
+    },{isOwn, friendship: isOwn?null:friendshipStatusFor(row.sender_id)});
   });
   list.appendChild(wrap);
   const shouldStick=list.scrollTop+list.clientHeight>=list.scrollHeight-40;
@@ -5105,7 +5520,7 @@ function handleBattleChatMessage(msg){
   const wrap=document.createElement('div');
   wrap.className='gc-msg'+(isOwn?' own':'');
   wrap.innerHTML=`
-    <div class="gc-msg-avatar">${renderIcon(isOwn?(Player.icon||'star'):'blade',15)}</div>
+    <div class="gc-msg-avatar">${renderIcon(isOwn?(Player.icon||'star'):(msg.icon||'star'),15)}</div>
     <div class="gc-msg-body">
       <div class="gc-msg-top">
         <span class="gc-msg-name"></span>
@@ -5113,9 +5528,9 @@ function handleBattleChatMessage(msg){
       </div>
       <div class="gc-msg-text"></div>
     </div>`;
-  wrap.querySelector('.gc-msg-name').textContent=isOwn?'You':(msg.name||State.opponentName||'Opponent');
+  wrap.querySelector('.gc-msg-name').textContent=isOwn?(Player.name||'You'):(msg.name||State.opponentName||'Opponent');
   wrap.querySelector('.gc-msg-text').textContent=msg.text||'';
-  wrap.addEventListener('click',()=>{ Net.send({type:'view_profile', userId: msg.from}); });
+  wrap.addEventListener('click',()=>{ viewPlayerProfile(msg.from); });
   list.appendChild(wrap);
   const shouldStick=list.scrollTop+list.clientHeight>=list.scrollHeight-40;
   if(shouldStick||GlobalChat.mode==='battle')list.scrollTop=list.scrollHeight;
