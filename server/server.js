@@ -85,6 +85,19 @@ const matches = new Map();
 const queue = [];
 /** userId -> pending bot-fallback Timeout, armed while that user sits in `queue` */
 const queueTimers = new Map();
+/** targetUserId -> requesterUserId — at most one live incoming duel invite
+ * tracked per target; a newer invite simply replaces an older unanswered one. */
+const pendingDuels = new Map();
+
+/* Presence: a user only counts as online when BOTH a live WS connection
+ * exists on this process AND its last heartbeat is recent. The Supabase
+ * `presence` table (guest-mode fallback: guestPresence) is the source of
+ * truth for "recent" so this also works across a restart / multiple
+ * server instances, per the design in supabase-schema.sql. */
+const PRESENCE_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000; // no heartbeat in this long => offline
+const PRESENCE_SWEEP_MS = 60 * 1000;
+const guestPresence = new Map(); // userId -> { lastHeartbeat, online } — only used when Supabase isn't configured
+const guestFriendships = new Map(); // pairKey -> { status:'pending'|'accepted', requestedBy, createdAt } — guest-mode fallback
 
 let nextGuestId = 1;
 
@@ -185,6 +198,182 @@ async function updateProfile(userId, msg, ownedSet) {
   }
   return fetchProfile(userId);
 }
+/* ── FRIENDS + PRESENCE LAYER (Supabase-backed, guest fallback) ───────
+ * Every mutation still flows through a WebSocket message like everything
+ * else in this file — this just decides where the resulting row lives.
+ * Presence and the friendships themselves persist in Supabase (see
+ * supabase-schema.sql); friend requests, accept/decline, unfriend, and
+ * duels are ordinary WS request/response, same as deploy/attack/end_turn. */
+
+const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/** Case-insensitive exact-username lookup, used for "add friend by name." */
+async function findUserIdByUsername(username) {
+  const name = String(username || '').trim();
+  if (!name) return null;
+  if (!HAS_SUPABASE) {
+    for (const [id, p] of guestProfiles) {
+      if (p.username.toLowerCase() === name.toLowerCase()) return id;
+    }
+    return null;
+  }
+  const { data, error } = await supabase.from('profiles').select('id').ilike('username', name).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ? data.id : null;
+}
+
+/** Lightweight {username,icon} lookup for many ids at once — a friends
+ * list has no business pulling everyone's full collection/deck the way
+ * fetchProfile does. */
+async function fetchProfileSummaries(userIds) {
+  const ids = [...new Set(userIds)];
+  const out = new Map();
+  if (!ids.length) return out;
+  if (!HAS_SUPABASE) {
+    for (const id of ids) {
+      const p = guestProfiles.get(id);
+      out.set(id, { username: p ? p.username : 'Unknown', icon: (p && p.icon) || 'star' });
+    }
+    return out;
+  }
+  const { data, error } = await supabase.from('profiles').select('id,username,icon').in('id', ids);
+  if (error) throw error;
+  for (const row of data || []) out.set(row.id, { username: row.username, icon: row.icon || 'star' });
+  for (const id of ids) if (!out.has(id)) out.set(id, { username: 'Unknown', icon: 'star' });
+  return out;
+}
+
+/** Returns { status, requestedBy } for the relationship between two users, or null. */
+async function getFriendship(userId, otherId) {
+  if (!HAS_SUPABASE) return guestFriendships.get(pairKey(userId, otherId)) || null;
+  const [a, b] = userId < otherId ? [userId, otherId] : [otherId, userId];
+  const { data, error } = await supabase.from('friendships').select('status,requested_by').eq('user_a', a).eq('user_b', b).maybeSingle();
+  if (error) throw error;
+  return data ? { status: data.status, requestedBy: data.requested_by } : null;
+}
+
+async function createFriendRequest(fromId, toId) {
+  if (!HAS_SUPABASE) {
+    guestFriendships.set(pairKey(fromId, toId), { status: 'pending', requestedBy: fromId, createdAt: Date.now() });
+    return;
+  }
+  const [a, b] = fromId < toId ? [fromId, toId] : [toId, fromId];
+  const { error } = await supabase.from('friendships').insert({ user_a: a, user_b: b, status: 'pending', requested_by: fromId });
+  if (error) throw error;
+}
+
+async function acceptFriendRequest(userId, otherId) {
+  if (!HAS_SUPABASE) {
+    const row = guestFriendships.get(pairKey(userId, otherId));
+    if (row) { row.status = 'accepted'; row.respondedAt = Date.now(); }
+    return;
+  }
+  const [a, b] = userId < otherId ? [userId, otherId] : [otherId, userId];
+  const { error } = await supabase.from('friendships').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('user_a', a).eq('user_b', b);
+  if (error) throw error;
+}
+
+/** Deletes the relationship regardless of status — covers unfriending an
+ * accepted friend, cancelling your own outgoing request, and declining an
+ * incoming one, since none of those need a lingering row. */
+async function deleteFriendship(userId, otherId) {
+  if (!HAS_SUPABASE) { guestFriendships.delete(pairKey(userId, otherId)); return; }
+  const [a, b] = userId < otherId ? [userId, otherId] : [otherId, userId];
+  const { error } = await supabase.from('friendships').delete().eq('user_a', a).eq('user_b', b);
+  if (error) throw error;
+}
+
+/** Every relationship (any status) involving userId, from that user's point of view. */
+async function listFriendshipRows(userId) {
+  if (!HAS_SUPABASE) {
+    const rows = [];
+    for (const [key, row] of guestFriendships) {
+      const [a, b] = key.split('|');
+      if (a === userId || b === userId) rows.push({ otherId: a === userId ? b : a, status: row.status, requestedBy: row.requestedBy });
+    }
+    return rows;
+  }
+  const { data, error } = await supabase.from('friendships').select('*').or(`user_a.eq.${userId},user_b.eq.${userId}`);
+  if (error) throw error;
+  return (data || []).map(r => ({ otherId: r.user_a === userId ? r.user_b : r.user_a, status: r.status, requestedBy: r.requested_by }));
+}
+
+async function markPresenceOnline(userId) {
+  if (!HAS_SUPABASE) { guestPresence.set(userId, { lastHeartbeat: Date.now(), online: true }); return; }
+  const { error } = await supabase.from('presence').upsert(
+    { user_id: userId, last_heartbeat: new Date().toISOString(), online: true }, { onConflict: 'user_id' }
+  );
+  if (error) throw error;
+}
+
+async function markPresenceOffline(userId) {
+  if (!HAS_SUPABASE) { const p = guestPresence.get(userId); if (p) p.online = false; return; }
+  const { error } = await supabase.from('presence').upsert(
+    { user_id: userId, last_heartbeat: new Date().toISOString(), online: false }, { onConflict: 'user_id' }
+  );
+  if (error) throw error;
+}
+
+/** Batched online check — a user counts as online only if their presence
+ * row says so AND its heartbeat hasn't gone stale. */
+async function onlineStatusBatch(userIds) {
+  const ids = [...new Set(userIds)];
+  const out = new Map();
+  if (!ids.length) return out;
+  const now = Date.now();
+  if (!HAS_SUPABASE) {
+    for (const id of ids) {
+      const p = guestPresence.get(id);
+      out.set(id, !!(p && p.online && (now - p.lastHeartbeat) < PRESENCE_HEARTBEAT_TIMEOUT_MS));
+    }
+    return out;
+  }
+  const { data, error } = await supabase.from('presence').select('user_id,online,last_heartbeat').in('user_id', ids);
+  if (error) throw error;
+  for (const row of data || []) {
+    out.set(row.user_id, !!(row.online && (now - new Date(row.last_heartbeat).getTime()) < PRESENCE_HEARTBEAT_TIMEOUT_MS));
+  }
+  for (const id of ids) if (!out.has(id)) out.set(id, false);
+  return out;
+}
+
+/** Pushes a presence flip to every online friend's live connection —
+ * there's no need to persist this event, only the resulting row. */
+async function broadcastPresence(userId, online) {
+  try {
+    const rows = await listFriendshipRows(userId);
+    for (const r of rows) {
+      if (r.status !== 'accepted') continue;
+      const c = connections.get(r.otherId);
+      if (c) c.send({ type: 'presence_update', userId, online });
+    }
+  } catch (e) { console.error('[arena] broadcastPresence failed', e); }
+}
+
+/** Full friends_list payload: accepted friends (with live online status),
+ * plus incoming/outgoing pending requests. */
+async function buildFriendsList(userId) {
+  const rows = await listFriendshipRows(userId);
+  const friends = rows.filter(r => r.status === 'accepted');
+  const incoming = rows.filter(r => r.status === 'pending' && r.requestedBy !== userId);
+  const outgoing = rows.filter(r => r.status === 'pending' && r.requestedBy === userId);
+  const [summaries, online] = await Promise.all([
+    fetchProfileSummaries(rows.map(r => r.otherId)),
+    onlineStatusBatch(friends.map(r => r.otherId)),
+  ]);
+  const toEntry = withOnline => r => ({
+    userId: r.otherId,
+    username: summaries.get(r.otherId)?.username || 'Unknown',
+    icon: summaries.get(r.otherId)?.icon || 'star',
+    ...(withOnline ? { online: !!online.get(r.otherId) } : {}),
+  });
+  return {
+    friends: friends.map(toEntry(true)),
+    incoming: incoming.map(toEntry(false)),
+    outgoing: outgoing.map(toEntry(false)),
+  };
+}
+
 function seedStarterIds() {
   // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
   // (or special Pests-tier) cards at all, so it's legal by construction under
@@ -274,7 +463,10 @@ class Connection {
     this.ws = ws;
     this.userId = null;
     this.username = null;
+    this.icon = null;
     this.cardLibraryHash = null;
+    this.presenceOnline = false; // only true after the client's first explicit 'heartbeat'
+    this.lastHeartbeat = 0;
     this.alive = true;
     ws.on('pong', () => { this.alive = true; });
   }
@@ -315,6 +507,7 @@ class Match {
       matchId: this.id,
       from: userId,
       name: this.conn(side)?.username || 'Pestmaster',
+      icon: this.conn(side)?.icon || 'star',
       text: clean,
       ts: Date.now(),
     };
@@ -494,7 +687,7 @@ class Match {
     const side = this.sideOf(userId); if (side === -1) return;
     if (this.disconnectTimers[side]) { clearTimeout(this.disconnectTimers[side]); this.disconnectTimers[side] = null; }
     this.conn(this.otherSide(side))?.send({ type:'opponent_reconnected' });
-    this.conn(side)?.send({ type:'match_found', matchId: this.id, youAre: side, opponentName: this.usernames?.[this.otherSide(side)] || 'Opponent', resumed: true });
+    this.conn(side)?.send({ type:'match_found', matchId: this.id, youAre: side, opponentName: this.usernames?.[this.otherSide(side)] || 'Opponent', opponentIcon: this.icons?.[this.otherSide(side)] || 'star', resumed: true });
     this.broadcastState([]);
   }
 
@@ -660,15 +853,38 @@ async function startBotMatch(userId) {
 
     const match = new Match(uA, uB, dA, dB);
     match.usernames = humanSide === 0 ? [profile.username, botName] : [botName, profile.username];
+    match.icons = humanSide === 0 ? [profile.icon || 'star', 'skull'] : ['skull', profile.icon || 'star'];
     match.botSide = humanSide === 0 ? 1 : 0;
     match.botUserId = botUserId;
 
-    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName });
+    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName, opponentIcon: 'skull' });
     match.broadcastState([]);
     attachBotAI(match);
   } catch (e) {
     console.error('[arena] bot match failed', e);
     conn.send({ type: 'error', reason: 'matchmaking_failed' });
+  }
+}
+
+/** Starts a direct match between two friends who both agreed to a duel —
+ * same match-creation shape as tryMatch/startBotMatch, just without the
+ * queue or bot-fallback machinery around it. */
+async function startDuelMatch(uA, uB) {
+  const connA = connections.get(uA), connB = connections.get(uB);
+  try {
+    const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+    const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
+    const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
+    const match = new Match(uA, uB, deckA, deckB);
+    match.usernames = [profileA.username, profileB.username];
+    match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
+    connA?.send({ type: 'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star' });
+    connB?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star' });
+    match.broadcastState([]);
+  } catch (e) {
+    console.error('[arena] duel match failed', e);
+    connA?.send({ type: 'error', reason: 'duel_match_failed' });
+    connB?.send({ type: 'error', reason: 'duel_match_failed' });
   }
 }
 
@@ -685,8 +901,9 @@ async function tryMatch() {
       const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
       const match = new Match(uA, uB, deckA, deckB);
       match.usernames = [profileA.username, profileB.username];
-      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username });
-      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username });
+      match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
+      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star' });
+      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star' });
       match.broadcastState([]);
     } catch (e) {
       console.error('[arena] matchmaking failed', e);
@@ -767,6 +984,7 @@ wss.on('connection', (ws) => {
         if (inMatch) { inMatch.handleReconnect(userId); }
 
         const profile = await fetchProfile(userId, username);
+        conn.icon = profile.icon || 'star';
         conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX } });
       } catch (e) {
         console.error('[arena] auth failed', e);
@@ -829,15 +1047,20 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'view_profile': {
-        // Read-only lookup of any player's profile (self or, in future, an
-        // opponent) — strips wallet balances and the full collection/deck,
+        // Read-only lookup of any player's profile (self or an opponent/
+        // friend) — strips wallet balances and the full collection/deck,
         // since only the requesting player's own client should ever see
         // those for themselves via `get_profile`/`auth_ok`.
         try {
           const targetId = typeof msg.userId === 'string' && msg.userId ? msg.userId : userId;
           const target = await fetchProfile(targetId, targetId === userId ? conn.username : undefined);
           const { gold, gems, deck, ...publicFields } = target; // wallet + active deck stay private
-          conn.send({ type:'player_profile', profile: publicFields });
+          let friendship = null;
+          if (targetId !== userId && !isBotId(targetId)) {
+            const rel = await getFriendship(userId, targetId);
+            friendship = !rel ? 'none' : rel.status === 'accepted' ? 'friends' : (rel.requestedBy === userId ? 'outgoing' : 'incoming');
+          }
+          conn.send({ type:'player_profile', profile: publicFields, friendship });
         } catch (e) {
           conn.send({ type:'error', reason:'profile_fetch_failed' });
         }
@@ -849,6 +1072,7 @@ wss.on('connection', (ws) => {
           const owned = new Set(profile.collection);
           const updated = await updateProfile(userId, msg, owned);
           if (updated.username) conn.username = updated.username;
+          if (updated.icon) conn.icon = updated.icon;
           conn.send({ type:'profile_updated', profile: updated });
         } catch (e) {
           console.error('[arena] update_profile failed', e);
@@ -874,6 +1098,117 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+
+      /* ── SOCIAL: friends + presence (data lives in Supabase; every
+       * mutation is still an ordinary WS request/response like everything
+       * above) ── */
+      case 'heartbeat': {
+        // The client only ever sends this after it has explicitly "gotten
+        // on" — auth alone never implies presence, by design.
+        try {
+          const wasOnline = conn.presenceOnline;
+          conn.presenceOnline = true;
+          conn.lastHeartbeat = Date.now();
+          await markPresenceOnline(userId);
+          if (!wasOnline) broadcastPresence(userId, true);
+        } catch (e) { console.error('[arena] heartbeat failed', e); }
+        break;
+      }
+      case 'friends_list': {
+        try { conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) }); }
+        catch (e) { console.error('[arena] friends_list failed', e); conn.send({ type:'error', reason:'friends_list_failed' }); }
+        break;
+      }
+      case 'friend_request': {
+        try {
+          let targetId = typeof msg.userId === 'string' && msg.userId ? msg.userId : null;
+          if (!targetId && typeof msg.username === 'string') targetId = await findUserIdByUsername(msg.username);
+          if (!targetId) return conn.send({ type:'error', reason:'user_not_found' });
+          if (targetId === userId) return conn.send({ type:'error', reason:'cannot_friend_self' });
+          if (isBotId(targetId)) return conn.send({ type:'error', reason:'cannot_friend_bot' });
+          const existing = await getFriendship(userId, targetId);
+          if (existing) return conn.send({ type:'error', reason: existing.status === 'accepted' ? 'already_friends' : 'request_already_pending' });
+          await createFriendRequest(userId, targetId);
+          conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
+          const targetConn = connections.get(targetId);
+          if (targetConn) {
+            const me = await fetchProfileSummaries([userId]);
+            targetConn.send({ type:'friend_request_received', userId, username: me.get(userId)?.username, icon: me.get(userId)?.icon });
+          }
+        } catch (e) { console.error('[arena] friend_request failed', e); conn.send({ type:'error', reason:'friend_request_failed' }); }
+        break;
+      }
+      case 'friend_respond': {
+        try {
+          const otherId = msg.userId;
+          if (typeof otherId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          const existing = await getFriendship(userId, otherId);
+          if (!existing || existing.status !== 'pending' || existing.requestedBy === userId) {
+            return conn.send({ type:'error', reason:'no_pending_request' });
+          }
+          if (msg.accept) {
+            await acceptFriendRequest(userId, otherId);
+            const otherConn = connections.get(otherId);
+            conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
+            if (otherConn) otherConn.send({ type:'friends_list', ...(await buildFriendsList(otherId)) });
+          } else {
+            await deleteFriendship(userId, otherId);
+            conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
+          }
+        } catch (e) { console.error('[arena] friend_respond failed', e); conn.send({ type:'error', reason:'friend_respond_failed' }); }
+        break;
+      }
+      case 'friend_remove': {
+        try {
+          const otherId = msg.userId;
+          if (typeof otherId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          await deleteFriendship(userId, otherId);
+          const otherConn = connections.get(otherId);
+          conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
+          if (otherConn) otherConn.send({ type:'friends_list', ...(await buildFriendsList(otherId)) });
+        } catch (e) { console.error('[arena] friend_remove failed', e); conn.send({ type:'error', reason:'friend_remove_failed' }); }
+        break;
+      }
+
+      /* ── SOCIAL: duels (1v1 challenges) — plain WS request/response,
+       * exactly like matchmaking; nothing about a duel invite is persisted. ── */
+      case 'duel_request': {
+        const targetId = msg.userId;
+        if (typeof targetId !== 'string') { conn.send({ type:'error', reason:'bad_request' }); break; }
+        if (targetId === userId) { conn.send({ type:'error', reason:'cannot_duel_self' }); break; }
+        if (activeMatchByUser.has(userId)) { conn.send({ type:'error', reason:'already_in_match' }); break; }
+        const targetConn = connections.get(targetId);
+        if (!targetConn) { conn.send({ type:'error', reason:'friend_offline' }); break; }
+        if (activeMatchByUser.has(targetId)) { conn.send({ type:'error', reason:'friend_busy' }); break; }
+        try {
+          const rel = await getFriendship(userId, targetId);
+          if (!rel || rel.status !== 'accepted') { conn.send({ type:'error', reason:'not_friends' }); break; }
+        } catch (e) { conn.send({ type:'error', reason:'duel_request_failed' }); break; }
+        pendingDuels.set(targetId, userId);
+        targetConn.send({ type:'duel_request_received', userId, username: conn.username, icon: conn.icon });
+        conn.send({ type:'duel_request_sent', userId: targetId });
+        break;
+      }
+      case 'duel_respond': {
+        const fromId = msg.userId;
+        if (pendingDuels.get(userId) !== fromId) { conn.send({ type:'error', reason:'no_pending_duel' }); break; }
+        pendingDuels.delete(userId);
+        const fromConn = connections.get(fromId);
+        if (!msg.accept) {
+          if (fromConn) fromConn.send({ type:'duel_declined', userId });
+          break;
+        }
+        if (activeMatchByUser.has(userId) || activeMatchByUser.has(fromId) || !fromConn) {
+          conn.send({ type:'error', reason:'duel_unavailable' });
+          break;
+        }
+        [userId, fromId].forEach(id => {
+          const i = queue.indexOf(id); if (i !== -1) queue.splice(i, 1);
+          clearQueueTimer(id);
+        });
+        await startDuelMatch(fromId, userId);
+        break;
+      }
       default:
         conn.send({ type:'error', reason:'unknown_message_type' });
     }
@@ -885,6 +1220,13 @@ wss.on('connection', (ws) => {
       const i = queue.indexOf(conn.userId); if (i !== -1) queue.splice(i, 1);
       clearQueueTimer(conn.userId);
       activeMatchByUser.get(conn.userId)?.handleDisconnect(conn.userId);
+      if (conn.presenceOnline) {
+        conn.presenceOnline = false;
+        markPresenceOffline(conn.userId).catch(e => console.error('[arena] markPresenceOffline failed', e));
+        broadcastPresence(conn.userId, false);
+      }
+      pendingDuels.delete(conn.userId);
+      for (const [target, requester] of pendingDuels) if (requester === conn.userId) pendingDuels.delete(target);
     }
   });
 });
@@ -898,6 +1240,21 @@ const heartbeat = setInterval(() => {
   }
 }, 30_000);
 wss.on('close', () => clearInterval(heartbeat));
+
+/* presence sweep: a connection that stops sending app-level 'heartbeat'
+ * messages (tab backgrounded, app minimized, etc.) still counts as
+ * offline for friends even if the raw socket is technically alive. */
+const presenceSweep = setInterval(() => {
+  const now = Date.now();
+  for (const conn of connections.values()) {
+    if (conn.presenceOnline && conn.userId && (now - conn.lastHeartbeat) > PRESENCE_HEARTBEAT_TIMEOUT_MS) {
+      conn.presenceOnline = false;
+      markPresenceOffline(conn.userId).catch(e => console.error('[arena] markPresenceOffline failed', e));
+      broadcastPresence(conn.userId, false);
+    }
+  }
+}, PRESENCE_SWEEP_MS);
+wss.on('close', () => clearInterval(presenceSweep));
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
