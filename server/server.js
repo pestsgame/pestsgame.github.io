@@ -88,6 +88,16 @@ const queueTimers = new Map();
 /** targetUserId -> requesterUserId — at most one live incoming duel invite
  * tracked per target; a newer invite simply replaces an older unanswered one. */
 const pendingDuels = new Map();
+/** targetUserId -> requesterUserId — same shape as pendingDuels, but for
+ * trade invites. A player can have at most one pending trade AND one
+ * pending duel at a time, tracked independently. */
+const pendingTrades = new Map();
+/** tradeId -> TradeSession — live trade negotiations. */
+const tradeSessions = new Map();
+/** userId -> TradeSession — at most one active trade per user, mirroring
+ * activeMatchByUser so "already trading"/"already in a match" checks read
+ * the same way everywhere. */
+const activeTradeByUser = new Map();
 
 /* Presence: a user only counts as online when BOTH a live WS connection
  * exists on this process AND its last heartbeat is recent. The Supabase
@@ -888,6 +898,171 @@ async function startDuelMatch(uA, uB) {
   }
 }
 
+/* ── TRADING ──────────────────────────────────────────────────────
+ * A trade is a live negotiation between two connected players: each side
+ * builds an "offer" (some cards + gold + gems taken from their own
+ * collection/wallet), both sides must explicitly mark themselves ready,
+ * and then both sides must explicitly *confirm* — matching the client's
+ * "are you sure?" prompt — before anything is actually moved. Every offer
+ * is re-validated server-side against a fresh profile snapshot both when
+ * it's submitted and again right before the swap executes, so a stale
+ * client (or a spent-in-between-messages race, like buying a pack mid
+ * trade) can never move cards/currency the player doesn't actually have. */
+
+/** {cardId: quantity} tally of a flat collection array (which stores one
+ * entry per copy owned, same shape fetchProfile always returns). */
+function collectionCounts(collection) {
+  const out = {};
+  for (const id of collection || []) out[id] = (out[id] || 0) + 1;
+  return out;
+}
+
+/** Clamps a client-submitted offer down to what's actually legal: only
+ * owned card ids, only positive integer quantities no greater than what's
+ * owned, and gold/gems clamped to [0, balance]. Never trusts the client's
+ * numbers directly. */
+function sanitizeTradeOffer(raw, ownedCounts, gold, gems) {
+  const cards = {};
+  if (raw && typeof raw.cards === 'object' && raw.cards) {
+    for (const [cardId, qtyRaw] of Object.entries(raw.cards)) {
+      const qty = Math.floor(Number(qtyRaw));
+      const owned = ownedCounts[cardId] || 0;
+      if (!Number.isFinite(qty) || qty <= 0 || owned <= 0) continue;
+      cards[cardId] = Math.min(qty, owned);
+    }
+  }
+  let goldOffer = Math.floor(Number(raw && raw.gold));
+  let gemsOffer = Math.floor(Number(raw && raw.gems));
+  if (!Number.isFinite(goldOffer) || goldOffer < 0) goldOffer = 0;
+  if (!Number.isFinite(gemsOffer) || gemsOffer < 0) gemsOffer = 0;
+  return { cards, gold: Math.min(goldOffer, gold), gems: Math.min(gemsOffer, gems) };
+}
+
+/** Final, authoritative check right before cards/currency actually move —
+ * re-checks against a *fresh* profile fetch, not whatever was true when the
+ * offer was last submitted. */
+function tradeOfferIsValid(offer, profile) {
+  const counts = collectionCounts(profile.collection);
+  for (const [cardId, qty] of Object.entries(offer.cards || {})) {
+    if (!Number.isInteger(qty) || qty <= 0) return false;
+    if (qty > (counts[cardId] || 0)) return false;
+  }
+  if (!Number.isInteger(offer.gold) || offer.gold < 0 || offer.gold > profile.gold) return false;
+  if (!Number.isInteger(offer.gems) || offer.gems < 0 || offer.gems > profile.gems) return false;
+  return true;
+}
+
+function tradeStatePayload(session) {
+  return { type: 'trade_state', tradeId: session.id, users: session.users,
+    offers: session.offers, ready: session.ready, confirmed: session.confirmed };
+}
+function broadcastTradeState(session) {
+  const payload = tradeStatePayload(session);
+  for (const uid of session.users) connections.get(uid)?.send(payload);
+}
+/** Any offer change invalidates both sides' ready/confirm state — same
+ * "if terms change, everyone has to re-agree" rule real trade UIs use. */
+function resetTradeProgress(session) {
+  for (const uid of session.users) { session.ready[uid] = false; session.confirmed[uid] = false; }
+}
+function endTradeSession(session) {
+  tradeSessions.delete(session.id);
+  for (const uid of session.users) if (activeTradeByUser.get(uid) === session) activeTradeByUser.delete(uid);
+}
+function cancelTrade(session, byUserId, reason = 'cancelled') {
+  endTradeSession(session);
+  for (const uid of session.users) connections.get(uid)?.send({ type: 'trade_cancelled', tradeId: session.id, byUserId, reason });
+}
+
+/** Starts a live trade session between two already-agreed players — same
+ * request/response shape as startDuelMatch, just opening a negotiation
+ * instead of a battle. */
+async function startTradeSession(uA, uB) {
+  const connA = connections.get(uA), connB = connections.get(uB);
+  try {
+    const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+    const session = {
+      id: crypto.randomUUID(),
+      users: [uA, uB],
+      offers: { [uA]: { cards: {}, gold: 0, gems: 0 }, [uB]: { cards: {}, gold: 0, gems: 0 } },
+      ready: { [uA]: false, [uB]: false },
+      confirmed: { [uA]: false, [uB]: false },
+    };
+    tradeSessions.set(session.id, session);
+    activeTradeByUser.set(uA, session); activeTradeByUser.set(uB, session);
+    connA?.send({ type: 'trade_started', tradeId: session.id,
+      opponent: { userId: uB, username: profileB.username, icon: profileB.icon || 'star' },
+      yourCollection: collectionCounts(profileA.collection), yourGold: profileA.gold, yourGems: profileA.gems });
+    connB?.send({ type: 'trade_started', tradeId: session.id,
+      opponent: { userId: uA, username: profileA.username, icon: profileA.icon || 'star' },
+      yourCollection: collectionCounts(profileB.collection), yourGold: profileB.gold, yourGems: profileB.gems });
+    broadcastTradeState(session);
+  } catch (e) {
+    console.error('[arena] trade session failed', e);
+    connA?.send({ type: 'error', reason: 'trade_start_failed' });
+    connB?.send({ type: 'error', reason: 'trade_start_failed' });
+  }
+}
+
+/** +delta gives copies to userId, -delta removes them — used for both
+ * sides of a trade swap. Guest mode mutates the in-memory flat array;
+ * Supabase mode bumps/deletes the player_cards row. */
+async function adjustCardQuantity(userId, cardId, delta) {
+  if (!delta) return;
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId); if (!p) return;
+    if (delta > 0) { for (let i = 0; i < delta; i++) p.collection.push(cardId); }
+    else {
+      let n = -delta;
+      for (let i = p.collection.length - 1; i >= 0 && n > 0; i--) {
+        if (p.collection[i] === cardId) { p.collection.splice(i, 1); n--; }
+      }
+    }
+    return;
+  }
+  const { data: existing } = await supabase.from('player_cards').select('quantity').eq('owner_id', userId).eq('card_id', cardId).maybeSingle();
+  const newQty = (existing?.quantity || 0) + delta;
+  if (newQty <= 0) await supabase.from('player_cards').delete().eq('owner_id', userId).eq('card_id', cardId);
+  else await supabase.from('player_cards').upsert({ owner_id: userId, card_id: cardId, quantity: newQty }, { onConflict: 'owner_id,card_id' });
+}
+
+async function adjustWallet(userId, goldDelta, gemsDelta) {
+  if (!goldDelta && !gemsDelta) return;
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId); if (p) { p.gold += goldDelta; p.gems += gemsDelta; }
+    return;
+  }
+  const { data } = await supabase.from('profiles').select('gold,gems').eq('id', userId).maybeSingle();
+  if (!data) return;
+  await supabase.from('profiles').update({ gold: data.gold + goldDelta, gems: data.gems + gemsDelta }).eq('id', userId);
+}
+
+/** The actual swap — only ever called once both sides have confirmed.
+ * Re-validates both offers against fresh profiles first (defends against
+ * e.g. spending gold on a pack mid-negotiation), and throws rather than
+ * moving anything if either side no longer checks out. */
+async function executeTrade(session) {
+  const [uA, uB] = session.users;
+  const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+  const offerA = session.offers[uA], offerB = session.offers[uB];
+  if (!tradeOfferIsValid(offerA, profileA) || !tradeOfferIsValid(offerB, profileB)) {
+    const e = new Error('trade_invalid'); e.code = 'trade_invalid'; throw e;
+  }
+  for (const [cardId, qty] of Object.entries(offerA.cards)) { await adjustCardQuantity(uA, cardId, -qty); await adjustCardQuantity(uB, cardId, qty); }
+  for (const [cardId, qty] of Object.entries(offerB.cards)) { await adjustCardQuantity(uB, cardId, -qty); await adjustCardQuantity(uA, cardId, qty); }
+  await adjustWallet(uA, offerB.gold - offerA.gold, offerB.gems - offerA.gems);
+  await adjustWallet(uB, offerA.gold - offerB.gold, offerA.gems - offerB.gems);
+  if (HAS_SUPABASE) {
+    try {
+      await supabase.from('trade_history').insert({
+        player_a: uA, player_b: uB,
+        offer_a: { cards: offerA.cards, gold: offerA.gold, gems: offerA.gems },
+        offer_b: { cards: offerB.cards, gold: offerB.gold, gems: offerB.gems },
+      });
+    } catch (e) { /* history logging is best-effort — never blocks the trade itself */ }
+  }
+}
+
 async function tryMatch() {
   while (queue.length >= 2) {
     const uA = queue.shift(), uB = queue.shift();
@@ -1209,6 +1384,91 @@ wss.on('connection', (ws) => {
         await startDuelMatch(fromId, userId);
         break;
       }
+
+      /* ── SOCIAL: trading — a live negotiation, not a one-shot request
+       * like a duel. Anybody currently connected can be traded with (no
+       * friendship requirement), same as pressing "Trade" from any
+       * profile view client-side. ── */
+      case 'trade_request': {
+        const targetId = msg.userId;
+        if (typeof targetId !== 'string') { conn.send({ type:'error', reason:'bad_request' }); break; }
+        if (targetId === userId) { conn.send({ type:'error', reason:'cannot_trade_self' }); break; }
+        if (isBotId(targetId)) { conn.send({ type:'error', reason:'cannot_trade_bot' }); break; }
+        if (activeMatchByUser.has(userId)) { conn.send({ type:'error', reason:'already_in_match' }); break; }
+        if (activeTradeByUser.has(userId)) { conn.send({ type:'error', reason:'already_trading' }); break; }
+        const targetConn = connections.get(targetId);
+        if (!targetConn) { conn.send({ type:'error', reason:'user_offline' }); break; }
+        if (activeMatchByUser.has(targetId) || activeTradeByUser.has(targetId)) { conn.send({ type:'error', reason:'user_busy' }); break; }
+        pendingTrades.set(targetId, userId);
+        targetConn.send({ type:'trade_request_received', userId, username: conn.username, icon: conn.icon });
+        conn.send({ type:'trade_request_sent', userId: targetId });
+        break;
+      }
+      case 'trade_respond': {
+        const fromId = msg.userId;
+        if (pendingTrades.get(userId) !== fromId) { conn.send({ type:'error', reason:'no_pending_trade' }); break; }
+        pendingTrades.delete(userId);
+        const fromConn = connections.get(fromId);
+        if (!msg.accept) {
+          if (fromConn) fromConn.send({ type:'trade_declined', userId });
+          break;
+        }
+        if (activeMatchByUser.has(userId) || activeMatchByUser.has(fromId) ||
+            activeTradeByUser.has(userId) || activeTradeByUser.has(fromId) || !fromConn) {
+          conn.send({ type:'error', reason:'trade_unavailable' });
+          break;
+        }
+        await startTradeSession(fromId, userId);
+        break;
+      }
+      case 'trade_update_offer': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        try {
+          const profile = await fetchProfile(userId, conn.username);
+          const counts = collectionCounts(profile.collection);
+          session.offers[userId] = sanitizeTradeOffer(msg.offer, counts, profile.gold, profile.gems);
+          resetTradeProgress(session);
+          broadcastTradeState(session);
+        } catch (e) { conn.send({ type:'error', reason:'trade_update_failed' }); }
+        break;
+      }
+      case 'trade_set_ready': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        session.ready[userId] = !!msg.ready;
+        if (!msg.ready) session.confirmed[userId] = false;
+        broadcastTradeState(session);
+        break;
+      }
+      case 'trade_confirm': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        const [uA, uB] = session.users;
+        if (!session.ready[uA] || !session.ready[uB]) { conn.send({ type:'error', reason:'not_ready' }); break; }
+        session.confirmed[userId] = true;
+        broadcastTradeState(session);
+        if (session.confirmed[uA] && session.confirmed[uB]) {
+          try {
+            await executeTrade(session);
+            const [freshA, freshB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+            endTradeSession(session);
+            connections.get(uA)?.send({ type:'trade_complete', tradeId: session.id, profile: freshA });
+            connections.get(uB)?.send({ type:'trade_complete', tradeId: session.id, profile: freshB });
+          } catch (e) {
+            console.error('[arena] trade execution failed', e);
+            endTradeSession(session);
+            connections.get(uA)?.send({ type:'error', reason:'trade_failed' });
+            connections.get(uB)?.send({ type:'error', reason:'trade_failed' });
+          }
+        }
+        break;
+      }
+      case 'trade_cancel': {
+        const session = activeTradeByUser.get(userId);
+        if (session) cancelTrade(session, userId);
+        break;
+      }
       default:
         conn.send({ type:'error', reason:'unknown_message_type' });
     }
@@ -1227,6 +1487,10 @@ wss.on('connection', (ws) => {
       }
       pendingDuels.delete(conn.userId);
       for (const [target, requester] of pendingDuels) if (requester === conn.userId) pendingDuels.delete(target);
+      pendingTrades.delete(conn.userId);
+      for (const [target, requester] of pendingTrades) if (requester === conn.userId) pendingTrades.delete(target);
+      const tradeSession = activeTradeByUser.get(conn.userId);
+      if (tradeSession) cancelTrade(tradeSession, conn.userId, 'disconnected');
     }
   });
 });
