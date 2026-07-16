@@ -633,6 +633,8 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 .social-btn.decline{background:rgba(255,255,255,.08);color:var(--txt-dim);}
 .social-btn.duel{background:linear-gradient(135deg,#1a3020,#15803d);color:#bbf7d0;}
 .social-btn.duel:disabled{opacity:.4;cursor:not-allowed;filter:none;}
+.social-btn.trade{background:linear-gradient(135deg,#78350f,#d97706);color:#fff7ed;}
+.social-btn.trade:disabled{opacity:.4;cursor:not-allowed;filter:none;}
 .social-btn.remove{background:rgba(239,68,68,.12);color:#fca5a5;}
 .social-btn.cancel{background:rgba(255,255,255,.08);color:var(--txt-dim);}
 #duel-invite-banner{
@@ -644,7 +646,107 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 #duel-invite-banner .social-avatar{width:34px;height:34px;cursor:default;}
 #duel-invite-text{font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--txt);white-space:nowrap;}
 #duel-invite-name{font-weight:700;color:#c4b5fd;}
+#trade-invite-banner{
+  display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2201;
+  align-items:center;gap:14px;background:linear-gradient(135deg,#241a0e,#150f0a);
+  border:1px solid rgba(217,119,6,.45);border-radius:12px;padding:12px 18px;
+  box-shadow:0 10px 40px rgba(0,0,0,.5),0 0 26px rgba(217,119,6,.15);max-width:90vw;
+  animation:tradeInvitePop .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes tradeInvitePop{0%{transform:translateX(-50%) scale(.85) translateY(-8px);opacity:0;}100%{transform:translateX(-50%) scale(1) translateY(0);opacity:1;}}
+#trade-invite-banner .social-avatar{width:34px;height:34px;cursor:default;border-color:rgba(217,119,6,.45);background:rgba(217,119,6,.14);color:#fbbf24;}
+#trade-invite-text{font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--txt);white-space:nowrap;}
+#trade-invite-name{font-weight:700;color:#fbbf24;}
 img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:middle;display:inline-block;}
+
+/* ══ TRADE WINDOW ══ */
+#trade-overlay{
+  position:fixed;inset:0;z-index:1300;display:none;flex-direction:column;
+  background:radial-gradient(ellipse 120% 90% at 50% 0%,rgba(120,53,15,.18),transparent 60%),#050510;
+  opacity:0;transition:opacity .32s ease;
+}
+#trade-overlay.open{display:flex;}
+#trade-overlay.show{opacity:1;}
+#trade-overlay .trade-body{transform:translateY(16px);transition:transform .38s cubic-bezier(.22,1,.36,1);}
+#trade-overlay.show .trade-body{transform:translateY(0);}
+.trade-topbar{height:60px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:rgba(6,6,16,.95);border-bottom:1px solid rgba(217,119,6,.25);box-shadow:0 2px 20px rgba(0,0,0,.6);position:relative;z-index:1;}
+.trade-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fde68a;display:flex;align-items:center;gap:10px;}
+.trade-cancel-btn{font-family:'Cinzel',serif;font-size:.6rem;font-weight:700;letter-spacing:.1em;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:7px 16px;cursor:pointer;transition:all .18s;text-transform:uppercase;}
+.trade-cancel-btn:hover{background:rgba(239,68,68,.22);border-color:rgba(252,165,165,.6);}
+
+.trade-body{flex:1;display:flex;overflow:hidden;position:relative;}
+.trade-side{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0;}
+.trade-side.mine{border-right:1px solid rgba(255,255,255,.06);}
+.trade-side-head{padding:16px 20px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;}
+.trade-side-name{font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#e9d5ff;display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.trade-side-name .social-avatar{width:24px;height:24px;flex-shrink:0;cursor:default;}
+.trade-ready-pill{font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--txt-dim);transition:all .25s;flex-shrink:0;white-space:nowrap;}
+.trade-ready-pill.ready{background:linear-gradient(135deg,#166534,#22c55e);color:#f0fdf4;box-shadow:0 0 14px rgba(34,197,94,.5);}
+
+.trade-currency-row{display:flex;gap:10px;padding:0 20px 12px;flex-shrink:0;}
+.trade-currency-box{flex:1;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:8px 12px;min-width:0;}
+.trade-currency-box img{width:18px;height:18px;object-fit:contain;flex-shrink:0;}
+.trade-currency-box input{flex:1;min-width:0;background:transparent;border:none;color:#fde68a;font-family:'Cinzel',serif;font-weight:700;font-size:.8rem;outline:none;text-align:right;}
+.trade-currency-box.gems input{color:#c4b5fd;}
+.trade-currency-box .trade-currency-readonly{flex:1;text-align:right;font-family:'Cinzel',serif;font-weight:700;font-size:.8rem;color:#fde68a;}
+.trade-currency-box.gems .trade-currency-readonly{color:#c4b5fd;}
+.trade-currency-max{font-size:.5rem;color:var(--txt-muted);letter-spacing:.03em;white-space:nowrap;flex-shrink:0;}
+
+.trade-search-row{padding:0 20px 10px;flex-shrink:0;}
+.trade-search-row input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 12px;color:var(--txt);font-size:.72rem;outline:none;transition:border-color .15s;font-family:inherit;}
+.trade-search-row input:focus{border-color:rgba(217,119,6,.5);}
+
+.trade-grid{flex:1;overflow-y:auto;padding:4px 20px 20px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;scrollbar-width:thin;scrollbar-color:rgba(217,119,6,.3) transparent;}
+.trade-chip{width:76px;flex-shrink:0;border-radius:8px;border:2px solid var(--rarity-color,#28284a);background:linear-gradient(170deg,#0c0c20,#080814);position:relative;cursor:pointer;overflow:hidden;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 0 10px var(--rarity-glow,transparent);}
+.trade-chip:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.5),0 0 14px var(--rarity-glow-strong,transparent);}
+.trade-chip:active{transform:translateY(-1px) scale(.95);}
+.trade-chip.readonly{cursor:default;}
+.trade-chip.readonly:hover{transform:none;}
+.trade-chip-img{width:100%;height:56px;object-fit:cover;display:block;background:#0a0a16;}
+.trade-chip-name{font-family:'Cinzel',serif;font-size:.46rem;font-weight:700;color:#eef2ff;padding:3px 4px;line-height:1.15;height:24px;overflow:hidden;text-align:center;}
+.trade-chip-owned{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.75);color:#e5e7eb;font-size:.5rem;font-weight:800;padding:1px 5px;border-radius:20px;z-index:2;}
+.trade-chip-offered{position:absolute;bottom:22px;right:3px;background:linear-gradient(135deg,#d97706,#f59e0b);color:#1a1400;font-size:.58rem;font-weight:900;padding:1px 6px;border-radius:20px;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:2;animation:tradeChipPop .25s cubic-bezier(.34,1.56,.64,1);}
+@keyframes tradeChipPop{0%{transform:scale(.4);opacity:0;}100%{transform:scale(1);opacity:1;}}
+.trade-chip-empty{width:100%;text-align:center;padding:30px 10px;color:var(--txt-muted);font-size:.7rem;}
+
+.trade-footer{flex-shrink:0;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(6,6,16,.95);border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap;}
+.trade-footer-status{font-size:.66rem;color:var(--txt-dim);letter-spacing:.02em;flex:1;min-width:180px;}
+.trade-footer-actions{display:flex;gap:10px;flex-shrink:0;}
+.trade-ready-btn{font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 20px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,#1a3020,#15803d);color:#bbf7d0;transition:all .18s;white-space:nowrap;}
+.trade-ready-btn.is-ready{background:linear-gradient(135deg,#374151,#1f2937);color:#e5e7eb;}
+.trade-ready-btn:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.5);}
+.trade-confirm-btn{font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 24px;border-radius:8px;cursor:pointer;border:1px solid rgba(217,119,6,.6);background:linear-gradient(135deg,#78350f,#d97706);color:#fff7ed;box-shadow:0 0 18px rgba(217,119,6,.35);transition:all .18s;animation:tradeConfirmPulse 1.8s ease-in-out infinite;white-space:nowrap;}
+.trade-confirm-btn:disabled{opacity:.35;cursor:not-allowed;animation:none;filter:grayscale(.4);box-shadow:none;}
+.trade-confirm-btn:hover:not(:disabled){transform:translateY(-2px) scale(1.03);box-shadow:0 10px 30px rgba(217,119,6,.55);}
+@keyframes tradeConfirmPulse{0%,100%{box-shadow:0 0 14px rgba(217,119,6,.35);}50%{box-shadow:0 0 26px rgba(217,119,6,.6);}}
+
+.trade-divider{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,#1a1a2e,#0a0a14);border:1px solid rgba(217,119,6,.4);display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 0 22px rgba(217,119,6,.35);pointer-events:none;}
+.trade-divider svg{width:20px;height:20px;color:#fbbf24;animation:tradeSwapSpin 4s linear infinite;}
+@keyframes tradeSwapSpin{to{transform:rotate(360deg);}}
+
+#trade-success-flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;z-index:50;background:radial-gradient(circle,rgba(217,119,6,.22),transparent 65%);}
+#trade-success-flash.show{animation:tradeSuccessFlash .9s ease-out;}
+#trade-success-flash .tsf-icon{width:90px;height:90px;color:#fde68a;filter:drop-shadow(0 0 24px rgba(253,230,138,.8));transform:scale(.3);opacity:0;}
+#trade-success-flash.show .tsf-icon{animation:tsfIconPop .9s cubic-bezier(.34,1.56,.64,1) forwards;}
+@keyframes tradeSuccessFlash{0%{opacity:0;}15%{opacity:1;}100%{opacity:0;}}
+@keyframes tsfIconPop{0%{transform:scale(.3);opacity:0;}40%{transform:scale(1.15);opacity:1;}70%{transform:scale(.95);}100%{transform:scale(1);opacity:1;}}
+
+/* "are you sure" confirm sub-modal */
+#trade-confirm-overlay{position:fixed;inset:0;z-index:1400;display:none;align-items:center;justify-content:center;background:rgba(3,3,10,.7);backdrop-filter:blur(3px);opacity:0;transition:opacity .25s;}
+#trade-confirm-overlay.open{display:flex;}
+#trade-confirm-overlay.show{opacity:1;}
+.trade-confirm-modal{width:min(92vw,440px);background:linear-gradient(160deg,#14101f,#0a0a16);border:1px solid rgba(217,119,6,.4);border-radius:14px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.7);transform:scale(.92) translateY(10px);transition:transform .28s cubic-bezier(.34,1.56,.64,1);}
+#trade-confirm-overlay.show .trade-confirm-modal{transform:scale(1) translateY(0);}
+.trade-confirm-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#fde68a;text-align:center;margin-bottom:6px;}
+.trade-confirm-sub{font-size:.68rem;color:var(--txt-dim);text-align:center;margin-bottom:16px;}
+.trade-confirm-summary{display:flex;gap:14px;margin-bottom:18px;}
+.trade-confirm-col{flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px;min-width:0;}
+.trade-confirm-col-label{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(196,181,253,.75);margin-bottom:8px;text-align:center;}
+.trade-confirm-item{font-size:.66rem;color:var(--txt);display:flex;justify-content:space-between;gap:6px;padding:2px 0;}
+.trade-confirm-item span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.trade-confirm-empty{font-size:.62rem;color:var(--txt-muted);text-align:center;padding:6px 0;}
+.trade-confirm-actions{display:flex;gap:10px;}
+.trade-confirm-actions .pf-btn{flex:1;}
 
 /* ══ SUBSCREEN (Deck Builder + Market) ══ */
 .subscreen{position:fixed;inset:0;z-index:955;display:flex;flex-direction:column;background:var(--bg);transition:opacity .4s;}
@@ -1839,6 +1941,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="pfv-actions">
         <button class="pf-btn pf-btn-cancel" onclick="closeProfileView()">Close</button>
         <button class="social-btn duel" id="pfv-duel-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestDuel(_pfvUserId);closeProfileView();">⚔ Duel</button>
+        <button class="social-btn trade" id="pfv-trade-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestTrade(_pfvUserId);closeProfileView();">🔁 Trade</button>
         <button class="social-btn remove" id="pfv-unfriend-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="removeFriend(_pfvUserId);closeProfileView();">Remove Friend</button>
         <button class="pf-btn pf-btn-save" id="pfv-friend-btn" style="display:none;" onclick="handlePfvFriendAction()"></button>
         <button class="pf-btn pf-btn-save" id="pfv-edit-btn" onclick="editProfileFromView()">Edit Profile</button>
@@ -1912,6 +2015,99 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   <div id="duel-invite-text"><span id="duel-invite-name"></span> challenges you to a duel!</div>
   <button class="social-btn accept" onclick="respondToDuel(true)">Accept</button>
   <button class="social-btn decline" onclick="respondToDuel(false)">Decline</button>
+</div>
+
+<!-- ══════ TRADE INVITE BANNER ══════ -->
+<div id="trade-invite-banner">
+  <div class="social-avatar" id="trade-invite-avatar"></div>
+  <div id="trade-invite-text"><span id="trade-invite-name"></span> wants to trade with you!</div>
+  <button class="social-btn accept" onclick="respondToTrade(true)">Accept</button>
+  <button class="social-btn decline" onclick="respondToTrade(false)">Decline</button>
+</div>
+
+<!-- ══════ TRADE WINDOW ══════ -->
+<div id="trade-overlay">
+  <div class="trade-topbar">
+    <div class="trade-title">🔁 Trading with <span id="trade-opponent-topname">Player</span></div>
+    <button class="trade-cancel-btn" onclick="cancelTradeWindow()">Leave Trade</button>
+  </div>
+  <div class="trade-body">
+    <div class="trade-side mine">
+      <div class="trade-side-head">
+        <div class="trade-side-name"><span class="social-avatar" id="trade-my-avatar"></span><span id="trade-my-name">You</span></div>
+        <div class="trade-ready-pill" id="trade-my-ready-pill">Not Ready</div>
+      </div>
+      <div class="trade-currency-row">
+        <div class="trade-currency-box gold">
+          <img src="coin.png" alt="Gold">
+          <input type="number" id="trade-my-gold-input" min="0" step="1" value="0" oninput="setTradeCurrency('gold', this.value)">
+          <span class="trade-currency-max" id="trade-my-gold-max">/ 0</span>
+        </div>
+        <div class="trade-currency-box gems">
+          <img src="gem.png" alt="Gems">
+          <input type="number" id="trade-my-gems-input" min="0" step="1" value="0" oninput="setTradeCurrency('gems', this.value)">
+          <span class="trade-currency-max" id="trade-my-gems-max">/ 0</span>
+        </div>
+      </div>
+      <div class="trade-search-row">
+        <input type="text" placeholder="Search your cards…" oninput="tradeSearchInput(this.value)">
+      </div>
+      <div class="trade-grid" id="trade-my-grid"></div>
+    </div>
+    <div class="trade-divider">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+    </div>
+    <div class="trade-side theirs">
+      <div class="trade-side-head">
+        <div class="trade-side-name"><span class="social-avatar" id="trade-opponent-avatar"></span><span id="trade-opponent-name">Player</span></div>
+        <div class="trade-ready-pill" id="trade-their-ready-pill">Not Ready</div>
+      </div>
+      <div class="trade-currency-row">
+        <div class="trade-currency-box gold">
+          <img src="coin.png" alt="Gold">
+          <span class="trade-currency-readonly" id="trade-their-gold">0</span>
+        </div>
+        <div class="trade-currency-box gems">
+          <img src="gem.png" alt="Gems">
+          <span class="trade-currency-readonly" id="trade-their-gems">0</span>
+        </div>
+      </div>
+      <div class="trade-search-row" style="visibility:hidden;">
+        <input type="text" tabindex="-1">
+      </div>
+      <div class="trade-grid" id="trade-their-grid"></div>
+    </div>
+    <div id="trade-success-flash"><svg class="tsf-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+  </div>
+  <div class="trade-footer">
+    <div class="trade-footer-status" id="trade-footer-status">Build your offer, then mark yourself ready.</div>
+    <div class="trade-footer-actions">
+      <button class="trade-ready-btn" id="trade-ready-btn" onclick="toggleMyTradeReady()">Mark Ready</button>
+      <button class="trade-confirm-btn" id="trade-confirm-btn" disabled onclick="openTradeConfirm()">Review &amp; Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ TRADE "ARE YOU SURE" CONFIRM ══════ -->
+<div id="trade-confirm-overlay">
+  <div class="trade-confirm-modal">
+    <div class="trade-confirm-title">Confirm This Trade?</div>
+    <div class="trade-confirm-sub">This can't be undone once both sides confirm.</div>
+    <div class="trade-confirm-summary">
+      <div class="trade-confirm-col">
+        <div class="trade-confirm-col-label">You Give</div>
+        <div id="trade-confirm-give"></div>
+      </div>
+      <div class="trade-confirm-col">
+        <div class="trade-confirm-col-label">You Get</div>
+        <div id="trade-confirm-get"></div>
+      </div>
+    </div>
+    <div class="trade-confirm-actions">
+      <button class="pf-btn pf-btn-cancel" onclick="closeTradeConfirm()">Go Back</button>
+      <button class="pf-btn pf-btn-save" onclick="finalizeTradeConfirm()">Confirm Trade</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════ MATCH START TRANSITION ══════ -->
@@ -3097,11 +3293,19 @@ function openProfileView(profile,opts={}){
 
 /** Shows exactly one friend-related action, based on the relationship
  * the server told us about when this profile was fetched. */
+/** Trading has no friendship requirement — a client can attempt to trade
+ * with anybody currently connected, unlike duels which stay friends-only.
+ * Bots (synthetic opponents with no live connection) never show a trade
+ * option since a server-side trade_request against one always fails. */
+function isBotUserId(id){ return typeof id==='string' && id.startsWith('bot:'); }
+
 function updatePfvFriendButtons(){
   const duelBtn=document.getElementById('pfv-duel-btn');
   const unfriendBtn=document.getElementById('pfv-unfriend-btn');
   const actionBtn=document.getElementById('pfv-friend-btn');
+  const tradeBtn=document.getElementById('pfv-trade-btn');
   duelBtn.style.display='none'; unfriendBtn.style.display='none'; actionBtn.style.display='none';
+  tradeBtn.style.display=(!_pfvIsOwn && _pfvUserId && !isBotUserId(_pfvUserId))?'':'none';
   if(_pfvIsOwn||!_pfvUserId||!_pfvFriendship) return;
   if(_pfvFriendship==='friends'){
     duelBtn.style.display=''; unfriendBtn.style.display='';
@@ -3278,6 +3482,7 @@ function renderSocial(data){
   document.getElementById('social-friends-list').innerHTML=friends.map(f=>socialRow({
     ...f, statusText:f.online?'Online':'Offline', showDot:true,
     actionsHtml:`<button class="social-btn duel" ${f.online?'':'disabled'} onclick="requestDuel('${f.userId}')">⚔ Duel</button>
+                 <button class="social-btn trade" ${f.online?'':'disabled'} onclick="requestTrade('${f.userId}')">🔁 Trade</button>
                  <button class="social-btn remove" onclick="removeFriend('${f.userId}')">Remove</button>`
   })).join('');
 }
@@ -3326,6 +3531,267 @@ function respondToDuel(accept){
   if(!_pendingDuelFrom) return;
   Net.send({type:'duel_respond', userId:_pendingDuelFrom, accept});
   hideDuelInvite();
+}
+
+/* ══════════════════════════════════════
+   TRADING
+   A live two-sided negotiation: each side builds an offer from their own
+   collection/wallet, both must mark Ready, and both must explicitly
+   Confirm (after an "are you sure" summary) before anything moves. The
+   server is the source of truth for every offer — this client mostly
+   renders whatever the last `trade_state` said, with a light optimistic
+   update on the player's own clicks so the UI feels instant.
+══════════════════════════════════════ */
+let _pendingTradeFrom=null;
+let TradeState=null;
+let _tradeUpdateTimer=null;
+
+function requestTrade(userId){
+  Net.send({type:'trade_request', userId});
+  showToast('🔁 Trade request sent!');
+}
+function showTradeInvite(fromId,username,icon){
+  _pendingTradeFrom=fromId;
+  document.getElementById('trade-invite-avatar').innerHTML=renderIcon(icon||'star',18);
+  document.getElementById('trade-invite-name').textContent=username||'A player';
+  document.getElementById('trade-invite-banner').style.display='flex';
+}
+function hideTradeInvite(){
+  document.getElementById('trade-invite-banner').style.display='none';
+  _pendingTradeFrom=null;
+}
+function respondToTrade(accept){
+  if(!_pendingTradeFrom) return;
+  Net.send({type:'trade_respond', userId:_pendingTradeFrom, accept});
+  hideTradeInvite();
+}
+
+function tradeCardDef(id){ return CardDB.find(c=>c.id===id); }
+
+function openTradeWindow(msg){
+  TradeState={
+    tradeId: msg.tradeId,
+    opponent: msg.opponent||{userId:null,username:'Player',icon:'star'},
+    myCollectionCounts: msg.yourCollection||{},
+    myOffer: {cards:{}, gold:0, gems:0},
+    theirOffer: {cards:{}, gold:0, gems:0},
+    myReady:false, theirReady:false,
+    myConfirmed:false, theirConfirmed:false,
+    search:'',
+  };
+  document.getElementById('trade-opponent-topname').textContent=TradeState.opponent.username||'Player';
+  document.getElementById('trade-opponent-name').textContent=TradeState.opponent.username||'Player';
+  document.getElementById('trade-opponent-avatar').innerHTML=renderIcon(TradeState.opponent.icon||'star',14);
+  document.getElementById('trade-my-avatar').innerHTML=renderIcon(Player.icon||'star',14);
+  document.getElementById('trade-my-name').textContent=Player.name||'You';
+  renderTradeGrids();
+  renderTradeCurrencyInputs();
+  updateTradeReadyUI();
+  const ov=document.getElementById('trade-overlay');
+  ov.classList.add('open');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('show')));
+}
+
+function closeTradeWindow(){
+  const ov=document.getElementById('trade-overlay');
+  ov.classList.remove('show');
+  setTimeout(()=>ov.classList.remove('open'),320);
+  closeTradeConfirm();
+  clearTimeout(_tradeUpdateTimer);
+  TradeState=null;
+}
+
+function cancelTradeWindow(){
+  if(TradeState) Net.send({type:'trade_cancel'});
+  closeTradeWindow();
+}
+
+/** Applies the server's authoritative trade_state — offers, ready flags,
+ * and confirm flags for both sides. Currency inputs the player is actively
+ * typing in are left alone so the round-trip doesn't fight their cursor. */
+function applyTradeState(msg){
+  if(!TradeState || msg.tradeId!==TradeState.tradeId) return;
+  const myId=Net.userId, oppId=TradeState.opponent.userId;
+  TradeState.myOffer = msg.offers[myId] || {cards:{},gold:0,gems:0};
+  TradeState.theirOffer = msg.offers[oppId] || {cards:{},gold:0,gems:0};
+  TradeState.myReady = !!msg.ready[myId];
+  TradeState.theirReady = !!msg.ready[oppId];
+  TradeState.myConfirmed = !!msg.confirmed[myId];
+  TradeState.theirConfirmed = !!msg.confirmed[oppId];
+  renderTradeGrids();
+  renderTradeCurrencyInputs();
+  updateTradeReadyUI();
+}
+
+/** Clicking a card cycles the offered quantity: 0 → 1 → 2 → … → owned → 0.
+ * Updates optimistically for instant feedback, then syncs to the server
+ * (debounced), which un-readies both sides — same as any offer change. */
+function toggleTradeCardOffer(cardId){
+  if(!TradeState) return;
+  const owned=TradeState.myCollectionCounts[cardId]||0;
+  if(owned<=0) return;
+  const cur=TradeState.myOffer.cards[cardId]||0;
+  const next=cur>=owned?0:cur+1;
+  if(next<=0) delete TradeState.myOffer.cards[cardId];
+  else TradeState.myOffer.cards[cardId]=next;
+  TradeState.myReady=false; TradeState.theirReady=false; TradeState.myConfirmed=false; TradeState.theirConfirmed=false;
+  renderTradeGrids();
+  updateTradeReadyUI();
+  queueTradeOfferUpdate();
+}
+
+function setTradeCurrency(kind, rawVal){
+  if(!TradeState) return;
+  let v=Math.floor(Number(rawVal));
+  if(!Number.isFinite(v)||v<0) v=0;
+  const max=kind==='gold'?Player.gold:Player.gems;
+  v=Math.min(v,max);
+  TradeState.myOffer[kind]=v;
+  TradeState.myReady=false; TradeState.theirReady=false; TradeState.myConfirmed=false; TradeState.theirConfirmed=false;
+  updateTradeReadyUI();
+  queueTradeOfferUpdate();
+}
+
+function queueTradeOfferUpdate(){
+  clearTimeout(_tradeUpdateTimer);
+  _tradeUpdateTimer=setTimeout(()=>{
+    if(!TradeState) return;
+    Net.send({type:'trade_update_offer', offer:TradeState.myOffer});
+  },220);
+}
+
+function tradeSearchInput(v){
+  if(!TradeState) return;
+  TradeState.search=v.trim().toLowerCase();
+  renderTradeGrids();
+}
+
+function renderTradeChip(cardId, ownedQty, offeredQty, editable){
+  const def=tradeCardDef(cardId);
+  if(!def) return '';
+  const rcfg=RARITY_CONFIG[def.rarity]||RARITY_CONFIG.common;
+  const style=`--rarity-color:${rcfg.color};--rarity-glow:${hexToRgba(rcfg.color,.4)};--rarity-glow-strong:${hexToRgba(rcfg.color,.8)};`;
+  const remaining=ownedQty-offeredQty;
+  const onclick=editable?`onclick="toggleTradeCardOffer('${cardId}')"`:'';
+  return `<div class="trade-chip${editable?'':' readonly'}" style="${style}" ${onclick} title="${escapeHtml(def.name)}">
+    ${editable?`<div class="trade-chip-owned">${remaining}</div>`:''}
+    <img class="trade-chip-img" src="${def.image}" alt="" onerror="this.style.display='none'">
+    <div class="trade-chip-name">${escapeHtml(def.name)}</div>
+    ${offeredQty>0?`<div class="trade-chip-offered">×${offeredQty}</div>`:''}
+  </div>`;
+}
+
+function renderTradeGrids(){
+  if(!TradeState) return;
+  const search=TradeState.search;
+  const mineGrid=document.getElementById('trade-my-grid');
+  const ownedIds=Object.keys(TradeState.myCollectionCounts)
+    .filter(id=>{
+      if((TradeState.myCollectionCounts[id]||0)<=0) return false;
+      if(!search) return true;
+      const def=tradeCardDef(id); return def && def.name.toLowerCase().includes(search);
+    })
+    .sort((a,b)=>{
+      const da=tradeCardDef(a), db=tradeCardDef(b);
+      return (rarityRank(db?.rarity)-rarityRank(da?.rarity)) || (da?.name||'').localeCompare(db?.name||'');
+    });
+  mineGrid.innerHTML = ownedIds.length
+    ? ownedIds.map(id=>renderTradeChip(id, TradeState.myCollectionCounts[id], TradeState.myOffer.cards[id]||0, true)).join('')
+    : `<div class="trade-chip-empty">${search?'No cards match your search.':'You have no cards to offer.'}</div>`;
+
+  const theirGrid=document.getElementById('trade-their-grid');
+  const theirIds=Object.keys(TradeState.theirOffer.cards||{});
+  theirGrid.innerHTML = theirIds.length
+    ? theirIds.map(id=>renderTradeChip(id, TradeState.theirOffer.cards[id], TradeState.theirOffer.cards[id], false)).join('')
+    : '<div class="trade-chip-empty">No cards offered yet.</div>';
+}
+
+function renderTradeCurrencyInputs(){
+  if(!TradeState) return;
+  const goldIn=document.getElementById('trade-my-gold-input');
+  const gemsIn=document.getElementById('trade-my-gems-input');
+  if(goldIn && document.activeElement!==goldIn) goldIn.value=TradeState.myOffer.gold||0;
+  if(gemsIn && document.activeElement!==gemsIn) gemsIn.value=TradeState.myOffer.gems||0;
+  goldIn?.setAttribute('max', Player.gold);
+  gemsIn?.setAttribute('max', Player.gems);
+  document.getElementById('trade-my-gold-max').textContent=`/ ${Player.gold.toLocaleString()}`;
+  document.getElementById('trade-my-gems-max').textContent=`/ ${Player.gems.toLocaleString()}`;
+  document.getElementById('trade-their-gold').textContent=(TradeState.theirOffer.gold||0).toLocaleString();
+  document.getElementById('trade-their-gems').textContent=(TradeState.theirOffer.gems||0).toLocaleString();
+}
+
+function updateTradeReadyUI(){
+  if(!TradeState) return;
+  const minePill=document.getElementById('trade-my-ready-pill');
+  const theirsPill=document.getElementById('trade-their-ready-pill');
+  minePill.classList.toggle('ready', TradeState.myReady);
+  minePill.textContent=TradeState.myReady?'✓ Ready':'Not Ready';
+  theirsPill.classList.toggle('ready', TradeState.theirReady);
+  theirsPill.textContent=TradeState.theirReady?'✓ Ready':'Not Ready';
+
+  const readyBtn=document.getElementById('trade-ready-btn');
+  readyBtn.textContent=TradeState.myReady?'Cancel Ready':'Mark Ready';
+  readyBtn.classList.toggle('is-ready', TradeState.myReady);
+
+  const bothReady=TradeState.myReady && TradeState.theirReady;
+  document.getElementById('trade-confirm-btn').disabled=!bothReady;
+
+  const status=document.getElementById('trade-footer-status');
+  const oppName=TradeState.opponent.username||'They';
+  if(TradeState.myConfirmed && !TradeState.theirConfirmed) status.textContent=`Waiting for ${oppName} to confirm…`;
+  else if(!TradeState.myConfirmed && TradeState.theirConfirmed) status.textContent=`${oppName} confirmed — review and confirm to complete the trade!`;
+  else if(bothReady) status.textContent='Both ready — review your offer and confirm to complete the trade.';
+  else if(TradeState.myReady) status.textContent=`Waiting for ${oppName} to ready up…`;
+  else status.textContent='Build your offer, then mark yourself ready.';
+}
+
+function toggleMyTradeReady(){
+  if(!TradeState) return;
+  const next=!TradeState.myReady;
+  TradeState.myReady=next;
+  if(!next) TradeState.myConfirmed=false;
+  updateTradeReadyUI();
+  Net.send({type:'trade_set_ready', ready:next});
+}
+
+function tradeSummaryHtml(offer){
+  let rows='';
+  for(const [id,qty] of Object.entries(offer.cards||{})){
+    const def=tradeCardDef(id); if(!def || qty<=0) continue;
+    rows+=`<div class="trade-confirm-item"><span>${escapeHtml(def.name)}</span><span>×${qty}</span></div>`;
+  }
+  if(offer.gold) rows+=`<div class="trade-confirm-item"><span>Gold</span><span>${offer.gold.toLocaleString()}</span></div>`;
+  if(offer.gems) rows+=`<div class="trade-confirm-item"><span>Gems</span><span>${offer.gems.toLocaleString()}</span></div>`;
+  return rows;
+}
+
+/** The "are you sure" prompt — shown every time, since a trade can always
+ * be worth something to somebody, but it especially matters whenever gold,
+ * gems, or cards are actually changing hands. */
+function openTradeConfirm(){
+  if(!TradeState || !TradeState.myReady || !TradeState.theirReady) return;
+  document.getElementById('trade-confirm-give').innerHTML=tradeSummaryHtml(TradeState.myOffer)||'<div class="trade-confirm-empty">Nothing</div>';
+  document.getElementById('trade-confirm-get').innerHTML=tradeSummaryHtml(TradeState.theirOffer)||'<div class="trade-confirm-empty">Nothing</div>';
+  const ov=document.getElementById('trade-confirm-overlay');
+  ov.classList.add('open');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('show')));
+}
+function closeTradeConfirm(){
+  const ov=document.getElementById('trade-confirm-overlay');
+  ov.classList.remove('show');
+  setTimeout(()=>ov.classList.remove('open'),260);
+}
+function finalizeTradeConfirm(){
+  closeTradeConfirm();
+  Net.send({type:'trade_confirm'});
+  const status=document.getElementById('trade-footer-status');
+  if(status) status.textContent='Confirming…';
+}
+
+function playTradeCompleteFx(onDone){
+  const flash=document.getElementById('trade-success-flash');
+  if(flash){ flash.classList.remove('show'); void flash.offsetWidth; flash.classList.add('show'); }
+  setTimeout(()=>{ flash?.classList.remove('show'); onDone&&onDone(); }, 900);
 }
 
 /* ── Presence heartbeat — starts only once the player is actually "on"
@@ -5013,6 +5479,22 @@ const Net={
       case 'duel_request_received': showDuelInvite(msg.userId, msg.username, msg.icon); break;
       case 'duel_request_sent': break; // already toasted optimistically by requestDuel()
       case 'duel_declined': showToast(`${nameForSocialUser(msg.userId)||'They'} declined the duel.`); break;
+      case 'trade_request_received': showTradeInvite(msg.userId, msg.username, msg.icon); break;
+      case 'trade_request_sent': break; // already toasted optimistically by requestTrade()
+      case 'trade_declined': showToast(`${nameForSocialUser(msg.userId)||'They'} declined the trade.`); break;
+      case 'trade_started': openTradeWindow(msg); break;
+      case 'trade_state': applyTradeState(msg); break;
+      case 'trade_cancelled':
+        if(TradeState && msg.tradeId===TradeState.tradeId){
+          showToast(msg.reason==='disconnected' ? '⚠ The other player disconnected — trade cancelled.' : 'Trade cancelled.');
+          closeTradeWindow();
+        }
+        break;
+      case 'trade_complete':
+        applyServerProfile(msg.profile);
+        showToast('✅ Trade complete!');
+        playTradeCompleteFx(()=>closeTradeWindow());
+        break;
       case 'error':
         hidePackLoading();
         hideProfileLoading();
@@ -5042,6 +5524,30 @@ const Net={
           showToast('⚠ You can only duel friends.');
         } else if(msg.reason==='duel_unavailable'){
           showToast('⚠ That duel is no longer available.');
+        } else if(msg.reason==='cannot_trade_self'){
+          showToast("⚠ You can't trade with yourself.");
+        } else if(msg.reason==='cannot_trade_bot'){
+          showToast("⚠ You can't trade with that player.");
+        } else if(msg.reason==='already_trading'){
+          showToast("⚠ You're already in a trade.");
+        } else if(msg.reason==='user_offline'){
+          showToast('⚠ That player is offline right now.');
+        } else if(msg.reason==='user_busy'){
+          showToast('⚠ That player is busy right now.');
+        } else if(msg.reason==='no_pending_trade'){
+          showToast('⚠ That trade request is no longer available.');
+        } else if(msg.reason==='trade_unavailable'){
+          showToast('⚠ That trade is no longer available.');
+        } else if(msg.reason==='no_active_trade'){
+          showToast('⚠ You are not currently trading.');
+          closeTradeWindow();
+        } else if(msg.reason==='not_ready'){
+          showToast('⚠ Both players must be ready first.');
+        } else if(msg.reason==='trade_failed'||msg.reason==='trade_invalid'){
+          showToast('⚠ The trade could not be completed — an offer is no longer valid.', 4000);
+          closeTradeWindow();
+        } else if(msg.reason==='trade_start_failed'){
+          showToast('⚠ Could not start the trade. Please try again.');
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
