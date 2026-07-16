@@ -1941,7 +1941,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="pfv-actions">
         <button class="pf-btn pf-btn-cancel" onclick="closeProfileView()">Close</button>
         <button class="social-btn duel" id="pfv-duel-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestDuel(_pfvUserId);closeProfileView();">⚔ Duel</button>
-        <button class="social-btn trade" id="pfv-trade-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestTrade(_pfvUserId);closeProfileView();">🔁 Trade</button>
+        <button class="social-btn trade" id="pfv-trade-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestTrade(_pfvUserId);closeProfileView();"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> Trade</button>
         <button class="social-btn remove" id="pfv-unfriend-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="removeFriend(_pfvUserId);closeProfileView();">Remove Friend</button>
         <button class="pf-btn pf-btn-save" id="pfv-friend-btn" style="display:none;" onclick="handlePfvFriendAction()"></button>
         <button class="pf-btn pf-btn-save" id="pfv-edit-btn" onclick="editProfileFromView()">Edit Profile</button>
@@ -2028,7 +2028,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <!-- ══════ TRADE WINDOW ══════ -->
 <div id="trade-overlay">
   <div class="trade-topbar">
-    <div class="trade-title">🔁 Trading with <span id="trade-opponent-topname">Player</span></div>
+    <div class="trade-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> Trading with <span id="trade-opponent-topname">Player</span></div>
     <button class="trade-cancel-btn" onclick="cancelTradeWindow()">Leave Trade</button>
   </div>
   <div class="trade-body">
@@ -3108,6 +3108,11 @@ function renderIcon(id,size=20){
   const inner=ICON_SVGS[id]||ICON_SVGS.star;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
+/** The swap-arrows glyph used anywhere trading needs an icon (buttons,
+ * the trade window title, the divider between offers) — no emoji, ever. */
+function renderSwapIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>`;
+}
 const BANNER_GRADIENTS = {
   violet:   'linear-gradient(90deg,#7c3aed,#c4b5fd)',
   crimson:  'linear-gradient(90deg,#dc2626,#fca5a5)',
@@ -3482,7 +3487,7 @@ function renderSocial(data){
   document.getElementById('social-friends-list').innerHTML=friends.map(f=>socialRow({
     ...f, statusText:f.online?'Online':'Offline', showDot:true,
     actionsHtml:`<button class="social-btn duel" ${f.online?'':'disabled'} onclick="requestDuel('${f.userId}')">⚔ Duel</button>
-                 <button class="social-btn trade" ${f.online?'':'disabled'} onclick="requestTrade('${f.userId}')">🔁 Trade</button>
+                 <button class="social-btn trade" ${f.online?'':'disabled'} onclick="requestTrade('${f.userId}')">${renderSwapIcon(11)} Trade</button>
                  <button class="social-btn remove" onclick="removeFriend('${f.userId}')">Remove</button>`
   })).join('');
 }
@@ -3548,7 +3553,7 @@ let _tradeUpdateTimer=null;
 
 function requestTrade(userId){
   Net.send({type:'trade_request', userId});
-  showToast('🔁 Trade request sent!');
+  showToast('Trade request sent!');
 }
 function showTradeInvite(fromId,username,icon){
   _pendingTradeFrom=fromId;
@@ -3569,6 +3574,8 @@ function respondToTrade(accept){
 function tradeCardDef(id){ return CardDB.find(c=>c.id===id); }
 
 function openTradeWindow(msg){
+  delete _tradeGridCache['trade-my-grid'];
+  delete _tradeGridCache['trade-their-grid'];
   TradeState={
     tradeId: msg.tradeId,
     opponent: msg.opponent||{userId:null,username:'Player',icon:'star'},
@@ -3673,19 +3680,68 @@ function renderTradeChip(cardId, ownedQty, offeredQty, editable){
   const style=`--rarity-color:${rcfg.color};--rarity-glow:${hexToRgba(rcfg.color,.4)};--rarity-glow-strong:${hexToRgba(rcfg.color,.8)};`;
   const remaining=ownedQty-offeredQty;
   const onclick=editable?`onclick="toggleTradeCardOffer('${cardId}')"`:'';
-  return `<div class="trade-chip${editable?'':' readonly'}" style="${style}" ${onclick} title="${escapeHtml(def.name)}">
+  // Explicit width/height on the <img> (on top of the CSS box) reserves its
+  // exact pixel footprint before the file even starts loading, so there's
+  // never a frame where it renders at native art size before shrinking —
+  // that mismatch is what caused the old tiny-box/big-card flash.
+  return `<div class="trade-chip${editable?'':' readonly'}" data-card-id="${cardId}" style="${style}" ${onclick} title="${escapeHtml(def.name)}">
     ${editable?`<div class="trade-chip-owned">${remaining}</div>`:''}
-    <img class="trade-chip-img" src="${def.image}" alt="" onerror="this.style.display='none'">
+    <img class="trade-chip-img" width="76" height="56" src="${def.image}" alt="" onerror="this.style.display='none'">
     <div class="trade-chip-name">${escapeHtml(def.name)}</div>
     ${offeredQty>0?`<div class="trade-chip-offered">×${offeredQty}</div>`:''}
   </div>`;
 }
 
+/** One cache entry per grid, keyed by the exact ordered list of card ids
+ * currently rendered there. */
+const _tradeGridCache={};
+
+/** Renders a trade grid without ever tearing down and recreating chips that
+ * are already showing the right card — only the quantity badges change on
+ * every offer update, and images/DOM nodes should never be touched for
+ * that. Recreating every <img> on every keystroke/click (the old behavior)
+ * is exactly what caused the flashing: each fresh <img> briefly painted at
+ * its native art size before the layout settled. A full rebuild only ever
+ * happens when the actual *set* of cards shown changes (a search filter,
+ * or the opponent offering a brand-new card type). */
+function syncTradeGrid(gridId, ids, ownedMap, offeredMap, editable, emptyText){
+  const grid=document.getElementById(gridId);
+  if(!grid) return;
+  const idsKey=ids.join('|');
+  const cached=_tradeGridCache[gridId];
+  if(!cached || cached.idsKey!==idsKey){
+    grid.innerHTML = ids.length
+      ? ids.map(id=>renderTradeChip(id, ownedMap[id]||0, offeredMap[id]||0, editable)).join('')
+      : `<div class="trade-chip-empty">${emptyText}</div>`;
+    _tradeGridCache[gridId]={idsKey};
+    return;
+  }
+  // Same cards as last render — just patch each chip's badges in place.
+  ids.forEach(id=>{
+    const chip=grid.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
+    if(!chip) return;
+    const offered=offeredMap[id]||0;
+    const owned=ownedMap[id]||0;
+    const ownedEl=chip.querySelector('.trade-chip-owned');
+    if(ownedEl) ownedEl.textContent=owned-offered;
+    let offeredEl=chip.querySelector('.trade-chip-offered');
+    if(offered>0){
+      if(!offeredEl){
+        offeredEl=document.createElement('div');
+        offeredEl.className='trade-chip-offered';
+        chip.appendChild(offeredEl);
+      }
+      offeredEl.textContent='×'+offered;
+    } else if(offeredEl){
+      offeredEl.remove();
+    }
+  });
+}
+
 function renderTradeGrids(){
   if(!TradeState) return;
   const search=TradeState.search;
-  const mineGrid=document.getElementById('trade-my-grid');
-  const ownedIds=Object.keys(TradeState.myCollectionCounts)
+  const mineIds=Object.keys(TradeState.myCollectionCounts)
     .filter(id=>{
       if((TradeState.myCollectionCounts[id]||0)<=0) return false;
       if(!search) return true;
@@ -3695,15 +3751,12 @@ function renderTradeGrids(){
       const da=tradeCardDef(a), db=tradeCardDef(b);
       return (rarityRank(db?.rarity)-rarityRank(da?.rarity)) || (da?.name||'').localeCompare(db?.name||'');
     });
-  mineGrid.innerHTML = ownedIds.length
-    ? ownedIds.map(id=>renderTradeChip(id, TradeState.myCollectionCounts[id], TradeState.myOffer.cards[id]||0, true)).join('')
-    : `<div class="trade-chip-empty">${search?'No cards match your search.':'You have no cards to offer.'}</div>`;
+  syncTradeGrid('trade-my-grid', mineIds, TradeState.myCollectionCounts, TradeState.myOffer.cards, true,
+    search?'No cards match your search.':'You have no cards to offer.');
 
-  const theirGrid=document.getElementById('trade-their-grid');
-  const theirIds=Object.keys(TradeState.theirOffer.cards||{});
-  theirGrid.innerHTML = theirIds.length
-    ? theirIds.map(id=>renderTradeChip(id, TradeState.theirOffer.cards[id], TradeState.theirOffer.cards[id], false)).join('')
-    : '<div class="trade-chip-empty">No cards offered yet.</div>';
+  const theirIds=Object.keys(TradeState.theirOffer.cards||{}).filter(id=>(TradeState.theirOffer.cards[id]||0)>0);
+  syncTradeGrid('trade-their-grid', theirIds, TradeState.theirOffer.cards, TradeState.theirOffer.cards, false,
+    'No cards offered yet.');
 }
 
 function renderTradeCurrencyInputs(){
@@ -5486,13 +5539,13 @@ const Net={
       case 'trade_state': applyTradeState(msg); break;
       case 'trade_cancelled':
         if(TradeState && msg.tradeId===TradeState.tradeId){
-          showToast(msg.reason==='disconnected' ? '⚠ The other player disconnected — trade cancelled.' : 'Trade cancelled.');
+          showToast(msg.reason==='disconnected' ? 'The other player disconnected — trade cancelled.' : 'Trade cancelled.');
           closeTradeWindow();
         }
         break;
       case 'trade_complete':
         applyServerProfile(msg.profile);
-        showToast('✅ Trade complete!');
+        showToast('Trade complete!');
         playTradeCompleteFx(()=>closeTradeWindow());
         break;
       case 'error':
@@ -5525,29 +5578,29 @@ const Net={
         } else if(msg.reason==='duel_unavailable'){
           showToast('⚠ That duel is no longer available.');
         } else if(msg.reason==='cannot_trade_self'){
-          showToast("⚠ You can't trade with yourself.");
+          showToast("You can't trade with yourself.");
         } else if(msg.reason==='cannot_trade_bot'){
-          showToast("⚠ You can't trade with that player.");
+          showToast("You can't trade with that player.");
         } else if(msg.reason==='already_trading'){
-          showToast("⚠ You're already in a trade.");
+          showToast("You're already in a trade.");
         } else if(msg.reason==='user_offline'){
-          showToast('⚠ That player is offline right now.');
+          showToast('That player is offline right now.');
         } else if(msg.reason==='user_busy'){
-          showToast('⚠ That player is busy right now.');
+          showToast('That player is busy right now.');
         } else if(msg.reason==='no_pending_trade'){
-          showToast('⚠ That trade request is no longer available.');
+          showToast('That trade request is no longer available.');
         } else if(msg.reason==='trade_unavailable'){
-          showToast('⚠ That trade is no longer available.');
+          showToast('That trade is no longer available.');
         } else if(msg.reason==='no_active_trade'){
-          showToast('⚠ You are not currently trading.');
+          showToast('You are not currently trading.');
           closeTradeWindow();
         } else if(msg.reason==='not_ready'){
-          showToast('⚠ Both players must be ready first.');
+          showToast('Both players must be ready first.');
         } else if(msg.reason==='trade_failed'||msg.reason==='trade_invalid'){
-          showToast('⚠ The trade could not be completed — an offer is no longer valid.', 4000);
+          showToast('The trade could not be completed — an offer is no longer valid.', 4000);
           closeTradeWindow();
         } else if(msg.reason==='trade_start_failed'){
-          showToast('⚠ Could not start the trade. Please try again.');
+          showToast('Could not start the trade. Please try again.');
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
