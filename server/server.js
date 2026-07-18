@@ -98,6 +98,17 @@ const tradeSessions = new Map();
  * activeMatchByUser so "already trading"/"already in a match" checks read
  * the same way everywhere. */
 const activeTradeByUser = new Map();
+/** userId -> matchId — at most one live spectate session per viewer;
+ * starting a new one silently replaces whatever they were watching before. */
+const spectatingUserMatch = new Map();
+
+/** Sends to literally every connected client — used only for the
+ * lightweight "this player is now in/out of a match" presence blip that
+ * powers the purple spectate-eye indicator client-side. Small enough scale
+ * here that a full broadcast is simpler and cheaper than targeted fan-out. */
+function broadcastAll(payload) {
+  for (const c of connections.values()) c.send(payload);
+}
 
 /* Presence: a user only counts as online when BOTH a live WS connection
  * exists on this process AND its last heartbeat is recent. The Supabase
@@ -375,7 +386,7 @@ async function buildFriendsList(userId) {
     userId: r.otherId,
     username: summaries.get(r.otherId)?.username || 'Unknown',
     icon: summaries.get(r.otherId)?.icon || 'star',
-    ...(withOnline ? { online: !!online.get(r.otherId) } : {}),
+    ...(withOnline ? { online: !!online.get(r.otherId), inMatch: activeMatchByUser.has(r.otherId) } : {}),
   });
   return {
     friends: friends.map(toEntry(true)),
@@ -495,8 +506,13 @@ class Match {
     this.readyForBattle = [false, false];
     this.timer = null;
     this.disconnectTimers = [null, null];
+    /** userIds currently spectating this match — see addSpectator/removeSpectator. */
+    this.spectators = new Set();
     matches.set(this.id, this);
     this.users.forEach(u => activeMatchByUser.set(u, this));
+    // Tell every connected client these two are now "in a match" so their
+    // avatar becomes the purple spectate-eye anywhere it's shown.
+    broadcastAll({ type:'match_presence', userIds:this.users, inMatch:true });
   }
 
   otherSide(side) { return side === 0 ? 1 : 0; }
@@ -532,6 +548,44 @@ class Match {
       const c = this.conn(side);
       if (c) c.send({ type: 'state', matchId: this.id, phase: this.phase, turn: this.turn, you: side, state: this.perspective(side), events: events || [] });
     }
+    this.broadcastToSpectators(events);
+  }
+
+  /** Public, hidden-hand-free view of both sides — spectators never see
+   * either player's hand, only counts, matching how the opponent's hand is
+   * already hidden from a normal player. */
+  spectatorView() {
+    const strip = s => ({
+      hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
+      weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length, handCount: s.hand.length,
+    });
+    return { sideA: strip(this.sides[0]), sideB: strip(this.sides[1]) };
+  }
+
+  addSpectator(userId) { this.spectators.add(userId); }
+  removeSpectator(userId) { this.spectators.delete(userId); }
+
+  broadcastToSpectators(events) {
+    if (!this.spectators.size) return;
+    const payload = {
+      type: 'spectate_state', matchId: this.id, phase: this.phase, turn: this.turn,
+      players: [
+        { userId: this.users[0], username: this.usernames?.[0] || 'Player', icon: this.icons?.[0] || 'star' },
+        { userId: this.users[1], username: this.usernames?.[1] || 'Player', icon: this.icons?.[1] || 'star' },
+      ],
+      state: this.spectatorView(), events: events || [],
+    };
+    for (const uid of this.spectators) connections.get(uid)?.send(payload);
+  }
+
+  /** Notify every current spectator the match is over, and forget them —
+   * called right before the match itself is torn down. */
+  clearSpectators(reason) {
+    for (const uid of this.spectators) {
+      connections.get(uid)?.send({ type:'spectate_ended', matchId:this.id, reason: reason || 'finished' });
+      if (spectatingUserMatch.get(uid) === this.id) spectatingUserMatch.delete(uid);
+    }
+    this.spectators.clear();
   }
 
   /** Never leak the opponent's hand contents — only its count. */
@@ -705,6 +759,8 @@ class Match {
     if (this.finished) return; this.finished = true;
     this.clearTimer();
     this.disconnectTimers.forEach(t => t && clearTimeout(t));
+    this.clearSpectators('finished');
+    broadcastAll({ type:'match_presence', userIds:this.users, inMatch:false });
     const winnerId = this.users[winnerSide], loserId = this.users[this.otherSide(winnerSide)];
     matches.delete(this.id);
     this.users.forEach(u => activeMatchByUser.delete(u));
@@ -1160,7 +1216,7 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
-        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX } });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -1235,7 +1291,7 @@ wss.on('connection', (ws) => {
             const rel = await getFriendship(userId, targetId);
             friendship = !rel ? 'none' : rel.status === 'accepted' ? 'friends' : (rel.requestedBy === userId ? 'outgoing' : 'incoming');
           }
-          conn.send({ type:'player_profile', profile: publicFields, friendship });
+          conn.send({ type:'player_profile', profile: publicFields, friendship, inMatch: activeMatchByUser.has(targetId) });
         } catch (e) {
           conn.send({ type:'error', reason:'profile_fetch_failed' });
         }
@@ -1469,6 +1525,34 @@ wss.on('connection', (ws) => {
         if (session) cancelTrade(session, userId);
         break;
       }
+
+      /* ── SPECTATING: read-only live view of someone else's match, entered
+       * by tapping their purple "in a match" indicator anywhere their
+       * avatar shows up. Never leaks either player's hand. ── */
+      case 'spectate_request': {
+        const targetId = msg.userId;
+        if (typeof targetId !== 'string') { conn.send({ type:'error', reason:'bad_request' }); break; }
+        const match = activeMatchByUser.get(targetId);
+        if (!match) { conn.send({ type:'error', reason:'not_in_match' }); break; }
+        const prevMatchId = spectatingUserMatch.get(userId);
+        if (prevMatchId && prevMatchId !== match.id) matches.get(prevMatchId)?.removeSpectator(userId);
+        match.addSpectator(userId);
+        spectatingUserMatch.set(userId, match.id);
+        conn.send({
+          type: 'spectate_started', matchId: match.id,
+          players: [
+            { userId: match.users[0], username: match.usernames?.[0] || 'Player', icon: match.icons?.[0] || 'star' },
+            { userId: match.users[1], username: match.usernames?.[1] || 'Player', icon: match.icons?.[1] || 'star' },
+          ],
+          phase: match.phase, turn: match.turn, state: match.spectatorView(),
+        });
+        break;
+      }
+      case 'spectate_leave': {
+        const matchId = spectatingUserMatch.get(userId);
+        if (matchId) { matches.get(matchId)?.removeSpectator(userId); spectatingUserMatch.delete(userId); }
+        break;
+      }
       default:
         conn.send({ type:'error', reason:'unknown_message_type' });
     }
@@ -1491,6 +1575,8 @@ wss.on('connection', (ws) => {
       for (const [target, requester] of pendingTrades) if (requester === conn.userId) pendingTrades.delete(target);
       const tradeSession = activeTradeByUser.get(conn.userId);
       if (tradeSession) cancelTrade(tradeSession, conn.userId, 'disconnected');
+      const specMatchId = spectatingUserMatch.get(conn.userId);
+      if (specMatchId) { matches.get(specMatchId)?.removeSpectator(conn.userId); spectatingUserMatch.delete(conn.userId); }
     }
   });
 });
