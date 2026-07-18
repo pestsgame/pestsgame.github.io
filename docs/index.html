@@ -659,6 +659,27 @@ img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;i
 #trade-invite-name{font-weight:700;color:#fbbf24;}
 img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:middle;display:inline-block;}
 
+/* ══ SPECTATE-EYE PRESENCE INDICATOR ══
+   Replaces a player's normal avatar icon anywhere it's shown, whenever
+   they're currently in a live match — distinctly different from every
+   other profile icon on purpose, so it always reads as "click to watch",
+   never as just another cosmetic choice. */
+[data-avatar-user].in-match{
+  border-color:rgba(168,85,247,.65)!important;
+  background:rgba(168,85,247,.16)!important;
+  box-shadow:0 0 14px rgba(168,85,247,.5);
+  animation:spectateRingPulse 2.2s ease-in-out infinite;
+  cursor:pointer;
+}
+@keyframes spectateRingPulse{0%,100%{box-shadow:0 0 9px rgba(168,85,247,.4);}50%{box-shadow:0 0 20px rgba(168,85,247,.8);}}
+.spectate-eye-svg{color:#a855f7;filter:drop-shadow(0 0 5px rgba(168,85,247,.85));overflow:visible;}
+.spectate-eye-iris{animation:spectateIrisPulse 2s ease-in-out infinite;transform-origin:12px 12px;}
+@keyframes spectateIrisPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.18);opacity:.7;}}
+.spectate-eye-lid{animation:spectateLidGlow 2.4s ease-in-out infinite;}
+@keyframes spectateLidGlow{0%,100%{stroke:#a855f7;}50%{stroke:#f0abfc;}}
+.spectate-eye-pupil{animation:spectatePupilDart 3.6s ease-in-out infinite;}
+@keyframes spectatePupilDart{0%,45%,100%{transform:translate(0,0);}50%{transform:translate(1.1px,-.6px);}55%{transform:translate(-1px,.5px);}60%{transform:translate(0,0);}}
+
 /* ══ TRADE WINDOW ══ */
 #trade-overlay{
   position:fixed;inset:0;z-index:1300;display:none;flex-direction:column;
@@ -696,17 +717,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .trade-search-row input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 12px;color:var(--txt);font-size:.72rem;outline:none;transition:border-color .15s;font-family:inherit;}
 .trade-search-row input:focus{border-color:rgba(217,119,6,.5);}
 
-.trade-grid{flex:1;overflow-y:auto;padding:4px 20px 20px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;scrollbar-width:thin;scrollbar-color:rgba(217,119,6,.3) transparent;}
-.trade-chip{width:76px;flex-shrink:0;border-radius:8px;border:2px solid var(--rarity-color,#28284a);background:linear-gradient(170deg,#0c0c20,#080814);position:relative;cursor:pointer;overflow:hidden;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 0 10px var(--rarity-glow,transparent);}
-.trade-chip:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.5),0 0 14px var(--rarity-glow-strong,transparent);}
-.trade-chip:active{transform:translateY(-1px) scale(.95);}
-.trade-chip.readonly{cursor:default;}
-.trade-chip.readonly:hover{transform:none;}
-.trade-chip-img{width:100%;height:56px;object-fit:cover;display:block;background:#0a0a16;}
-.trade-chip-name{font-family:'Cinzel',serif;font-size:.46rem;font-weight:700;color:#eef2ff;padding:3px 4px;line-height:1.15;height:24px;overflow:hidden;text-align:center;}
-.trade-chip-owned{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.75);color:#e5e7eb;font-size:.5rem;font-weight:800;padding:1px 5px;border-radius:20px;z-index:2;}
-.trade-chip-offered{position:absolute;bottom:22px;right:3px;background:linear-gradient(135deg,#d97706,#f59e0b);color:#1a1400;font-size:.58rem;font-weight:900;padding:1px 6px;border-radius:20px;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:2;animation:tradeChipPop .25s cubic-bezier(.34,1.56,.64,1);}
-@keyframes tradeChipPop{0%{transform:scale(.4);opacity:0;}100%{transform:scale(1);opacity:1;}}
+.trade-grid{flex:1;overflow-y:auto;padding:4px 20px 20px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px;scrollbar-width:thin;scrollbar-color:rgba(217,119,6,.3) transparent;}
+.trade-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;transition:transform .18s;}
+.trade-card-slot .card{cursor:pointer;}
+.trade-card-slot:hover{transform:translateY(-6px);}
+.trade-card-slot:active{transform:translateY(-2px) scale(.97);}
+.trade-card-slot.readonly{cursor:default;}
+.trade-card-slot.readonly:hover{transform:none;}
+.trade-card-qty-badge{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.54rem;font-weight:900;letter-spacing:.04em;color:#1a1400;background:linear-gradient(135deg,#fde68a,#f59e0b);padding:2px 9px;border-radius:20px;z-index:6;box-shadow:0 2px 8px rgba(0,0,0,.5);white-space:nowrap;animation:tradeChipPop .25s cubic-bezier(.34,1.56,.64,1);}
+.trade-card-owned-badge{position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.78);color:#e5e7eb;font-size:.54rem;font-weight:800;padding:2px 7px;border-radius:20px;z-index:6;}
+@keyframes tradeChipPop{0%{transform:translateX(-50%) scale(.4);opacity:0;}100%{transform:translateX(-50%) scale(1);opacity:1;}}
 .trade-chip-empty{width:100%;text-align:center;padding:30px 10px;color:var(--txt-muted);font-size:.7rem;}
 
 .trade-footer{flex-shrink:0;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(6,6,16,.95);border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap;}
@@ -747,6 +767,36 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .trade-confirm-empty{font-size:.62rem;color:var(--txt-muted);text-align:center;padding:6px 0;}
 .trade-confirm-actions{display:flex;gap:10px;}
 .trade-confirm-actions .pf-btn{flex:1;}
+
+/* ══ SPECTATE OVERLAY — read-only live feed of someone else's match ══ */
+#spectate-overlay{
+  position:fixed;inset:0;z-index:1250;display:none;flex-direction:column;
+  background:radial-gradient(ellipse 120% 90% at 50% 0%,rgba(168,85,247,.16),transparent 60%),#050510;
+  opacity:0;transition:opacity .32s ease;
+}
+#spectate-overlay.open{display:flex;}
+#spectate-overlay.show{opacity:1;}
+#spectate-overlay .spectate-body{transform:translateY(16px);transition:transform .38s cubic-bezier(.22,1,.36,1);}
+#spectate-overlay.show .spectate-body{transform:translateY(0);}
+.spectate-topbar{height:60px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:rgba(6,6,16,.95);border-bottom:1px solid rgba(168,85,247,.3);box-shadow:0 2px 20px rgba(0,0,0,.6);}
+.spectate-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;display:flex;align-items:center;gap:10px;}
+.spectate-body{flex:1;display:flex;overflow:auto;position:relative;padding:20px;gap:16px;}
+.spectate-side{flex:1;min-width:280px;display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px;transition:border-color .25s,box-shadow .25s;}
+.spectate-side.active-turn{border-color:rgba(168,85,247,.5);box-shadow:0 0 24px rgba(168,85,247,.25);}
+.spectate-side-head{display:flex;align-items:center;gap:10px;}
+.spectate-side-head .social-avatar{cursor:default;}
+.spectate-side-name{font-family:'Cinzel',serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;color:#e9d5ff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.spectate-turn-tag{font-size:.54rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;padding:3px 9px;border-radius:20px;background:rgba(168,85,247,.18);color:#e9d5ff;opacity:0;transition:opacity .2s;white-space:nowrap;}
+.spectate-side.active-turn .spectate-turn-tag{opacity:1;}
+.spectate-hp-bar-track{height:10px;border-radius:20px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid rgba(255,255,255,.08);}
+.spectate-hp-bar-fill{height:100%;background:linear-gradient(90deg,#166534,#22c55e);border-radius:20px;transition:width .5s ease;}
+.spectate-hp-text{font-size:.62rem;color:var(--txt-dim);margin-top:4px;text-align:right;}
+.spectate-deck-hand{font-size:.6rem;color:var(--txt-muted);letter-spacing:.03em;}
+.spectate-board{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
+.spectate-slot{min-height:60px;}
+.spectate-slot-empty{width:100px;height:60px;border:1px dashed rgba(255,255,255,.1);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--txt-muted);font-size:.6rem;}
+.spectate-vs-divider{align-self:center;font-family:'Cinzel',serif;font-size:.7rem;font-weight:900;color:rgba(168,85,247,.6);letter-spacing:.1em;flex-shrink:0;}
+.spectate-footer{flex-shrink:0;padding:12px 22px;text-align:center;font-size:.66rem;color:var(--txt-dim);background:rgba(6,6,16,.95);border-top:1px solid rgba(255,255,255,.06);}
 
 /* ══ SUBSCREEN (Deck Builder + Market) ══ */
 .subscreen{position:fixed;inset:0;z-index:955;display:flex;flex-direction:column;background:var(--bg);transition:opacity .4s;}
@@ -995,7 +1045,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .market-card-rarity{font-size:.48rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:3px;}
 
 /* toast */
-#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(8,8,20,.96);border:1px solid rgba(139,92,246,.4);border-radius:8px;padding:10px 24px;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:#e9d5ff;z-index:2000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,.6);}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(8,8,20,.96);border:1px solid rgba(139,92,246,.4);border-radius:8px;padding:10px 24px;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:#e9d5ff;z-index:2000;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,.6);display:flex;align-items:center;gap:8px;justify-content:center;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* ══════════════════════════════════════
@@ -1604,7 +1654,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <div class="play-stat-value" id="pnl-deck">0/16</div>
             </div>
           </div>
-          <button class="play-battle-btn" onclick="startMultiplayerGame()">⚔ Find Match ⚔</button>
+          <button class="play-battle-btn" onclick="startMultiplayerGame()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg> Find Match <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg></button>
           <div class="play-record-sub" id="menu-win-record">0 Wins · 0 Losses</div>
         </div>
       </div>
@@ -1940,7 +1990,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       </div>
       <div class="pfv-actions">
         <button class="pf-btn pf-btn-cancel" onclick="closeProfileView()">Close</button>
-        <button class="social-btn duel" id="pfv-duel-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestDuel(_pfvUserId);closeProfileView();">⚔ Duel</button>
+        <button class="social-btn duel" id="pfv-duel-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestDuel(_pfvUserId);closeProfileView();"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg> Duel</button>
         <button class="social-btn trade" id="pfv-trade-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="requestTrade(_pfvUserId);closeProfileView();"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> Trade</button>
         <button class="social-btn remove" id="pfv-unfriend-btn" style="display:none;padding:10px 18px;font-size:.75rem;" onclick="removeFriend(_pfvUserId);closeProfileView();">Remove Friend</button>
         <button class="pf-btn pf-btn-save" id="pfv-friend-btn" style="display:none;" onclick="handlePfvFriendAction()"></button>
@@ -2108,6 +2158,51 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <button class="pf-btn pf-btn-save" onclick="finalizeTradeConfirm()">Confirm Trade</button>
     </div>
   </div>
+</div>
+
+<!-- ══════ SPECTATE OVERLAY — read-only live feed ══════ -->
+<div id="spectate-overlay">
+  <div class="spectate-topbar">
+    <div class="spectate-title">
+      <svg class="spectate-eye-svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path class="spectate-eye-lid" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle class="spectate-eye-iris" cx="12" cy="12" r="4.2" fill="currentColor"/>
+        <circle class="spectate-eye-pupil" cx="12" cy="12" r="1.6" fill="#0a0a16"/>
+      </svg>
+      Watching <span id="spectate-vs-label">Player vs Player</span>
+    </div>
+    <button class="trade-cancel-btn" onclick="leaveSpectate()">Leave</button>
+  </div>
+  <div class="spectate-body">
+    <div class="spectate-side" id="spectate-side-a">
+      <div class="spectate-side-head">
+        <span class="social-avatar" id="spectate-a-avatar"></span>
+        <span class="spectate-side-name" id="spectate-a-name">Player</span>
+        <span class="spectate-turn-tag">Their Turn</span>
+      </div>
+      <div>
+        <div class="spectate-hp-bar-track"><div class="spectate-hp-bar-fill" id="spectate-a-hp-fill" style="width:100%;"></div></div>
+        <div class="spectate-hp-text" id="spectate-a-hp-text">100/100</div>
+      </div>
+      <div class="spectate-deck-hand" id="spectate-a-counts">Deck: 0 · Hand: 0</div>
+      <div class="spectate-board" id="spectate-a-board"></div>
+    </div>
+    <div class="spectate-vs-divider">VS</div>
+    <div class="spectate-side" id="spectate-side-b">
+      <div class="spectate-side-head">
+        <span class="social-avatar" id="spectate-b-avatar"></span>
+        <span class="spectate-side-name" id="spectate-b-name">Player</span>
+        <span class="spectate-turn-tag">Their Turn</span>
+      </div>
+      <div>
+        <div class="spectate-hp-bar-track"><div class="spectate-hp-bar-fill" id="spectate-b-hp-fill" style="width:100%;"></div></div>
+        <div class="spectate-hp-text" id="spectate-b-hp-text">100/100</div>
+      </div>
+      <div class="spectate-deck-hand" id="spectate-b-counts">Deck: 0 · Hand: 0</div>
+      <div class="spectate-board" id="spectate-b-board"></div>
+    </div>
+  </div>
+  <div class="spectate-footer" id="spectate-footer-status">Live feed</div>
 </div>
 
 <!-- ══════ MATCH START TRANSITION ══════ -->
@@ -3113,6 +3208,26 @@ function renderIcon(id,size=20){
 function renderSwapIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>`;
 }
+/** Crossed-blades glyph used anywhere dueling needs an icon — buttons,
+ * toasts, the "Find Match" CTA. */
+function renderDuelIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg>`;
+}
+/** Two-person glyph used anywhere friend requests need an icon. */
+function renderFriendIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3.6 2.5-6.2 5.5-6.2s5.5 2.6 5.5 6.2"/><circle cx="17" cy="8.6" r="2.4"/><path d="M15.3 13.8c2.6.5 4.5 2.8 4.8 6"/></svg>`;
+}
+/** The animated purple spectate-eye — replaces a player's normal avatar
+ * icon anywhere they're shown while they're in a live match. Deliberately
+ * unlike any normal profile icon (glowing, blinking, drifting pupil) so it
+ * always reads as "there's a live feed here," never as a cosmetic choice. */
+function renderSpectateEyeIcon(size=18){
+  return `<svg class="spectate-eye-svg" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">
+    <path class="spectate-eye-lid" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle class="spectate-eye-iris" cx="12" cy="12" r="4.2" fill="currentColor"/>
+    <circle class="spectate-eye-pupil" cx="12" cy="12" r="1.6" fill="#0a0a16"/>
+  </svg>`;
+}
 const BANNER_GRADIENTS = {
   violet:   'linear-gradient(90deg,#7c3aed,#c4b5fd)',
   crimson:  'linear-gradient(90deg,#dc2626,#fca5a5)',
@@ -3279,7 +3394,20 @@ function openProfileView(profile,opts={}){
   _pfvUserId=profile.id||null;
   _pfvFriendship=opts.friendship||null;
   document.getElementById('pfv-hero').className='pfv-hero banner-'+(profile.banner||'violet');
-  document.getElementById('pfv-avatar').innerHTML=renderIcon(profile.icon||'star',40);
+  const pfvAvatar=document.getElementById('pfv-avatar');
+  if(_pfvIsOwn || !_pfvUserId){
+    pfvAvatar.removeAttribute('data-avatar-user');
+    pfvAvatar.onclick=null;
+    pfvAvatar.style.cursor='';
+    pfvAvatar.innerHTML=renderIcon(profile.icon||'star',40);
+  } else {
+    pfvAvatar.setAttribute('data-avatar-user',_pfvUserId);
+    pfvAvatar.setAttribute('data-avatar-icon',profile.icon||'star');
+    pfvAvatar.setAttribute('data-avatar-size',40);
+    pfvAvatar.onclick=isUserInMatch(_pfvUserId)?()=>spectateUser(_pfvUserId):null;
+    pfvAvatar.style.cursor=isUserInMatch(_pfvUserId)?'pointer':'';
+    pfvAvatar.innerHTML=avatarContent(_pfvUserId,profile.icon,40);
+  }
   document.getElementById('pfv-name').textContent=profile.name||profile.username||'Pestmaster';
   const rank = (profile.wins||0)>=20?'Gold':(profile.wins||0)>=10?'Silver':'Bronze';
   document.getElementById('pfv-rank').textContent=`Rank: ${rank}`;
@@ -3329,7 +3457,7 @@ function handlePfvFriendAction(){
     Net.send({type:'friend_respond', userId:_pfvUserId, accept:true});
   } else if(_pfvFriendship==='none'){
     Net.send({type:'friend_request', userId:_pfvUserId});
-    showToast('👥 Friend request sent!');
+    showToast('Friend request sent!', 2200, renderFriendIcon(13));
   }
   closeProfileView();
 }
@@ -3388,9 +3516,13 @@ function viewPlayerProfile(userId){
 }
 
 let _toastTimer=null;
-function showToast(msg,dur=2200){
+/** iconSvg is always one of our own hardcoded icon-helper strings (never
+ * user input); msg is escaped since it can contain interpolated text like
+ * an arbitrary username. */
+function showToast(msg,dur=2200,iconSvg=''){
   const t=document.getElementById('toast');
-  t.textContent=msg;t.classList.add('show');
+  t.innerHTML = iconSvg ? `${iconSvg}<span>${escapeHtml(msg)}</span>` : escapeHtml(msg);
+  t.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>t.classList.remove('show'),dur);
 }
@@ -3449,7 +3581,7 @@ function updateSocialBadge(data){
 function socialRow({userId,username,icon,statusText,online,showDot,actionsHtml}){
   return `<div class="social-row">
     <div class="social-avatar-wrap">
-      <div class="social-avatar" onclick="viewPlayerProfile('${userId}')">${renderIcon(icon||'star',18)}</div>
+      <div class="social-avatar" data-avatar-user="${userId}" data-avatar-icon="${icon||'star'}" data-avatar-size="18" onclick="handleAvatarSlotClick('${userId}')" title="${isUserInMatch(userId)?'Watch this match live':''}">${avatarContent(userId,icon,18)}</div>
       ${showDot?`<div class="social-status-dot ${online?'online':''}"></div>`:''}
     </div>
     <div class="social-row-name" onclick="viewPlayerProfile('${userId}')">
@@ -3486,7 +3618,7 @@ function renderSocial(data){
   document.getElementById('social-empty-msg').style.display=friends.length?'none':'block';
   document.getElementById('social-friends-list').innerHTML=friends.map(f=>socialRow({
     ...f, statusText:f.online?'Online':'Offline', showDot:true,
-    actionsHtml:`<button class="social-btn duel" ${f.online?'':'disabled'} onclick="requestDuel('${f.userId}')">⚔ Duel</button>
+    actionsHtml:`<button class="social-btn duel" ${f.online?'':'disabled'} onclick="requestDuel('${f.userId}')">${renderDuelIcon(11)} Duel</button>
                  <button class="social-btn trade" ${f.online?'':'disabled'} onclick="requestTrade('${f.userId}')">${renderSwapIcon(11)} Trade</button>
                  <button class="social-btn remove" onclick="removeFriend('${f.userId}')">Remove</button>`
   })).join('');
@@ -3516,11 +3648,59 @@ function nameForSocialUser(userId){
   return all.find(f=>f.userId===userId)?.username;
 }
 
+/* ══════════════════════════════════════
+   SPECTATE PRESENCE
+   Tracks which userIds are currently in a live match, so any avatar shown
+   for that player anywhere in the app (friends list, global chat, an open
+   profile view) turns into the purple spectate-eye instead of their normal
+   icon — tap it to jump into a read-only live feed of that match.
+══════════════════════════════════════ */
+const PlayersInMatch=new Set();
+
+function isUserInMatch(userId){ return !!userId && PlayersInMatch.has(userId); }
+
+/** What goes *inside* an avatar slot — the normal icon, or the animated
+ * eye if that player is currently in a match. */
+function avatarContent(userId, icon, size=18){
+  return isUserInMatch(userId) ? renderSpectateEyeIcon(size) : renderIcon(icon||'star', size);
+}
+
+/** Click-through for any avatar slot: spectate if they're in a match right
+ * now, otherwise fall back to the normal "view profile" behavior. Checked
+ * live at click-time rather than baked into the markup, so it's always
+ * correct even if the slot hasn't been visually refreshed yet. */
+function handleAvatarSlotClick(userId){
+  if(isUserInMatch(userId)) spectateUser(userId);
+  else viewPlayerProfile(userId);
+}
+
+/** Called whenever match_presence changes — re-applies the correct icon
+ * (or eye) to every already-rendered avatar slot for the affected userIds,
+ * so chat history, an open friends list, or an open profile view all
+ * update live without needing a manual refresh. */
+function refreshAvatarSlots(userIds){
+  const ids=new Set(userIds);
+  document.querySelectorAll('[data-avatar-user]').forEach(el=>{
+    const uid=el.getAttribute('data-avatar-user');
+    if(!uid || !ids.has(uid)) return;
+    const icon=el.getAttribute('data-avatar-icon')||'star';
+    const size=parseInt(el.getAttribute('data-avatar-size')||'18',10);
+    el.classList.toggle('in-match', isUserInMatch(uid));
+    el.innerHTML=avatarContent(uid, icon, size);
+  });
+}
+
+function applyMatchPresence(userIds, inMatch){
+  if(!Array.isArray(userIds)) return;
+  userIds.forEach(id=>{ if(inMatch) PlayersInMatch.add(id); else PlayersInMatch.delete(id); });
+  refreshAvatarSlots(userIds);
+}
+
 /* ── Duels ── */
 let _pendingDuelFrom=null;
 function requestDuel(userId){
   Net.send({type:'duel_request', userId});
-  showToast('⚔ Duel request sent!');
+  showToast('Duel request sent!', 2200, renderDuelIcon(13));
 }
 function showDuelInvite(fromId,username,icon){
   _pendingDuelFrom=fromId;
@@ -3673,22 +3853,21 @@ function tradeSearchInput(v){
   renderTradeGrids();
 }
 
-function renderTradeChip(cardId, ownedQty, offeredQty, editable){
+/** Renders a real, full-size game card (same renderCard() used everywhere
+ * else in the app — deck builder, market, favorites) wrapped in a slot that
+ * adds a click handler and small quantity badges. No separate "mini card"
+ * component — a card in the trade window looks exactly like a card
+ * anywhere else in the game, just smaller because of natural wrapping. */
+function renderTradeCardSlot(cardId, ownedQty, offeredQty, editable){
   const def=tradeCardDef(cardId);
   if(!def) return '';
-  const rcfg=RARITY_CONFIG[def.rarity]||RARITY_CONFIG.common;
-  const style=`--rarity-color:${rcfg.color};--rarity-glow:${hexToRgba(rcfg.color,.4)};--rarity-glow-strong:${hexToRgba(rcfg.color,.8)};`;
-  const remaining=ownedQty-offeredQty;
+  const displayCard=defToDisplayCard(def);
   const onclick=editable?`onclick="toggleTradeCardOffer('${cardId}')"`:'';
-  // Explicit width/height on the <img> (on top of the CSS box) reserves its
-  // exact pixel footprint before the file even starts loading, so there's
-  // never a frame where it renders at native art size before shrinking —
-  // that mismatch is what caused the old tiny-box/big-card flash.
-  return `<div class="trade-chip${editable?'':' readonly'}" data-card-id="${cardId}" style="${style}" ${onclick} title="${escapeHtml(def.name)}">
-    ${editable?`<div class="trade-chip-owned">${remaining}</div>`:''}
-    <img class="trade-chip-img" width="76" height="56" src="${def.image}" alt="" onerror="this.style.display='none'">
-    <div class="trade-chip-name">${escapeHtml(def.name)}</div>
-    ${offeredQty>0?`<div class="trade-chip-offered">×${offeredQty}</div>`:''}
+  const remaining=ownedQty-offeredQty;
+  return `<div class="trade-card-slot${editable?'':' readonly'}" data-card-id="${cardId}" ${onclick} title="${escapeHtml(def.name)}">
+    ${offeredQty>0?`<div class="trade-card-qty-badge">×${offeredQty} offered</div>`:''}
+    ${editable?`<div class="trade-card-owned-badge">${remaining} left</div>`:''}
+    ${renderCard(displayCard,false,-1,'')}
   </div>`;
 }
 
@@ -3696,14 +3875,14 @@ function renderTradeChip(cardId, ownedQty, offeredQty, editable){
  * currently rendered there. */
 const _tradeGridCache={};
 
-/** Renders a trade grid without ever tearing down and recreating chips that
+/** Renders a trade grid without ever tearing down and recreating slots that
  * are already showing the right card — only the quantity badges change on
- * every offer update, and images/DOM nodes should never be touched for
- * that. Recreating every <img> on every keystroke/click (the old behavior)
- * is exactly what caused the flashing: each fresh <img> briefly painted at
- * its native art size before the layout settled. A full rebuild only ever
+ * every offer update, and the underlying card DOM/images should never be
+ * touched for that. Recreating every card on every keystroke/click is
+ * exactly what caused the old flashing: each freshly-inserted card image
+ * briefly painted before the layout settled. A full rebuild only ever
  * happens when the actual *set* of cards shown changes (a search filter,
- * or the opponent offering a brand-new card type). */
+ * or the opponent offering a brand-new card type they hadn't before). */
 function syncTradeGrid(gridId, ids, ownedMap, offeredMap, editable, emptyText){
   const grid=document.getElementById(gridId);
   if(!grid) return;
@@ -3711,27 +3890,27 @@ function syncTradeGrid(gridId, ids, ownedMap, offeredMap, editable, emptyText){
   const cached=_tradeGridCache[gridId];
   if(!cached || cached.idsKey!==idsKey){
     grid.innerHTML = ids.length
-      ? ids.map(id=>renderTradeChip(id, ownedMap[id]||0, offeredMap[id]||0, editable)).join('')
+      ? ids.map(id=>renderTradeCardSlot(id, ownedMap[id]||0, offeredMap[id]||0, editable)).join('')
       : `<div class="trade-chip-empty">${emptyText}</div>`;
     _tradeGridCache[gridId]={idsKey};
     return;
   }
-  // Same cards as last render — just patch each chip's badges in place.
+  // Same cards as last render — just patch each slot's badges in place.
   ids.forEach(id=>{
-    const chip=grid.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
-    if(!chip) return;
+    const slot=grid.querySelector(`[data-card-id="${CSS.escape(id)}"]`);
+    if(!slot) return;
     const offered=offeredMap[id]||0;
     const owned=ownedMap[id]||0;
-    const ownedEl=chip.querySelector('.trade-chip-owned');
-    if(ownedEl) ownedEl.textContent=owned-offered;
-    let offeredEl=chip.querySelector('.trade-chip-offered');
+    const ownedEl=slot.querySelector('.trade-card-owned-badge');
+    if(ownedEl) ownedEl.textContent=`${owned-offered} left`;
+    let offeredEl=slot.querySelector('.trade-card-qty-badge');
     if(offered>0){
       if(!offeredEl){
         offeredEl=document.createElement('div');
-        offeredEl.className='trade-chip-offered';
-        chip.appendChild(offeredEl);
+        offeredEl.className='trade-card-qty-badge';
+        slot.prepend(offeredEl);
       }
-      offeredEl.textContent='×'+offered;
+      offeredEl.textContent=`×${offered} offered`;
     } else if(offeredEl){
       offeredEl.remove();
     }
@@ -3845,6 +4024,72 @@ function playTradeCompleteFx(onDone){
   const flash=document.getElementById('trade-success-flash');
   if(flash){ flash.classList.remove('show'); void flash.offsetWidth; flash.classList.add('show'); }
   setTimeout(()=>{ flash?.classList.remove('show'); onDone&&onDone(); }, 900);
+}
+
+/* ══════════════════════════════════════
+   SPECTATING
+   A read-only live feed of someone else's match, entered by tapping their
+   purple spectate-eye avatar. Mirrors the same board data the real battle
+   screen renders from (activeCard/activeCard2/weaponCard/defenseCard,
+   straight into renderCard()) — just never a hand, for either side.
+══════════════════════════════════════ */
+let SpectateState=null;
+
+function spectateUser(userId){
+  if(!userId) return;
+  Net.send({type:'spectate_request', userId});
+}
+
+function openSpectateOverlay(msg){
+  SpectateState={ matchId: msg.matchId, players: msg.players||[{},{}] };
+  const [pa,pb]=SpectateState.players;
+  document.getElementById('spectate-a-name').textContent=pa?.username||'Player';
+  document.getElementById('spectate-b-name').textContent=pb?.username||'Player';
+  document.getElementById('spectate-a-avatar').innerHTML=renderIcon(pa?.icon||'star',18);
+  document.getElementById('spectate-b-avatar').innerHTML=renderIcon(pb?.icon||'star',18);
+  document.getElementById('spectate-vs-label').textContent=`${pa?.username||'Player'} vs ${pb?.username||'Player'}`;
+  applySpectateState(msg);
+  const ov=document.getElementById('spectate-overlay');
+  ov.classList.add('open');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('show')));
+}
+
+function closeSpectateOverlay(){
+  const ov=document.getElementById('spectate-overlay');
+  ov.classList.remove('show');
+  setTimeout(()=>ov.classList.remove('open'),320);
+  SpectateState=null;
+}
+
+function leaveSpectate(){
+  if(SpectateState) Net.send({type:'spectate_leave'});
+  closeSpectateOverlay();
+}
+
+function applySpectateState(msg){
+  if(!SpectateState || msg.matchId!==SpectateState.matchId) return;
+  SpectateState.phase=msg.phase; SpectateState.turn=msg.turn;
+  renderSpectateSide('a', msg.state.sideA, msg.turn===0);
+  renderSpectateSide('b', msg.state.sideB, msg.turn===1);
+  const status=document.getElementById('spectate-footer-status');
+  const [pa,pb]=SpectateState.players;
+  if(msg.phase==='SETUP') status.textContent='Both players are setting up their board…';
+  else status.textContent=`${(msg.turn===0?pa:pb)?.username||'A player'}'s turn`;
+}
+
+function renderSpectateSide(key, side, isTurn){
+  const hpPct=side.maxHp?Math.max(0,Math.min(100,Math.round(side.hp/side.maxHp*100))):0;
+  document.getElementById(`spectate-${key}-hp-fill`).style.width=hpPct+'%';
+  document.getElementById(`spectate-${key}-hp-text`).textContent=`${Math.max(0,side.hp)}/${side.maxHp}`;
+  document.getElementById(`spectate-${key}-counts`).textContent=`Deck: ${side.deckCount} · Hand: ${side.handCount}`;
+  document.getElementById(`spectate-side-${key}`).classList.toggle('active-turn', isTurn);
+  const board=document.getElementById(`spectate-${key}-board`);
+  board.innerHTML=[
+    `<div class="spectate-slot">${side.activeCard?renderCard(side.activeCard,false,-1,'bf-enemy'):'<div class="spectate-slot-empty">Empty</div>'}</div>`,
+    `<div class="spectate-slot">${side.activeCard2?renderCard(side.activeCard2,false,-1,'bf-enemy'):'<div class="spectate-slot-empty">Empty</div>'}</div>`,
+    side.weaponCard?`<div class="spectate-slot">${renderCard(side.weaponCard,false,-1,'bf-enemy-wpn')}</div>`:'',
+    side.defenseCard?`<div class="spectate-slot">${renderCard(side.defenseCard,false,-1,'bf-enemy-def')}</div>`:'',
+  ].join('');
 }
 
 /* ── Presence heartbeat — starts only once the player is actually "on"
@@ -5497,6 +5742,7 @@ const Net={
         this.authed=true;
         this.userId=msg.userId;
         applyServerProfile(msg.profile);
+        if(Array.isArray(msg.inMatchUserIds)) msg.inMatchUserIds.forEach(id=>PlayersInMatch.add(id));
         if(msg.profileOptions){
           if(Array.isArray(msg.profileOptions.icons))PROFILE_ICONS=msg.profileOptions.icons;
           if(Array.isArray(msg.profileOptions.banners))PROFILE_BANNERS=msg.profileOptions.banners;
@@ -5507,7 +5753,22 @@ const Net={
         startPresenceHeartbeat();
         break;
       case 'profile': applyServerProfile(msg.profile); break;
-      case 'player_profile': hideProfileLoading(); if(msg.profile) openProfileView(msg.profile,{isOwn:false, friendship:msg.friendship}); break;
+      case 'player_profile':
+        hideProfileLoading();
+        if(msg.profile){
+          if(msg.profile.id) applyMatchPresence([msg.profile.id], !!msg.inMatch);
+          openProfileView(msg.profile,{isOwn:false, friendship:msg.friendship});
+        }
+        break;
+      case 'match_presence': applyMatchPresence(msg.userIds, !!msg.inMatch); break;
+      case 'spectate_started': openSpectateOverlay(msg); break;
+      case 'spectate_state': applySpectateState(msg); break;
+      case 'spectate_ended':
+        if(SpectateState && msg.matchId===SpectateState.matchId){
+          showToast(msg.reason==='finished' ? 'That match just ended.' : 'Spectate session ended.');
+          closeSpectateOverlay();
+        }
+        break;
       case 'profile_updated':
         applyServerProfile(msg.profile);
         closeProfileModal();
@@ -5523,9 +5784,12 @@ const Net={
       case 'battle_chat': handleBattleChatMessage(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
-      case 'friends_list': renderSocial(msg); break;
+      case 'friends_list':
+        (msg.friends||[]).forEach(f=>{ if(f.userId) applyMatchPresence([f.userId], !!f.inMatch); });
+        renderSocial(msg);
+        break;
       case 'friend_request_received':
-        showToast(`👥 ${msg.username||'Someone'} sent you a friend request!`);
+        showToast(`${msg.username||'Someone'} sent you a friend request!`, 2200, renderFriendIcon(13));
         Net.send({type:'friends_list'});
         break;
       case 'presence_update': updateFriendPresence(msg.userId, msg.online); break;
@@ -5601,6 +5865,8 @@ const Net={
           closeTradeWindow();
         } else if(msg.reason==='trade_start_failed'){
           showToast('Could not start the trade. Please try again.');
+        } else if(msg.reason==='not_in_match'){
+          showToast('That player is not in a match right now.');
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
@@ -6021,7 +6287,7 @@ function renderChatMessage(row,opts={}){
   const wrap=document.createElement('div');
   wrap.className='gc-msg'+(isOwn?' own':'');
   wrap.innerHTML=`
-    <div class="gc-msg-avatar">${renderIcon(row.sender_icon||'star',15)}</div>
+    <div class="gc-msg-avatar" data-avatar-user="${isOwn?'':(row.sender_id||'')}" data-avatar-icon="${row.sender_icon||'star'}" data-avatar-size="15">${isOwn?renderIcon(row.sender_icon||'star',15):avatarContent(row.sender_id,row.sender_icon,15)}</div>
     <div class="gc-msg-body">
       <div class="gc-msg-top">
         <span class="gc-msg-name"></span>
@@ -6031,6 +6297,11 @@ function renderChatMessage(row,opts={}){
     </div>`;
   wrap.querySelector('.gc-msg-name').textContent=row.sender_name||'Pestmaster';
   wrap.querySelector('.gc-msg-text').textContent=row.message||'';
+  if(!isOwn){
+    wrap.querySelector('.gc-msg-avatar').addEventListener('click',e=>{
+      if(isUserInMatch(row.sender_id)){ e.stopPropagation(); spectateUser(row.sender_id); }
+    });
+  }
   wrap.addEventListener('click',()=>{
     openProfileView({
       id:row.sender_id,
