@@ -1310,6 +1310,13 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
 }
 #profile-overlay.open{display:flex;}
+#guild-create-overlay{
+  display:none;position:fixed;inset:0;z-index:1150;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#guild-create-overlay.open{display:flex;}
+#guild-create-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
 .profile-modal{
   width:min(680px,95vw);max-height:88vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;
   background:var(--panel);border:1px solid rgba(139,92,246,.25);border-radius:16px;
@@ -1359,6 +1366,47 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pf-btn-save{background:linear-gradient(135deg,#2d1a5e,#7c3aed);border-color:#5b21b6;}
 .pf-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3);}
 .pf-btn-cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--txt-muted);}
+
+/* ══════ GUILDS ══════ */
+.guild-cta-row{padding:0 24px 6px;}
+.guild-cta-row .bbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
+.guild-cta-cost{display:inline-flex;align-items:center;gap:3px;font-size:.7rem;opacity:.85;}
+.guild-cta-cost img{width:12px;height:12px;}
+.inline-currency-icon{width:11px;height:11px;vertical-align:-1px;margin:0 2px;}
+.guild-browse-search-row{padding:0 24px 10px;}
+.guild-browse-search-row .pf-name-input{width:100%;}
+.guild-browse-emblem{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#c4b5fd;flex-shrink:0;}
+.guild-emblem-big{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 38% 35%,#1a0a3a,#060614);border:2px solid rgba(139,92,246,.4);color:#e9d5ff;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,.4);}
+.guild-header-card{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.03);border:1px solid rgba(139,92,246,.2);border-radius:12px;padding:16px 20px;margin:0 24px 18px;}
+.guild-header-info{flex:1;min-width:0;}
+.guild-header-name{font-family:'Cinzel',serif;font-weight:800;font-size:1.05rem;color:#fff;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.guild-header-meta{font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--txt-dim);margin-top:3px;}
+.guild-role-tag{display:inline-block;font-size:.52rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fde68a;background:rgba(217,119,6,.18);border:1px solid rgba(217,119,6,.4);border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:1px;}
+.guild-pending-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:rgba(255,255,255,.03);border:1px solid rgba(139,92,246,.2);border-radius:12px;padding:32px 24px;margin:20px 24px;}
+.guild-pending-actions{display:flex;gap:10px;}
+.guild-invite-row{display:flex;gap:8px;padding:0 24px 14px;}
+.guild-invite-row .pf-name-input{flex:1;}
+.guild-footer-actions{display:flex;gap:10px;padding:16px 24px 6px;border-top:1px solid rgba(255,255,255,.06);margin-top:8px;}
+.guild-footer-actions .social-btn{flex:1;padding:10px;font-size:.68rem;}
+.guild-field-hint{font-size:.6rem;color:var(--txt-muted);margin-top:6px;}
+.guild-fee-config{display:flex;gap:8px;align-items:center;margin-top:10px;}
+.guild-fee-config .pf-name-input{flex:1;}
+.guild-create-cost-note{display:flex;align-items:center;font-size:.68rem;color:rgba(196,181,253,.8);background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:9px 12px;}
+.pf-frame-swatch{width:44px;height:44px;}
+
+/* Generic "are you sure" confirm dialog — used by leave/kick/disband guild
+ * actions. Same visual language as the trade confirm dialog, but not tied
+ * to trades specifically. */
+#gconfirm-overlay{position:fixed;inset:0;z-index:1450;display:none;align-items:center;justify-content:center;background:rgba(3,3,10,.7);backdrop-filter:blur(3px);opacity:0;transition:opacity .2s;}
+#gconfirm-overlay.open{display:flex;}
+#gconfirm-overlay.show{opacity:1;}
+.gconfirm-modal{width:min(92vw,420px);background:linear-gradient(160deg,#14101f,#0a0a16);border:1px solid rgba(239,68,68,.35);border-radius:14px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.7);transform:scale(.92) translateY(10px);transition:transform .25s cubic-bezier(.34,1.56,.64,1);}
+#gconfirm-overlay.show .gconfirm-modal{transform:scale(1) translateY(0);}
+.gconfirm-title{font-family:'Cinzel',serif;font-size:.82rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#fca5a5;text-align:center;margin-bottom:6px;}
+.gconfirm-sub{font-size:.68rem;color:var(--txt-dim);text-align:center;margin-bottom:18px;}
+.gconfirm-actions{display:flex;gap:10px;}
+.gconfirm-actions .pf-btn{flex:1;}
+.pf-btn-danger{background:linear-gradient(135deg,#5c1414,#dc2626);border-color:#991b1b;}
 
 /* ══════════════════════════════════════
    PROFILE VIEW MODAL (read-only)
@@ -1622,6 +1670,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
         <span id="social-tab-badge" class="social-tab-badge" style="display:none;"></span>
       </button>
+      <button class="menu-tab" onclick="switchMenuTab('guild')" data-tab="guild">
+        <span class="menu-tab-icon">⚜</span>
+        <div class="menu-tab-text">
+          <span class="menu-tab-label">Guild</span>
+          <span class="menu-tab-sub">Brotherhood</span>
+        </div>
+        <span id="guild-tab-badge" class="social-tab-badge" style="display:none;"></span>
+      </button>
     </div><!-- /menu-sidebar -->
 
     <!-- Right content panels -->
@@ -1783,6 +1839,58 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Friends</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
           <div id="social-friends-list" class="social-list"></div>
           <div id="social-empty-msg" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:10px 24px 30px;">No friends yet — add one by username above.</div>
+
+        </div>
+      </div>
+
+      <!-- GUILD PANEL -->
+      <div class="menu-panel" id="menu-panel-guild">
+        <div class="panel-topbar">
+          <div class="panel-title">⚜ Guild</div>
+          <div class="panel-meta" id="guild-panel-meta">No Guild</div>
+        </div>
+        <div class="social-body">
+
+          <!-- NOT IN A GUILD, no pending invite/application -->
+          <div id="guild-view-none">
+            <div class="guild-cta-row">
+              <button class="bbtn bbtn-battle" onclick="openGuildCreateModal()">⚜ Found a Guild <span class="guild-cta-cost"><img src="gem.png" alt="">200</span></button>
+            </div>
+            <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Browse Guilds</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
+            <div class="guild-browse-search-row">
+              <input type="text" id="guild-browse-input" class="pf-name-input" placeholder="Search guild by name..." oninput="guildBrowseSearch(this.value)">
+            </div>
+            <div id="guild-browse-list" class="social-list"></div>
+            <div id="guild-browse-empty" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:10px 24px 30px;">No guilds found yet — be the first to found one!</div>
+          </div>
+
+          <!-- PENDING invite or outgoing application -->
+          <div id="guild-view-pending" style="display:none;">
+            <div class="guild-pending-card" id="guild-pending-card"></div>
+          </div>
+
+          <!-- IN A GUILD -->
+          <div id="guild-view-mine" style="display:none;">
+            <div class="guild-header-card" id="guild-header-card"></div>
+
+            <div id="guild-applications-section" style="display:none;">
+              <div class="shop-row-header"><div class="shop-row-header-label gold-label">Applications</div><div class="shop-row-header-line gold-line"></div></div>
+              <div id="guild-applications-list" class="social-list"></div>
+            </div>
+
+            <div class="guild-invite-row" id="guild-invite-row" style="display:none;">
+              <input type="text" id="guild-invite-input" class="pf-name-input" maxlength="24" placeholder="Invite a player by username..." onkeydown="if(event.key==='Enter')sendGuildInviteByUsername()">
+              <button class="bbtn bbtn-battle" style="padding:0 20px;font-size:.68rem;white-space:nowrap;" onclick="sendGuildInviteByUsername()">Invite</button>
+            </div>
+
+            <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Members</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
+            <div id="guild-members-list" class="social-list"></div>
+
+            <div class="guild-footer-actions">
+              <button class="social-btn remove" id="guild-leave-btn" onclick="confirmLeaveGuild()">Leave Guild</button>
+              <button class="social-btn remove" id="guild-disband-btn" style="display:none;" onclick="confirmDisbandGuild()">Disband Guild</button>
+            </div>
+          </div>
 
         </div>
       </div>
@@ -2047,6 +2155,62 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         <button class="pf-btn pf-btn-cancel" onclick="closeProfileModal()">Cancel</button>
         <button class="pf-btn pf-btn-save" onclick="saveProfileEdits()">Save Profile</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ GUILD CREATE MODAL ══════ -->
+<div id="guild-create-overlay" onclick="handleGuildCreateBackdrop(event)">
+  <div class="profile-modal" onclick="event.stopPropagation()">
+    <div class="profile-modal-top">
+      <div class="profile-modal-hero banner-violet">
+        <div class="close-x" onclick="closeGuildCreateModal()">✕</div>
+      </div>
+      <div class="profile-modal-avatar" id="gc-emblem-preview"></div>
+    </div>
+    <div class="profile-modal-body">
+      <div>
+        <label class="pf-field-label">Guild Name</label>
+        <input type="text" id="gc-name-input" class="pf-name-input" maxlength="24" placeholder="Name your guild..." oninput="updateGuildCreatePreview()">
+      </div>
+      <div>
+        <label class="pf-field-label">Emblem</label>
+        <div class="pf-icon-grid" id="gc-icon-grid"></div>
+      </div>
+      <div>
+        <label class="pf-field-label">Frame</label>
+        <div class="pf-icon-grid" id="gc-frame-grid"></div>
+      </div>
+      <div>
+        <label class="pf-field-label">Visibility</label>
+        <div class="db-chip-group" id="gc-visibility-chips"></div>
+        <div class="guild-field-hint" id="gc-visibility-hint"></div>
+      </div>
+      <div>
+        <label class="pf-field-label">Join Fee</label>
+        <div class="db-chip-group" id="gc-fee-toggle-chips"></div>
+        <div class="guild-fee-config" id="gc-fee-config" style="display:none;">
+          <div class="db-chip-group" id="gc-fee-currency-chips"></div>
+          <input type="number" id="gc-fee-amount-input" class="pf-name-input" min="1" placeholder="Amount" oninput="updateGuildCreatePreview()">
+        </div>
+      </div>
+      <div class="guild-create-cost-note" id="gc-cost-note"></div>
+      <div class="profile-modal-actions">
+        <button class="pf-btn pf-btn-cancel" onclick="closeGuildCreateModal()">Cancel</button>
+        <button class="pf-btn pf-btn-save" id="gc-submit-btn" onclick="submitGuildCreate()">Found Guild</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ GENERIC CONFIRM DIALOG (leave/kick/disband guild) ══════ -->
+<div id="gconfirm-overlay">
+  <div class="gconfirm-modal">
+    <div class="gconfirm-title" id="gconfirm-title">Are you sure?</div>
+    <div class="gconfirm-sub" id="gconfirm-sub"></div>
+    <div class="gconfirm-actions">
+      <button class="pf-btn pf-btn-cancel" onclick="closeGConfirm()">Go Back</button>
+      <button class="pf-btn pf-btn-danger" id="gconfirm-confirm-btn">Confirm</button>
     </div>
   </div>
 </div>
@@ -3268,6 +3432,15 @@ const BANNER_GRADIENTS = {
 };
 
 function savePlayer(){ try{localStorage.setItem('aop_player',JSON.stringify(Player));}catch(e){} }
+
+/** True once loadPlayer() has finished restoring (or seeding) Player from
+ * localStorage. Anything that might mint a NEW guestId (Net.authenticate,
+ * ensureChatIdentity) must wait for this first — otherwise it can run while
+ * Player.guestId is still at its default `null`, generate a fresh random id,
+ * and immediately savePlayer() that over the real saved id in localStorage
+ * before loadPlayer() ever gets a chance to read it back. That race is what
+ * silently swaps/loses a player's account id. */
+let _playerLoaded=false;
 function loadPlayer(){
   try{
     const d=localStorage.getItem('aop_player');
@@ -3275,6 +3448,7 @@ function loadPlayer(){
     // ensure collection has at least starter cards
     if(!Player.collection.length) seedStarterCollection();
   }catch(e){ seedStarterCollection(); }
+  finally{ _playerLoaded=true; }
 }
 function seedStarterCollection(){
   // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
@@ -3674,6 +3848,291 @@ function updateFriendPresence(userId,online){
 function nameForSocialUser(userId){
   const all=[...(SocialState.friends||[]),...(SocialState.incoming||[]),...(SocialState.outgoing||[])];
   return all.find(f=>f.userId===userId)?.username;
+}
+
+/* ══════════════════════════════════════
+   GUILDS
+   A guild's "picture" is one of the same hand-drawn ICON_SVGS glyphs used
+   for player profiles; its "frame" is a separate decorative border drawn
+   around that glyph. Both are picked from server-issued allow-lists
+   (GuildOptions, populated from auth_ok) — never emoji, never free text.
+══════════════════════════════════════ */
+
+/** Decorative border shapes drawn around a guild's emblem icon. Same
+ * currentColor convention as ICON_SVGS so a single CSS color tints the
+ * whole composite. Keep ids in sync with GUILD_FRAMES on the server. */
+const GUILD_FRAME_SVGS = {
+  ring:     '<circle cx="12" cy="12" r="10.4"/>',
+  hex:      '<path d="M12 1.8L20.83 6.9L20.83 17.1L12 22.2L3.17 17.1L3.17 6.9Z"/>',
+  shield:   '<path d="M12 1.6l8.6 3.5v6.3c0 5.6-3.7 9.7-8.6 11.9-4.9-2.2-8.6-6.3-8.6-11.9V5.1z"/>',
+  crest:    '<path d="M12 1.6l8.6 3.5v6.3c0 5.6-3.7 9.7-8.6 11.9-4.9-2.2-8.6-6.3-8.6-11.9V5.1z"/><circle cx="4.1" cy="5.6" r="0.95" fill="currentColor" stroke="none"/><circle cx="19.9" cy="5.6" r="0.95" fill="currentColor" stroke="none"/><circle cx="12" cy="23.2" r="0.95" fill="currentColor" stroke="none"/>',
+  laurel:   '<path d="M11.1 3.45 L13.13 1.26 M14.9 3.9 L17.68 2.81 M18.13 5.96 L21.1 6.19 M20.14 9.22 L22.72 10.71 M20.54 13.03 L22.22 15.49 M19.25 16.63 L19.69 19.58 M16.52 19.32 L15.64 22.17 M12.9 20.55 L10.87 22.74 M9.1 20.1 L6.32 21.19 M5.87 18.04 L2.9 17.81 M3.86 14.78 L1.28 13.29 M3.46 10.97 L1.78 8.51 M4.75 7.37 L4.31 4.42 M7.48 4.68 L8.36 1.83"/>',
+  spiked:   '<path d="M10.72 2.89 L12 0.4 L13.28 2.89 M16.32 3.88 L18.82 2.62 L18.39 5.38 M20.27 7.97 L23.03 8.42 L21.06 10.4 M21.06 13.6 L23.03 15.58 L20.27 16.03 M18.39 18.62 L18.82 21.38 L16.32 20.12 M13.28 21.11 L12 23.6 L10.72 21.11 M7.68 20.12 L5.18 21.38 L5.61 18.62 M3.73 16.03 L0.97 15.58 L2.94 13.6 M2.94 10.4 L0.97 8.42 L3.73 7.97 M5.61 5.38 L5.18 2.62 L7.68 3.88"/>',
+  ironclad: '<circle cx="12" cy="12" r="10.6"/><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="2.3" r="0.85" fill="currentColor" stroke="none"/><circle cx="18.86" cy="5.14" r="0.85" fill="currentColor" stroke="none"/><circle cx="21.7" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="18.86" cy="18.86" r="0.85" fill="currentColor" stroke="none"/><circle cx="12" cy="21.7" r="0.85" fill="currentColor" stroke="none"/><circle cx="5.14" cy="18.86" r="0.85" fill="currentColor" stroke="none"/><circle cx="2.3" cy="12" r="0.85" fill="currentColor" stroke="none"/><circle cx="5.14" cy="5.14" r="0.85" fill="currentColor" stroke="none"/>',
+  gilded:   '<circle cx="12" cy="12" r="10.2"/><path d="M12 0.80 L12.90 1.7 L12 2.60 L11.10 1.7 Z M19.28 3.82 L20.18 4.72 L19.28 5.62 L18.38 4.72 Z M22.3 11.10 L23.20 12 L22.3 12.90 L21.40 12 Z M19.28 18.38 L20.18 19.28 L19.28 20.18 L18.38 19.28 Z M12 21.40 L12.90 22.3 L12 23.20 L11.10 22.3 Z M4.72 18.38 L5.62 19.28 L4.72 20.18 L3.82 19.28 Z M1.7 11.10 L2.60 12 L1.7 12.90 L0.80 12 Z M4.72 3.82 L5.62 4.72 L4.72 5.62 L3.82 4.72 Z" fill="currentColor" stroke="none"/>',
+};
+function renderFrameIcon(id,size=20){
+  const inner=GUILD_FRAME_SVGS[id]||GUILD_FRAME_SVGS.ring;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+/** Composite emblem: frame drawn full-size, the picture glyph drawn
+ * smaller and centered on top. This is what "a guild's icon" means
+ * everywhere in the app — roster rows, the browse list, the header card. */
+function renderGuildEmblem(icon,frame,size=32){
+  const frameInner=GUILD_FRAME_SVGS[frame]||GUILD_FRAME_SVGS.ring;
+  const iconInner=ICON_SVGS[icon]||ICON_SVGS.star;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${frameInner}</g>
+    <g transform="translate(12 12) scale(.46) translate(-12 -12)" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconInner}</g>
+  </svg>`;
+}
+
+/** Populated from auth_ok's guildOptions — the server is the only source
+ * of truth for allowed icons/frames/caps/costs; these defaults just cover
+ * the instant before auth_ok arrives. */
+let GuildOptions={
+  icons:['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'],
+  frames:['ring','hex','shield','crest','laurel','spiked','ironclad','gilded'],
+  nameMin:3, nameMax:24, maxMembers:30, createCostGems:200, joinFeeMaxGold:100000, joinFeeMaxGems:10000,
+};
+/** Exactly one of guild/invite/application is ever meaningfully populated —
+ * you can't be in a guild AND have a pending invite/application at once. */
+let GuildState={guild:null, invite:null, application:null};
+let GuildBrowseResults=[];
+
+function updateGuildBadge(){
+  const badge=document.getElementById('guild-tab-badge');
+  let n=0;
+  if(GuildState.invite) n+=1;
+  if(GuildState.guild && Array.isArray(GuildState.guild.applications)) n+=GuildState.guild.applications.length;
+  if(n>0){ badge.style.display='block'; badge.textContent=n>9?'9+':String(n); }
+  else badge.style.display='none';
+}
+
+function renderGuildPanel(){
+  const none=document.getElementById('guild-view-none');
+  const pending=document.getElementById('guild-view-pending');
+  const mine=document.getElementById('guild-view-mine');
+  const meta=document.getElementById('guild-panel-meta');
+  if(GuildState.guild){
+    none.style.display='none'; pending.style.display='none'; mine.style.display='';
+    const g=GuildState.guild;
+    meta.textContent=`${(g.members||[]).length} / ${g.maxMembers} members`;
+    renderGuildHeaderCard();
+    renderGuildMembersList();
+    renderGuildApplicationsList();
+    const isLeader=g.myRole==='leader';
+    document.getElementById('guild-invite-row').style.display=isLeader?'':'none';
+    document.getElementById('guild-leave-btn').style.display=isLeader?'none':'';
+    document.getElementById('guild-disband-btn').style.display=isLeader?'':'none';
+  } else if(GuildState.invite || GuildState.application){
+    none.style.display='none'; mine.style.display='none'; pending.style.display='';
+    meta.textContent='Pending';
+    renderGuildPendingCard();
+  } else {
+    mine.style.display='none'; pending.style.display='none'; none.style.display='';
+    meta.textContent='No Guild';
+    Net.send({type:'guild_browse', search:document.getElementById('guild-browse-input')?.value.trim()||''});
+  }
+  updateGuildBadge();
+}
+
+function renderGuildHeaderCard(){
+  const g=GuildState.guild;
+  const feeText=g.joinFeeEnabled ? `${g.joinFeeAmount} ${g.joinFeeCurrency==='gems'?'Gems':'Gold'} to join` : 'Free to join';
+  document.getElementById('guild-header-card').innerHTML=`
+    <div class="guild-emblem-big">${renderGuildEmblem(g.icon,g.frame,52)}</div>
+    <div class="guild-header-info">
+      <div class="guild-header-name">${escapeHtml(g.name)}</div>
+      <div class="guild-header-meta">${g.visibility==='private'?'Private Guild':'Public Guild'} · ${feeText}</div>
+    </div>`;
+}
+
+function guildMemberRow(m){
+  const isLeaderView=GuildState.guild.myRole==='leader';
+  const canKick=isLeaderView && m.userId!==Net.userId;
+  return `<div class="social-row">
+    <div class="social-avatar-wrap">
+      <div class="social-avatar" data-avatar-user="${m.userId}" data-avatar-icon="${m.icon||'star'}" data-avatar-size="18" onclick="handleAvatarSlotClick('${m.userId}')" title="${isUserInMatch(m.userId)?'Watch this match live':''}">${avatarContent(m.userId,m.icon,18)}</div>
+      <div class="social-status-dot ${m.online?'online':''}"></div>
+    </div>
+    <div class="social-row-name" onclick="viewPlayerProfile('${m.userId}')">
+      <span class="social-row-username">${escapeHtml(m.username)}${m.role==='leader'?'<span class="guild-role-tag">Leader</span>':''}</span>
+      <span class="social-row-status">${m.online?'Online':'Offline'}</span>
+    </div>
+    <div class="social-row-actions">${canKick?`<button class="social-btn remove" onclick="confirmKickGuildMember('${m.userId}')">Kick</button>`:''}</div>
+  </div>`;
+}
+function renderGuildMembersList(){
+  document.getElementById('guild-members-list').innerHTML=(GuildState.guild.members||[]).map(guildMemberRow).join('');
+}
+
+function renderGuildApplicationsList(){
+  const g=GuildState.guild;
+  const apps=(g.myRole==='leader' && Array.isArray(g.applications))?g.applications:[];
+  document.getElementById('guild-applications-section').style.display=apps.length?'':'none';
+  document.getElementById('guild-applications-list').innerHTML=apps.map(a=>socialRow({
+    userId:a.userId, username:a.username, icon:a.icon, statusText:'Wants to join', showDot:false,
+    actionsHtml:`<button class="social-btn accept" onclick="respondGuildApplication('${a.userId}',true)">Accept</button>
+                 <button class="social-btn decline" onclick="respondGuildApplication('${a.userId}',false)">Decline</button>`,
+  })).join('');
+}
+
+function renderGuildPendingCard(){
+  const card=document.getElementById('guild-pending-card');
+  if(GuildState.invite){
+    const inv=GuildState.invite;
+    card.innerHTML=`
+      <div class="guild-emblem-big">${renderGuildEmblem(inv.icon,inv.frame,56)}</div>
+      <div class="guild-header-info"><div class="guild-header-name">${escapeHtml(inv.name)}</div><div class="guild-header-meta">invited you to join</div></div>
+      <div class="guild-pending-actions">
+        <button class="social-btn accept" onclick="respondGuildInvite(true)">Accept</button>
+        <button class="social-btn decline" onclick="respondGuildInvite(false)">Decline</button>
+      </div>`;
+  } else if(GuildState.application){
+    const app=GuildState.application;
+    card.innerHTML=`
+      <div class="guild-emblem-big">${renderGuildEmblem(app.icon,app.frame,56)}</div>
+      <div class="guild-header-info"><div class="guild-header-name">${escapeHtml(app.name)}</div><div class="guild-header-meta">Application pending…</div></div>
+      <div class="guild-pending-actions">
+        <button class="social-btn cancel" onclick="cancelGuildApplication()">Cancel Application</button>
+      </div>`;
+  }
+}
+
+let _guildBrowseDebounce=null;
+function guildBrowseSearch(v){
+  clearTimeout(_guildBrowseDebounce);
+  _guildBrowseDebounce=setTimeout(()=>Net.send({type:'guild_browse', search:v.trim()}),250);
+}
+function renderGuildBrowseList(){
+  const list=document.getElementById('guild-browse-list');
+  const empty=document.getElementById('guild-browse-empty');
+  empty.style.display=GuildBrowseResults.length?'none':'block';
+  list.innerHTML=GuildBrowseResults.map(g=>{
+    const feeText=g.joinFeeEnabled?`${g.joinFeeAmount} ${g.joinFeeCurrency==='gems'?'Gems':'Gold'}`:'Free';
+    const full=g.memberCount>=g.maxMembers;
+    const isPrivate=g.visibility==='private';
+    const label=full?'Full':(isPrivate?'Apply':'Join');
+    const action=isPrivate?`applyToGuild('${g.guildId}')`:`joinGuild('${g.guildId}')`;
+    return `<div class="social-row">
+      <div class="guild-browse-emblem">${renderGuildEmblem(g.icon,g.frame,32)}</div>
+      <div class="social-row-name">
+        <span class="social-row-username">${escapeHtml(g.name)}</span>
+        <span class="social-row-status">${isPrivate?'Private':'Public'} · ${g.memberCount}/${g.maxMembers} · ${feeText}</span>
+      </div>
+      <div class="social-row-actions"><button class="social-btn duel" ${full?'disabled':''} onclick="${action}">${label}</button></div>
+    </div>`;
+  }).join('');
+}
+
+function joinGuild(guildId){ Net.send({type:'guild_join', guildId}); }
+function applyToGuild(guildId){ Net.send({type:'guild_apply', guildId}); showToast('Application sent!'); }
+function respondGuildInvite(accept){ if(!GuildState.invite)return; Net.send({type:'guild_invite_respond', guildId:GuildState.invite.guildId, accept}); }
+function cancelGuildApplication(){ Net.send({type:'guild_application_cancel'}); }
+function respondGuildApplication(userId,accept){ Net.send({type:'guild_application_respond', userId, accept}); }
+function sendGuildInviteByUsername(){
+  const input=document.getElementById('guild-invite-input');
+  const username=input.value.trim();
+  if(!username) return;
+  Net.send({type:'guild_invite', username});
+  input.value='';
+}
+
+/* ── Generic confirm dialog (leave / kick / disband) ── */
+function showGConfirm(title,sub,confirmLabel,onConfirm){
+  document.getElementById('gconfirm-title').textContent=title;
+  document.getElementById('gconfirm-sub').textContent=sub;
+  const btn=document.getElementById('gconfirm-confirm-btn');
+  btn.textContent=confirmLabel;
+  btn.onclick=()=>{ closeGConfirm(); onConfirm(); };
+  const ov=document.getElementById('gconfirm-overlay');
+  ov.classList.add('open');
+  requestAnimationFrame(()=>ov.classList.add('show'));
+}
+function closeGConfirm(){
+  const ov=document.getElementById('gconfirm-overlay');
+  ov.classList.remove('show');
+  setTimeout(()=>ov.classList.remove('open'),200);
+}
+function confirmKickGuildMember(userId){
+  const m=(GuildState.guild?.members||[]).find(x=>x.userId===userId);
+  showGConfirm('Kick Member?', `${m?m.username:'This player'} will be removed from the guild immediately.`, 'Kick', ()=>Net.send({type:'guild_kick', userId}));
+}
+function confirmLeaveGuild(){
+  showGConfirm('Leave Guild?', "You'll need a new invite or application to rejoin.", 'Leave', ()=>Net.send({type:'guild_leave'}));
+}
+function confirmDisbandGuild(){
+  showGConfirm('Disband Guild?', 'This removes every member and cannot be undone.', 'Disband', ()=>Net.send({type:'guild_disband'}));
+}
+
+/* ── Create Guild modal ── */
+let _gcIcon='star', _gcFrame='ring', _gcVisibility='public', _gcFeeEnabled=false, _gcFeeCurrency='gold';
+function openGuildCreateModal(){
+  _gcIcon=GuildOptions.icons[0]||'star';
+  _gcFrame=GuildOptions.frames[0]||'ring';
+  _gcVisibility='public';
+  _gcFeeEnabled=false;
+  _gcFeeCurrency='gold';
+  document.getElementById('gc-name-input').value='';
+  document.getElementById('gc-name-input').maxLength=GuildOptions.nameMax;
+  document.getElementById('gc-fee-amount-input').value='';
+  renderGuildCreatePickers();
+  updateGuildCreatePreview();
+  document.getElementById('guild-create-overlay').classList.add('open');
+}
+function closeGuildCreateModal(){ document.getElementById('guild-create-overlay').classList.remove('open'); }
+function handleGuildCreateBackdrop(e){ if(e.target===document.getElementById('guild-create-overlay')) closeGuildCreateModal(); }
+
+function renderGuildCreatePickers(){
+  document.getElementById('gc-icon-grid').innerHTML=GuildOptions.icons.map(icon=>
+    `<div class="pf-icon-swatch${icon===_gcIcon?' selected':''}" onclick="selectGuildIcon('${icon}')" title="${icon}">${renderIcon(icon,20)}</div>`
+  ).join('');
+  document.getElementById('gc-frame-grid').innerHTML=GuildOptions.frames.map(frame=>
+    `<div class="pf-icon-swatch pf-frame-swatch${frame===_gcFrame?' selected':''}" onclick="selectGuildFrame('${frame}')" title="${frame}">${renderFrameIcon(frame,26)}</div>`
+  ).join('');
+  document.getElementById('gc-visibility-chips').innerHTML=['public','private'].map(v=>
+    `<span class="db-chip${v===_gcVisibility?' active':''}" onclick="selectGuildVisibility('${v}')">${v==='public'?'Public':'Private'}</span>`
+  ).join('');
+  document.getElementById('gc-fee-toggle-chips').innerHTML=[['off',false],['on',true]].map(([label,val])=>
+    `<span class="db-chip${_gcFeeEnabled===val?' active':''}" onclick="selectGuildFeeToggle(${val})">${val?'Charge a Fee':'No Fee'}</span>`
+  ).join('');
+  document.getElementById('gc-fee-currency-chips').innerHTML=['gold','gems'].map(c=>
+    `<span class="db-chip${c===_gcFeeCurrency?' active':''}" onclick="selectGuildFeeCurrency('${c}')">${c==='gold'?'Gold':'Gems'}</span>`
+  ).join('');
+  document.getElementById('gc-fee-config').style.display=_gcFeeEnabled?'flex':'none';
+  document.getElementById('gc-visibility-hint').textContent=_gcVisibility==='private'
+    ? 'Players must be invited or apply and get accepted to join.'
+    : 'Anyone can join instantly (paying the fee below, if any).';
+}
+function selectGuildIcon(icon){ _gcIcon=icon; renderGuildCreatePickers(); updateGuildCreatePreview(); }
+function selectGuildFrame(frame){ _gcFrame=frame; renderGuildCreatePickers(); updateGuildCreatePreview(); }
+function selectGuildVisibility(v){ _gcVisibility=v; renderGuildCreatePickers(); }
+function selectGuildFeeToggle(on){ _gcFeeEnabled=on; renderGuildCreatePickers(); }
+function selectGuildFeeCurrency(c){ _gcFeeCurrency=c; renderGuildCreatePickers(); }
+
+function updateGuildCreatePreview(){
+  document.getElementById('gc-emblem-preview').innerHTML=renderGuildEmblem(_gcIcon,_gcFrame,36);
+  const gems=GuildOptions.createCostGems;
+  const have=Player.gems||0;
+  const noteEl=document.getElementById('gc-cost-note');
+  noteEl.innerHTML=`Founding a guild costs <img src="gem.png" class="inline-currency-icon" alt="">${gems} Gems. You have <img src="gem.png" class="inline-currency-icon" alt="">${have}.`;
+  const nameLen=document.getElementById('gc-name-input').value.trim().length;
+  const submitBtn=document.getElementById('gc-submit-btn');
+  submitBtn.disabled = have<gems || nameLen<GuildOptions.nameMin || nameLen>GuildOptions.nameMax;
+}
+
+function submitGuildCreate(){
+  const name=document.getElementById('gc-name-input').value.trim().slice(0,GuildOptions.nameMax);
+  if(name.length<GuildOptions.nameMin){ showToast(`Guild name must be at least ${GuildOptions.nameMin} characters.`); return; }
+  if((Player.gems||0)<GuildOptions.createCostGems){ showToast(`You need ${GuildOptions.createCostGems} Gems to found a guild.`); return; }
+  const payload={ type:'guild_create', name, icon:_gcIcon, frame:_gcFrame, visibility:_gcVisibility, joinFeeEnabled:_gcFeeEnabled };
+  if(_gcFeeEnabled){
+    payload.joinFeeCurrency=_gcFeeCurrency;
+    payload.joinFeeAmount=Math.max(1, Math.floor(Number(document.getElementById('gc-fee-amount-input').value)||0));
+  }
+  document.getElementById('gc-submit-btn').disabled=true;
+  Net.send(payload);
 }
 
 /* ══════════════════════════════════════
@@ -4159,6 +4618,7 @@ function switchMenuTab(tab){
   if(tab==='deck') refreshDeckBuilder();
   if(tab==='market') renderShop();
   if(tab==='social') Net.send({type:'friends_list'});
+  if(tab==='guild') Net.send({type:'guild_state'});
 }
 
 function enterArena(){
@@ -5733,12 +6193,16 @@ function ensureCardLibrary(){
 }
 
 /** Single source of truth for "can we actually talk to the server right now" —
- * used by every loading screen so they all agree on what "ready" means. */
-function serverIsReady(){ return !!CardLibraryHash && Net.connected && Net.authed; }
+ * used by every loading screen so they all agree on what "ready" means.
+ * Requires _playerLoaded + Player.guestId in addition to the network/auth
+ * checks, so Enter Arena (and Find Match, and pack purchases) can never let
+ * the player through before a real, stable id has been established. */
+function serverIsReady(){ return _playerLoaded && !!Player.guestId && !!CardLibraryHash && Net.connected && Net.authed; }
 function serverWaitStatusText(){
+  if(!_playerLoaded) return 'Loading your profile…';
   if(!CardLibraryHash) return 'Loading the card library…';
   if(!Net.connected) return 'Could not reach the arena server — retrying…';
-  if(!Net.authed) return 'Connected — waiting on the server…';
+  if(!Net.authed || !Player.guestId) return 'Connected — waiting on the server…';
   return 'Ready!';
 }
 
@@ -5770,6 +6234,10 @@ const Net={
 
   authenticate(){
     if(!CardLibraryHash){ setTimeout(()=>this.authenticate(),200); return; }
+    // Wait for loadPlayer() to finish restoring Player from localStorage first.
+    // Generating a guestId here before that completes would stomp the real
+    // saved id with a fresh random one (see _playerLoaded comment above).
+    if(!_playerLoaded){ setTimeout(()=>this.authenticate(),200); return; }
     if(!Player.guestId){
       Player.guestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('g-'+Date.now()+'-'+Math.random().toString(16).slice(2));
       savePlayer();
@@ -5790,6 +6258,16 @@ const Net={
           if(Array.isArray(msg.profileOptions.icons))PROFILE_ICONS=msg.profileOptions.icons;
           if(Array.isArray(msg.profileOptions.banners))PROFILE_BANNERS=msg.profileOptions.banners;
           if(typeof msg.profileOptions.bioMax==='number')PROFILE_BIO_MAX=msg.profileOptions.bioMax;
+        }
+        if(msg.guildOptions){
+          if(Array.isArray(msg.guildOptions.icons))GuildOptions.icons=msg.guildOptions.icons;
+          if(Array.isArray(msg.guildOptions.frames))GuildOptions.frames=msg.guildOptions.frames;
+          if(typeof msg.guildOptions.nameMin==='number')GuildOptions.nameMin=msg.guildOptions.nameMin;
+          if(typeof msg.guildOptions.nameMax==='number')GuildOptions.nameMax=msg.guildOptions.nameMax;
+          if(typeof msg.guildOptions.maxMembers==='number')GuildOptions.maxMembers=msg.guildOptions.maxMembers;
+          if(typeof msg.guildOptions.createCostGems==='number')GuildOptions.createCostGems=msg.guildOptions.createCostGems;
+          if(typeof msg.guildOptions.joinFeeMaxGold==='number')GuildOptions.joinFeeMaxGold=msg.guildOptions.joinFeeMaxGold;
+          if(typeof msg.guildOptions.joinFeeMaxGems==='number')GuildOptions.joinFeeMaxGems=msg.guildOptions.joinFeeMaxGems;
         }
         // Presence starts here — the moment the player is actually "on,"
         // never before (not during load, not before auth completes).
@@ -5830,6 +6308,24 @@ const Net={
       case 'friends_list':
         (msg.friends||[]).forEach(f=>{ if(f.userId) applyMatchPresence([f.userId], !!f.inMatch); });
         renderSocial(msg);
+        break;
+      case 'guild_state':
+        GuildState={guild:msg.guild||null, invite:msg.invite||null, application:msg.application||null};
+        if(GuildState.guild) (GuildState.guild.members||[]).forEach(m=>applyMatchPresence([m.userId], !!m.inMatch));
+        renderGuildPanel();
+        break;
+      case 'guild_browse_result':
+        GuildBrowseResults=msg.guilds||[];
+        renderGuildBrowseList();
+        break;
+      case 'guild_created':
+        GuildState={guild:msg.guild||null, invite:msg.invite||null, application:msg.application||null};
+        closeGuildCreateModal();
+        renderGuildPanel();
+        showToast('⚜ Guild founded!');
+        break;
+      case 'guild_invite_sent':
+        showToast('Invite sent!');
         break;
       case 'friend_request_received':
         showToast(`${msg.username||'Someone'} sent you a friend request!`, 2200, renderFriendIcon(13));
@@ -5910,6 +6406,38 @@ const Net={
           showToast('Could not start the trade. Please try again.');
         } else if(msg.reason==='not_in_match'){
           showToast('That player is not in a match right now.');
+        } else if(msg.reason==='guild_name_invalid'){
+          showToast(`⚠ Guild name must be ${GuildOptions.nameMin}-${GuildOptions.nameMax} characters.`);
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='guild_name_taken'){
+          showToast('⚠ That guild name is already taken.');
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='already_in_guild'){
+          showToast("⚠ You're already in a guild — leave it first.");
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='insufficient_funds'){
+          showToast(msg.guildCreateCost ? `⚠ You need ${msg.guildCreateCost} Gems to found a guild.` : "⚠ You can't afford that right now.");
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='guild_full'){
+          showToast('⚠ That guild is full.');
+        } else if(msg.reason==='guild_not_found'){
+          showToast('⚠ That guild no longer exists.');
+        } else if(msg.reason==='guild_not_public'){
+          showToast('⚠ That guild is private — you need to apply or be invited.');
+        } else if(msg.reason==='guild_not_private'){
+          showToast('⚠ That guild is public — you can join it directly.');
+        } else if(msg.reason==='application_already_pending'){
+          showToast('⚠ You already have an application pending.');
+        } else if(msg.reason==='invite_already_pending'){
+          showToast('⚠ There is already a pending invite for that player.');
+        } else if(msg.reason==='not_guild_leader'){
+          showToast('⚠ Only the guild leader can do that.');
+        } else if(msg.reason==='cannot_invite_self'){
+          showToast("⚠ You can't invite yourself.");
+        } else if(msg.reason==='user_already_in_guild'){
+          showToast('⚠ That player is already in a guild.');
+        } else if(msg.reason==='guild_application_accepted_but_underfunded'){
+          showToast('That applicant could no longer afford the join fee, so they were not seated.', 4000);
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
@@ -6257,7 +6785,10 @@ function ensureChatIdentity(){
   // Reuses the same stable guestId the arena WS server uses for reconnects,
   // so a player's chat identity and match identity line up. Generated once
   // and persisted, same as Connection.connect() does.
-  if(!Player.guestId){
+  // Guarded by _playerLoaded for the same reason Net.authenticate() is: this
+  // must never mint a new id before loadPlayer() has had a chance to restore
+  // the real one from localStorage, or it will overwrite it.
+  if(!Player.guestId && _playerLoaded){
     Player.guestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('g-'+Date.now()+'-'+Math.random().toString(16).slice(2));
     savePlayer();
   }
