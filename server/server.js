@@ -120,6 +120,17 @@ const PRESENCE_SWEEP_MS = 60 * 1000;
 const guestPresence = new Map(); // userId -> { lastHeartbeat, online } — only used when Supabase isn't configured
 const guestFriendships = new Map(); // pairKey -> { status:'pending'|'accepted', requestedBy, createdAt } — guest-mode fallback
 
+/** Guild registries — only used when Supabase isn't configured. Mirrors the
+ * shape of the real tables closely enough that the data-layer functions
+ * below can branch on HAS_SUPABASE the same way every other feature does. */
+const guestGuilds = new Map();              // guildId -> { id, name, leaderId, icon, frame, visibility, joinFeeEnabled, joinFeeCurrency, joinFeeAmount, createdAt }
+const guestGuildMembers = new Map();         // guildId -> Map(userId -> { role, joinedAt })
+const guestUserGuild = new Map();            // userId -> guildId (a player is in at most one guild)
+const guestGuildApplications = new Map();    // guildId -> Map(userId -> { createdAt })
+const guestUserApplication = new Map();      // userId -> guildId (at most one pending application at a time)
+const guestGuildInvites = new Map();         // guildId -> Map(userId -> { invitedBy, createdAt })
+const guestUserInvite = new Map();           // userId -> guildId (at most one pending invite at a time)
+
 let nextGuestId = 1;
 
 /* ── PROFILE CUSTOMIZATION (validated allow-lists) ────────────────── */
@@ -133,6 +144,21 @@ const PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian',
 const BIO_MAX = 140;
 const USERNAME_MAX = 24;
 const FAVORITES_MAX = 3;
+
+/* ── GUILDS (validated allow-lists, same posture as profile icons/banners) ─
+ * `icon` is the emblem drawn in the middle (reuses the same hand-drawn SVG
+ * glyph set as player profiles — never emoji). `frame` is a separate
+ * decorative border drawn around it; the client maps each id to its own
+ * SVG ring/border shape. Keep both lists in sync with GUILD_ICON_SVGS /
+ * GUILD_FRAME_SVGS in docs/index.html. */
+const GUILD_ICONS = PROFILE_ICONS;
+const GUILD_FRAMES = ['ring','hex','shield','crest','laurel','spiked','ironclad','gilded'];
+const GUILD_NAME_MIN = 3;
+const GUILD_NAME_MAX = 24;
+const GUILD_MAX_MEMBERS = 30;
+const GUILD_CREATE_COST_GEMS = Number(process.env.GUILD_CREATE_COST_GEMS) || 200;
+const GUILD_JOIN_FEE_MAX_GOLD = 100000;
+const GUILD_JOIN_FEE_MAX_GEMS = 10000;
 
 /** Picks out only the whitelisted, well-formed fields from a client's
  * `update_profile` message. Anything absent or invalid is simply omitted
@@ -393,6 +419,398 @@ async function buildFriendsList(userId) {
     incoming: incoming.map(toEntry(false)),
     outgoing: outgoing.map(toEntry(false)),
   };
+}
+
+/* ── GUILDS LAYER (Supabase-backed, guest fallback) ───────────────────
+ * A player is in at most one guild at a time (enforced by the unique
+ * `user_id` constraint on guild_members, and by the guest-mode maps
+ * mirroring it). Everything here is an ordinary WS request/response, same
+ * as friends — the client never talks to these tables directly. */
+
+/** Case-insensitive exact-name lookup, used to reject duplicate guild names
+ * before ever attempting an insert. */
+async function findGuildByName(name) {
+  if (!HAS_SUPABASE) {
+    for (const g of guestGuilds.values()) if (g.name.toLowerCase() === name.toLowerCase()) return g;
+    return null;
+  }
+  const { data, error } = await supabase.from('guilds').select('*').ilike('name', name).maybeSingle();
+  if (error) throw error;
+  return data ? rowToGuild(data) : null;
+}
+
+function rowToGuild(row) {
+  return {
+    id: row.id, name: row.name, leaderId: row.leader_id, icon: row.icon, frame: row.frame,
+    visibility: row.visibility, joinFeeEnabled: row.join_fee_enabled,
+    joinFeeCurrency: row.join_fee_currency, joinFeeAmount: row.join_fee_amount, createdAt: row.created_at,
+  };
+}
+
+async function getGuildById(guildId) {
+  if (!HAS_SUPABASE) return guestGuilds.get(guildId) || null;
+  const { data, error } = await supabase.from('guilds').select('*').eq('id', guildId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToGuild(data) : null;
+}
+
+/** {guildId, role} for whatever guild userId currently belongs to, or null. */
+async function getGuildMembership(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserGuild.get(userId);
+    if (!guildId) return null;
+    const m = guestGuildMembers.get(guildId)?.get(userId);
+    return m ? { guildId, role: m.role } : null;
+  }
+  const { data, error } = await supabase.from('guild_members').select('guild_id,role').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id, role: data.role } : null;
+}
+
+async function countGuildMembers(guildId) {
+  if (!HAS_SUPABASE) return guestGuildMembers.get(guildId)?.size || 0;
+  const { count, error } = await supabase.from('guild_members').select('user_id', { count: 'exact', head: true }).eq('guild_id', guildId);
+  if (error) throw error;
+  return count || 0;
+}
+
+/** Full enriched roster: userId/username/icon/online/role/joinedAt, sorted
+ * leader-first then alphabetically — same "who's actually here" shape the
+ * friends list already gives the client. */
+async function listGuildMembers(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildMembers.get(guildId) || new Map())].map(([userId, m]) => ({ userId, role: m.role, joinedAt: m.joinedAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_members').select('user_id,role,joined_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, role: r.role, joinedAt: r.joined_at }));
+  }
+  const [summaries, online] = await Promise.all([
+    fetchProfileSummaries(rows.map(r => r.userId)),
+    onlineStatusBatch(rows.map(r => r.userId)),
+  ]);
+  return rows
+    .map(r => ({
+      userId: r.userId, role: r.role, joinedAt: r.joinedAt,
+      username: summaries.get(r.userId)?.username || 'Unknown',
+      icon: summaries.get(r.userId)?.icon || 'star',
+      online: !!online.get(r.userId),
+      inMatch: activeMatchByUser.has(r.userId),
+    }))
+    .sort((a, b) => (a.role === b.role ? a.username.localeCompare(b.username) : (a.role === 'leader' ? -1 : 1)));
+}
+
+async function addGuildMember(guildId, userId, role) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildMembers.has(guildId)) guestGuildMembers.set(guildId, new Map());
+    guestGuildMembers.get(guildId).set(userId, { role, joinedAt: new Date().toISOString() });
+    guestUserGuild.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_members').insert({ guild_id: guildId, user_id: userId, role });
+  if (error) throw error;
+}
+
+async function removeGuildMember(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildMembers.get(guildId)?.delete(userId);
+    guestUserGuild.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_members').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function setGuildLeader(guildId, newLeaderId) {
+  if (!HAS_SUPABASE) {
+    const g = guestGuilds.get(guildId); if (g) g.leaderId = newLeaderId;
+    const members = guestGuildMembers.get(guildId);
+    if (members) for (const [uid, m] of members) m.role = uid === newLeaderId ? 'leader' : 'member';
+    return;
+  }
+  const { error: e1 } = await supabase.from('guilds').update({ leader_id: newLeaderId }).eq('id', guildId);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase.from('guild_members').update({ role: 'member' }).eq('guild_id', guildId);
+  if (e2) throw e2;
+  const { error: e3 } = await supabase.from('guild_members').update({ role: 'leader' }).eq('guild_id', guildId).eq('user_id', newLeaderId);
+  if (e3) throw e3;
+}
+
+async function deleteGuild(guildId) {
+  if (!HAS_SUPABASE) {
+    guestGuilds.delete(guildId);
+    guestGuildMembers.delete(guildId);
+    guestGuildApplications.delete(guildId);
+    guestGuildInvites.delete(guildId);
+    for (const [uid, gid] of guestUserGuild) if (gid === guildId) guestUserGuild.delete(uid);
+    for (const [uid, gid] of guestUserApplication) if (gid === guildId) guestUserApplication.delete(uid);
+    for (const [uid, gid] of guestUserInvite) if (gid === guildId) guestUserInvite.delete(uid);
+    return;
+  }
+  const { error } = await supabase.from('guilds').delete().eq('id', guildId); // cascades members/applications/invites
+  if (error) throw error;
+}
+
+/** Validated field extraction shared by guild_create — throws with a `.code`
+ * the client can key off of, same convention as saveDeck/grantPack. */
+function sanitizeGuildCreateFields(msg) {
+  const name = String(msg.name || '').trim();
+  if (name.length < GUILD_NAME_MIN || name.length > GUILD_NAME_MAX) {
+    const e = new Error('bad_guild_name'); e.code = 'guild_name_invalid'; throw e;
+  }
+  const icon = GUILD_ICONS.includes(msg.icon) ? msg.icon : GUILD_ICONS[0];
+  const frame = GUILD_FRAMES.includes(msg.frame) ? msg.frame : GUILD_FRAMES[0];
+  const visibility = msg.visibility === 'private' ? 'private' : 'public';
+  let joinFeeEnabled = !!msg.joinFeeEnabled;
+  let joinFeeCurrency = null, joinFeeAmount = 0;
+  if (joinFeeEnabled) {
+    joinFeeCurrency = msg.joinFeeCurrency === 'gems' ? 'gems' : 'gold';
+    const max = joinFeeCurrency === 'gems' ? GUILD_JOIN_FEE_MAX_GEMS : GUILD_JOIN_FEE_MAX_GOLD;
+    joinFeeAmount = Math.max(0, Math.min(max, Math.floor(Number(msg.joinFeeAmount) || 0)));
+    if (joinFeeAmount <= 0) joinFeeEnabled = false; // "enabled" with a 0 amount is just "no fee"
+  }
+  return { name, icon, frame, visibility, joinFeeEnabled, joinFeeCurrency, joinFeeAmount };
+}
+
+/** Creates a new guild, deducting the flat gem cost from the founder first.
+ * Founder becomes leader and member #1. Throws with `.code` on any failure
+ * (insufficient funds, duplicate name, already in a guild, bad fields) —
+ * nothing is created or charged unless every check passes. */
+async function createGuild(userId, msg) {
+  const existing = await getGuildMembership(userId);
+  if (existing) { const e = new Error('already_in_guild'); e.code = 'already_in_guild'; throw e; }
+  const fields = sanitizeGuildCreateFields(msg);
+  if (await findGuildByName(fields.name)) { const e = new Error('guild_name_taken'); e.code = 'guild_name_taken'; throw e; }
+
+  const profile = await fetchProfile(userId);
+  if (profile.gems < GUILD_CREATE_COST_GEMS) { const e = new Error('insufficient_funds'); e.code = 'insufficient_funds'; throw e; }
+  const newGems = profile.gems - GUILD_CREATE_COST_GEMS;
+  if (!HAS_SUPABASE) {
+    guestProfiles.get(userId).gems = newGems;
+  } else {
+    const { error } = await supabase.from('profiles').update({ gems: newGems }).eq('id', userId);
+    if (error) throw error;
+  }
+
+  let guildId;
+  if (!HAS_SUPABASE) {
+    guildId = crypto.randomUUID();
+    guestGuilds.set(guildId, { id: guildId, leaderId: userId, createdAt: new Date().toISOString(), ...fields });
+  } else {
+    const { data, error } = await supabase.from('guilds').insert({
+      name: fields.name, leader_id: userId, icon: fields.icon, frame: fields.frame, visibility: fields.visibility,
+      join_fee_enabled: fields.joinFeeEnabled, join_fee_currency: fields.joinFeeCurrency, join_fee_amount: fields.joinFeeAmount,
+    }).select('*').single();
+    if (error) throw error;
+    guildId = data.id;
+  }
+  await addGuildMember(guildId, userId, 'leader');
+  return guildId;
+}
+
+/** Charges a guild's join fee (if any) to userId. Throws `insufficient_funds`
+ * without mutating anything if they can't afford it. No-op if the guild has
+ * no fee configured. */
+async function chargeJoinFee(guild, userId) {
+  if (!guild.joinFeeEnabled || guild.joinFeeAmount <= 0) return;
+  const profile = await fetchProfile(userId);
+  const balance = guild.joinFeeCurrency === 'gems' ? profile.gems : profile.gold;
+  if (balance < guild.joinFeeAmount) { const e = new Error('insufficient_funds'); e.code = 'insufficient_funds'; throw e; }
+  const newBalance = balance - guild.joinFeeAmount;
+  const field = guild.joinFeeCurrency === 'gems' ? 'gems' : 'gold';
+  if (!HAS_SUPABASE) {
+    guestProfiles.get(userId)[field] = newBalance;
+  } else {
+    const { error } = await supabase.from('profiles').update({ [field]: newBalance }).eq('id', userId);
+    if (error) throw error;
+  }
+}
+
+/** Shared join logic (public join, accepted application, accepted invite):
+ * re-checks capacity/membership/fee right before actually seating the
+ * player, since time may have passed since the original request. */
+async function seatNewMember(guildId, userId) {
+  if (await getGuildMembership(userId)) { const e = new Error('already_in_guild'); e.code = 'already_in_guild'; throw e; }
+  const guild = await getGuildById(guildId);
+  if (!guild) { const e = new Error('guild_not_found'); e.code = 'guild_not_found'; throw e; }
+  if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) { const e = new Error('guild_full'); e.code = 'guild_full'; throw e; }
+  await chargeJoinFee(guild, userId);
+  await addGuildMember(guildId, userId, 'member');
+  return guild;
+}
+
+/* ── Applications (private guilds: player asks, leader decides) ── */
+async function getUserApplication(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserApplication.get(userId);
+    return guildId ? { guildId } : null;
+  }
+  const { data, error } = await supabase.from('guild_applications').select('guild_id').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id } : null;
+}
+
+async function createApplication(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildApplications.has(guildId)) guestGuildApplications.set(guildId, new Map());
+    guestGuildApplications.get(guildId).set(userId, { createdAt: new Date().toISOString() });
+    guestUserApplication.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_applications').insert({ guild_id: guildId, user_id: userId });
+  if (error) throw error;
+}
+
+async function deleteApplication(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildApplications.get(guildId)?.delete(userId);
+    if (guestUserApplication.get(userId) === guildId) guestUserApplication.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_applications').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function listApplications(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildApplications.get(guildId) || new Map())].map(([userId, a]) => ({ userId, createdAt: a.createdAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_applications').select('user_id,created_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({ userId: r.userId, createdAt: r.createdAt, username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star' }));
+}
+
+/* ── Invites (leader reaches out to a specific player) ── */
+async function getUserInvite(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserInvite.get(userId);
+    return guildId ? { guildId } : null;
+  }
+  const { data, error } = await supabase.from('guild_invites').select('guild_id,invited_by').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id, invitedBy: data.invited_by } : null;
+}
+
+async function createInvite(guildId, userId, invitedBy) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildInvites.has(guildId)) guestGuildInvites.set(guildId, new Map());
+    guestGuildInvites.get(guildId).set(userId, { invitedBy, createdAt: new Date().toISOString() });
+    guestUserInvite.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_invites').insert({ guild_id: guildId, user_id: userId, invited_by: invitedBy });
+  if (error) throw error;
+}
+
+async function deleteInvite(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildInvites.get(guildId)?.delete(userId);
+    if (guestUserInvite.get(userId) === guildId) guestUserInvite.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_invites').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+/** Everyone a guild has outstanding invites out to right now — shown only
+ * to the leader, so they can see (and cancel) invites they've sent instead
+ * of them just silently sitting there until the invitee responds. */
+async function listGuildInvites(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildInvites.get(guildId) || new Map())].map(([userId, i]) => ({ userId, createdAt: i.createdAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_invites').select('user_id,created_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({ userId: r.userId, createdAt: r.createdAt, username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star' }));
+}
+
+/** Browsable list for the "find a guild" screen: public guilds always show;
+ * private guilds show too (so a name search can find them to apply to) but
+ * the client is told `visibility` so it renders "Apply" instead of "Join". */
+async function browseGuilds(search) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...guestGuilds.values()];
+    if (search) rows = rows.filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
+  } else {
+    let q = supabase.from('guilds').select('*').limit(40);
+    if (search) q = q.ilike('name', `%${search}%`);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = (data || []).map(rowToGuild);
+  }
+  const counts = await Promise.all(rows.map(g => countGuildMembers(g.id)));
+  return rows
+    .map((g, i) => ({
+      guildId: g.id, name: g.name, icon: g.icon, frame: g.frame, visibility: g.visibility,
+      memberCount: counts[i], maxMembers: GUILD_MAX_MEMBERS,
+      joinFeeEnabled: g.joinFeeEnabled, joinFeeCurrency: g.joinFeeCurrency, joinFeeAmount: g.joinFeeAmount,
+    }))
+    .sort((a, b) => b.memberCount - a.memberCount)
+    .slice(0, 40);
+}
+
+/** Full state payload for the caller's own client: their guild (with full
+ * roster + pending applications if they lead it), any invite waiting on
+ * them, and their own outgoing application status. Exactly one of
+ * guild/invite/application is meaningfully populated at a time, since you
+ * can't be in a guild AND have a pending application/invite simultaneously. */
+async function buildGuildState(userId) {
+  const membership = await getGuildMembership(userId);
+  if (membership) {
+    const guild = await getGuildById(membership.guildId);
+    const isLeader = membership.role === 'leader';
+    const [members, applications, invitesSent] = await Promise.all([
+      listGuildMembers(membership.guildId),
+      isLeader ? listApplications(membership.guildId) : Promise.resolve([]),
+      isLeader ? listGuildInvites(membership.guildId) : Promise.resolve([]),
+    ]);
+    return {
+      guild: {
+        guildId: guild.id, name: guild.name, icon: guild.icon, frame: guild.frame, visibility: guild.visibility,
+        joinFeeEnabled: guild.joinFeeEnabled, joinFeeCurrency: guild.joinFeeCurrency, joinFeeAmount: guild.joinFeeAmount,
+        myRole: membership.role, members, maxMembers: GUILD_MAX_MEMBERS,
+        applications: isLeader ? applications : undefined,
+        invitesSent: isLeader ? invitesSent : undefined,
+      },
+      invite: null, application: null,
+    };
+  }
+  const [invite, application] = await Promise.all([getUserInvite(userId), getUserApplication(userId)]);
+  let invitePayload = null, applicationPayload = null;
+  if (invite) {
+    const g = await getGuildById(invite.guildId);
+    if (g) invitePayload = { guildId: g.id, name: g.name, icon: g.icon, frame: g.frame };
+  }
+  if (application) {
+    const g = await getGuildById(application.guildId);
+    if (g) applicationPayload = { guildId: g.id, name: g.name, icon: g.icon, frame: g.frame };
+  }
+  return { guild: null, invite: invitePayload, application: applicationPayload };
+}
+
+async function sendGuildState(userId) {
+  const conn = connections.get(userId);
+  if (conn) { try { conn.send({ type: 'guild_state', ...(await buildGuildState(userId)) }); } catch (e) { console.error('[arena] sendGuildState failed', e); } }
+}
+
+/** Pushes a fresh guild_state to every currently-connected member of a
+ * guild — used after any join/leave/kick/disband/leadership-change so
+ * every open client's roster stays in sync without polling. */
+async function broadcastGuildState(guildId) {
+  try {
+    const members = await listGuildMembers(guildId);
+    await Promise.all(members.map(m => sendGuildState(m.userId)));
+  } catch (e) { console.error('[arena] broadcastGuildState failed', e); }
 }
 
 function seedStarterIds() {
@@ -1216,7 +1634,7 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
-        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, inMatchUserIds: [...activeMatchByUser.keys()] });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -1398,6 +1816,199 @@ wss.on('connection', (ws) => {
           conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
           if (otherConn) otherConn.send({ type:'friends_list', ...(await buildFriendsList(otherId)) });
         } catch (e) { console.error('[arena] friend_remove failed', e); conn.send({ type:'error', reason:'friend_remove_failed' }); }
+        break;
+      }
+
+      /* ── SOCIAL: guilds. Same request/response posture as everything
+       * above — every mutation re-validates from scratch server-side
+       * (membership, capacity, funds) rather than trusting client state. ── */
+      case 'guild_state': {
+        try { conn.send({ type:'guild_state', ...(await buildGuildState(userId)) }); }
+        catch (e) { console.error('[arena] guild_state failed', e); conn.send({ type:'error', reason:'guild_state_failed' }); }
+        break;
+      }
+      case 'guild_browse': {
+        try {
+          const search = typeof msg.search === 'string' ? msg.search.trim().slice(0, GUILD_NAME_MAX) : '';
+          conn.send({ type:'guild_browse_result', guilds: await browseGuilds(search) });
+        } catch (e) { console.error('[arena] guild_browse failed', e); conn.send({ type:'error', reason:'guild_browse_failed' }); }
+        break;
+      }
+      case 'guild_create': {
+        try {
+          const guildId = await createGuild(userId, msg);
+          conn.send({ type:'guild_created', guildId, ...(await buildGuildState(userId)) });
+        } catch (e) {
+          if (!['guild_name_invalid','guild_name_taken','already_in_guild','insufficient_funds'].includes(e.code)) console.error('[arena] guild_create failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_create_failed', guildCreateCost: GUILD_CREATE_COST_GEMS });
+        }
+        break;
+      }
+      case 'guild_join': {
+        try {
+          const guildId = msg.guildId;
+          if (typeof guildId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          const guild = await getGuildById(guildId);
+          if (!guild) return conn.send({ type:'error', reason:'guild_not_found' });
+          if (guild.visibility !== 'public') return conn.send({ type:'error', reason:'guild_not_public' });
+          await seatNewMember(guildId, userId);
+          await sendGuildState(userId);
+          await broadcastGuildState(guildId);
+        } catch (e) {
+          if (!['already_in_guild','guild_not_found','guild_full','insufficient_funds'].includes(e.code)) console.error('[arena] guild_join failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_join_failed' });
+        }
+        break;
+      }
+      case 'guild_apply': {
+        try {
+          const guildId = msg.guildId;
+          if (typeof guildId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          if (await getGuildMembership(userId)) return conn.send({ type:'error', reason:'already_in_guild' });
+          if (await getUserApplication(userId)) return conn.send({ type:'error', reason:'application_already_pending' });
+          if (await getUserInvite(userId)) return conn.send({ type:'error', reason:'invite_already_pending' });
+          const guild = await getGuildById(guildId);
+          if (!guild) return conn.send({ type:'error', reason:'guild_not_found' });
+          if (guild.visibility !== 'private') return conn.send({ type:'error', reason:'guild_not_private' });
+          if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) return conn.send({ type:'error', reason:'guild_full' });
+          await createApplication(guildId, userId);
+          await sendGuildState(userId);
+          // notify the leader (and only the leader — no officer role yet) if online
+          const leaderConn = connections.get(guild.leaderId);
+          if (leaderConn) sendGuildState(guild.leaderId);
+        } catch (e) { console.error('[arena] guild_apply failed', e); conn.send({ type:'error', reason:'guild_apply_failed' }); }
+        break;
+      }
+      case 'guild_application_cancel': {
+        try {
+          const app = await getUserApplication(userId);
+          if (!app) return conn.send({ type:'error', reason:'no_pending_application' });
+          await deleteApplication(app.guildId, userId);
+          await sendGuildState(userId);
+          const guild = await getGuildById(app.guildId);
+          if (guild) { const leaderConn = connections.get(guild.leaderId); if (leaderConn) sendGuildState(guild.leaderId); }
+        } catch (e) { console.error('[arena] guild_application_cancel failed', e); conn.send({ type:'error', reason:'guild_application_cancel_failed' }); }
+        break;
+      }
+      case 'guild_application_respond': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const applicantId = msg.userId;
+          if (typeof applicantId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          const apps = await listApplications(membership.guildId);
+          if (!apps.some(a => a.userId === applicantId)) return conn.send({ type:'error', reason:'no_pending_application' });
+          await deleteApplication(membership.guildId, applicantId);
+          if (msg.accept) {
+            try {
+              await seatNewMember(membership.guildId, applicantId);
+              await broadcastGuildState(membership.guildId);
+            } catch (e) {
+              // applicant can no longer be seated (guild filled up, or they can't
+              // afford the fee anymore) — tell them plainly instead of silently
+              // dropping their application.
+              connections.get(applicantId)?.send({ type:'error', reason: e.code === 'insufficient_funds' ? 'guild_application_accepted_but_underfunded' : (e.code || 'guild_application_accept_failed') });
+            }
+          }
+          await sendGuildState(userId);
+          await sendGuildState(applicantId);
+        } catch (e) { console.error('[arena] guild_application_respond failed', e); conn.send({ type:'error', reason:'guild_application_respond_failed' }); }
+        break;
+      }
+      case 'guild_invite': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          let targetId = typeof msg.userId === 'string' && msg.userId ? msg.userId : null;
+          if (!targetId && typeof msg.username === 'string') targetId = await findUserIdByUsername(msg.username);
+          if (!targetId) return conn.send({ type:'error', reason:'user_not_found' });
+          if (targetId === userId) return conn.send({ type:'error', reason:'cannot_invite_self' });
+          if (await getGuildMembership(targetId)) return conn.send({ type:'error', reason:'user_already_in_guild' });
+          if (await getUserInvite(targetId)) return conn.send({ type:'error', reason:'invite_already_pending' });
+          if (await getUserApplication(targetId)) return conn.send({ type:'error', reason:'application_already_pending' });
+          if ((await countGuildMembers(membership.guildId)) >= GUILD_MAX_MEMBERS) return conn.send({ type:'error', reason:'guild_full' });
+          await createInvite(membership.guildId, targetId, userId);
+          conn.send({ type:'guild_invite_sent', userId: targetId });
+          await sendGuildState(targetId);
+          await sendGuildState(userId); // so the leader's own "invites sent" list updates immediately
+        } catch (e) { console.error('[arena] guild_invite failed', e); conn.send({ type:'error', reason:'guild_invite_failed' }); }
+        break;
+      }
+      case 'guild_invite_respond': {
+        try {
+          const invite = await getUserInvite(userId);
+          if (!invite || invite.guildId !== msg.guildId) return conn.send({ type:'error', reason:'no_pending_invite' });
+          const guild = await getGuildById(invite.guildId);
+          await deleteInvite(invite.guildId, userId);
+          if (msg.accept) {
+            try {
+              await seatNewMember(invite.guildId, userId);
+              await broadcastGuildState(invite.guildId); // leader (an existing member) gets refreshed as part of this
+            } catch (e) {
+              conn.send({ type:'error', reason: e.code || 'guild_invite_accept_failed' });
+            }
+          } else if (guild) {
+            await sendGuildState(guild.leaderId); // so the declined invite drops off the leader's "invites sent" list
+          }
+          await sendGuildState(userId);
+        } catch (e) { console.error('[arena] guild_invite_respond failed', e); conn.send({ type:'error', reason:'guild_invite_respond_failed' }); }
+        break;
+      }
+      case 'guild_invite_cancel': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const targetId = msg.userId;
+          if (typeof targetId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          await deleteInvite(membership.guildId, targetId);
+          await sendGuildState(targetId);
+          await sendGuildState(userId); // so the invite disappears from the leader's own list immediately
+        } catch (e) { console.error('[arena] guild_invite_cancel failed', e); conn.send({ type:'error', reason:'guild_invite_cancel_failed' }); }
+        break;
+      }
+      case 'guild_leave': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          await removeGuildMember(membership.guildId, userId);
+          if (membership.role === 'leader') {
+            const remaining = await listGuildMembers(membership.guildId);
+            if (remaining.length === 0) {
+              await deleteGuild(membership.guildId);
+            } else {
+              // hand leadership to whoever's been there longest
+              const next = [...remaining].sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))[0];
+              await setGuildLeader(membership.guildId, next.userId);
+            }
+          }
+          await sendGuildState(userId);
+          await broadcastGuildState(membership.guildId);
+        } catch (e) { console.error('[arena] guild_leave failed', e); conn.send({ type:'error', reason:'guild_leave_failed' }); }
+        break;
+      }
+      case 'guild_kick': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const targetId = msg.userId;
+          if (typeof targetId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          if (targetId === userId) return conn.send({ type:'error', reason:'cannot_kick_self' });
+          const targetMembership = await getGuildMembership(targetId);
+          if (!targetMembership || targetMembership.guildId !== membership.guildId) return conn.send({ type:'error', reason:'user_not_in_guild' });
+          await removeGuildMember(membership.guildId, targetId);
+          await sendGuildState(targetId);
+          await broadcastGuildState(membership.guildId);
+        } catch (e) { console.error('[arena] guild_kick failed', e); conn.send({ type:'error', reason:'guild_kick_failed' }); }
+        break;
+      }
+      case 'guild_disband': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const members = await listGuildMembers(membership.guildId);
+          await deleteGuild(membership.guildId);
+          await Promise.all(members.map(m => sendGuildState(m.userId)));
+        } catch (e) { console.error('[arena] guild_disband failed', e); conn.send({ type:'error', reason:'guild_disband_failed' }); }
         break;
       }
 
