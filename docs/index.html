@@ -1394,16 +1394,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .guild-create-cost-note{display:flex;align-items:center;font-size:.68rem;color:rgba(196,181,253,.8);background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:9px 12px;}
 .pf-frame-swatch{width:44px;height:44px;}
 
-.guild-chat-panel{
-  display:flex;flex-direction:column;height:280px;margin:0 24px 20px;
-  background:rgba(255,255,255,.03);border:1px solid rgba(139,92,246,.2);border-radius:12px;overflow:hidden;
+/* Guild chat reuses the exact same gc-panel/gc-header/gc-messages/gc-input/
+ * gc-send-btn/gc-msg* classes as the floating global chat widget, so the
+ * two look identical (background, blur, border, radius, shadow, fonts,
+ * message bubbles, input box, send button). The only overrides here are
+ * layout: this panel sits inline inside the Guild tab instead of floating
+ * fixed at the edge of the screen, so it needs its own width/height/margin
+ * and a full (not corner-clipped) border radius. */
+.guild-chat-panel.gc-panel{
+  width:auto;max-width:none;height:280px;max-height:none;margin:0 24px 20px;border-radius:12px;
 }
-.guild-chat-header{
-  padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.08);
-  font-family:'Cinzel',serif;font-weight:700;letter-spacing:.05em;color:#fff;font-size:.74rem;
-  display:flex;flex-direction:column;gap:2px;flex-shrink:0;
-}
-.guild-chat-messages{flex:1;}
 
 /* Generic "are you sure" confirm dialog — used by leave/kick/disband guild
  * actions. Same visual language as the trade confirm dialog, but not tied
@@ -1544,11 +1544,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .gc-msg.own .gc-msg-name{ color:#93c5fd; }
 .gc-empty-note{ color:var(--txt-muted);font-size:.68rem;text-align:center;padding:20px 8px;font-style:italic; }
 .gc-input-row{ display:flex; gap:6px; padding:10px; border-top:1px solid rgba(255,255,255,.08); }
-#gc-input{
+#gc-input,.gc-input{
   flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px;
   color:var(--txt); font-family:'Rajdhani',sans-serif; font-size:.8rem; padding:8px 10px; outline:none;
 }
-#gc-input:focus{ border-color:rgba(139,92,246,.5); }
+#gc-input:focus,.gc-input:focus{ border-color:rgba(139,92,246,.5); }
 .gc-send-btn{
   width:34px;height:34px;border-radius:8px;border:1px solid #6d28d9;
   background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;font-size:.85rem;cursor:pointer;
@@ -1884,16 +1884,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div id="guild-view-mine" style="display:none;">
             <div class="guild-header-card" id="guild-header-card"></div>
 
-            <div class="guild-chat-panel">
-              <div class="guild-chat-header">
+            <div class="guild-chat-panel gc-panel">
+              <div class="gc-header">
                 <span>Guild Chat</span>
                 <span class="gc-online-note">messages auto-delete after 7 days · tap a name to view their profile</span>
               </div>
-              <div id="guild-chat-messages" class="gc-messages guild-chat-messages">
+              <div id="guild-chat-messages" class="gc-messages">
                 <div class="gc-empty-note">No messages yet — say hello to your guild!</div>
               </div>
               <form id="guild-chat-form" class="gc-input-row" onsubmit="return sendGuildChat(event)">
-                <input id="guild-chat-input" maxlength="300" placeholder="Message your guild..." autocomplete="off">
+                <input id="guild-chat-input" class="gc-input" maxlength="300" placeholder="Say something…" autocomplete="off">
                 <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
               </form>
             </div>
