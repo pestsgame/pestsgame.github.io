@@ -130,6 +130,8 @@ const guestGuildApplications = new Map();    // guildId -> Map(userId -> { creat
 const guestUserApplication = new Map();      // userId -> guildId (at most one pending application at a time)
 const guestGuildInvites = new Map();         // guildId -> Map(userId -> { invitedBy, createdAt })
 const guestUserInvite = new Map();           // userId -> guildId (at most one pending invite at a time)
+const guestGuildChatMessages = new Map();    // guildId -> Array<{ id, userId, message, createdAt }>, oldest first
+const guildChatLastSentAt = new Map();       // userId -> ms timestamp of their last chat message (simple per-user rate limit)
 
 let nextGuestId = 1;
 
@@ -159,6 +161,10 @@ const GUILD_MAX_MEMBERS = 30;
 const GUILD_CREATE_COST_GEMS = Number(process.env.GUILD_CREATE_COST_GEMS) || 200;
 const GUILD_JOIN_FEE_MAX_GOLD = 100000;
 const GUILD_JOIN_FEE_MAX_GEMS = 10000;
+const GUILD_CHAT_MESSAGE_MAX = 300;
+const GUILD_CHAT_HISTORY_LIMIT = 100;
+const GUILD_CHAT_RETENTION_MS = Number(process.env.GUILD_CHAT_RETENTION_MS) || 7 * 24 * 60 * 60 * 1000; // messages auto-delete after 7 days
+const GUILD_CHAT_RATE_LIMIT_MS = 800; // per-user minimum gap between messages
 
 /** Picks out only the whitelisted, well-formed fields from a client's
  * `update_profile` message. Anything absent or invalid is simply omitted
@@ -731,6 +737,61 @@ async function listGuildInvites(guildId) {
   }
   const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
   return rows.map(r => ({ userId: r.userId, createdAt: r.createdAt, username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star' }));
+}
+
+/* ── Guild chat. Persisted, but pruned after 7 days (see the hourly
+ * cleanupExpiredGuildChatMessages sweep near server startup below) — the
+ * read path also defensively re-filters to the last 7 days on every fetch,
+ * so a delayed cleanup pass can never surface a stale message either. ── */
+async function cleanupExpiredGuildChatMessages() {
+  const cutoffIso = new Date(Date.now() - GUILD_CHAT_RETENTION_MS).toISOString();
+  if (!HAS_SUPABASE) {
+    for (const [guildId, msgs] of guestGuildChatMessages) {
+      const kept = msgs.filter(m => m.createdAt >= cutoffIso);
+      if (kept.length !== msgs.length) guestGuildChatMessages.set(guildId, kept);
+    }
+    return;
+  }
+  const { error } = await supabase.from('guild_chat_messages').delete().lt('created_at', cutoffIso);
+  if (error) console.error('[arena] guild chat cleanup failed', error);
+}
+
+async function listGuildChatMessages(guildId) {
+  const cutoffIso = new Date(Date.now() - GUILD_CHAT_RETENTION_MS).toISOString();
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = (guestGuildChatMessages.get(guildId) || []).filter(m => m.createdAt >= cutoffIso).slice(-GUILD_CHAT_HISTORY_LIMIT);
+  } else {
+    const { data, error } = await supabase.from('guild_chat_messages').select('id,user_id,message,created_at')
+      .eq('guild_id', guildId).gte('created_at', cutoffIso).order('created_at', { ascending: true }).limit(GUILD_CHAT_HISTORY_LIMIT);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ id: r.id, userId: r.user_id, message: r.message, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({
+    id: r.id, userId: r.userId, message: r.message, createdAt: r.createdAt,
+    username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star',
+  }));
+}
+
+/** Inserts one message and returns it fully enriched (username/icon) —
+ * exactly the shape the client needs to render it immediately, whether
+ * from guild_chat_history or a live guild_chat_message broadcast. */
+async function sendGuildChatMessage(guildId, userId, text) {
+  const message = String(text || '').trim().slice(0, GUILD_CHAT_MESSAGE_MAX);
+  if (!message) { const e = new Error('guild_chat_empty'); e.code = 'guild_chat_empty'; throw e; }
+  let row;
+  if (!HAS_SUPABASE) {
+    row = { id: crypto.randomUUID(), userId, message, createdAt: new Date().toISOString() };
+    if (!guestGuildChatMessages.has(guildId)) guestGuildChatMessages.set(guildId, []);
+    guestGuildChatMessages.get(guildId).push(row);
+  } else {
+    const { data, error } = await supabase.from('guild_chat_messages').insert({ guild_id: guildId, user_id: userId, message }).select('id,created_at').single();
+    if (error) throw error;
+    row = { id: data.id, userId, message, createdAt: data.created_at };
+  }
+  const summary = (await fetchProfileSummaries([userId])).get(userId);
+  return { id: row.id, userId, message: row.message, createdAt: row.createdAt, username: summary?.username || 'Unknown', icon: summary?.icon || 'star' };
 }
 
 /** Browsable list for the "find a guild" screen: public guilds always show;
@@ -1634,7 +1695,7 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
-        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS }, inMatchUserIds: [...activeMatchByUser.keys()] });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -2011,6 +2072,34 @@ wss.on('connection', (ws) => {
         } catch (e) { console.error('[arena] guild_disband failed', e); conn.send({ type:'error', reason:'guild_disband_failed' }); }
         break;
       }
+      case 'guild_chat_history': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          const messages = await listGuildChatMessages(membership.guildId);
+          conn.send({ type:'guild_chat_history', guildId: membership.guildId, messages });
+        } catch (e) { console.error('[arena] guild_chat_history failed', e); conn.send({ type:'error', reason:'guild_chat_history_failed' }); }
+        break;
+      }
+      case 'guild_chat_send': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          const now = Date.now();
+          if (now - (guildChatLastSentAt.get(userId) || 0) < GUILD_CHAT_RATE_LIMIT_MS) {
+            return conn.send({ type:'error', reason:'guild_chat_rate_limited' });
+          }
+          if (typeof msg.message !== 'string' || !msg.message.trim()) return conn.send({ type:'error', reason:'guild_chat_empty' });
+          guildChatLastSentAt.set(userId, now);
+          const message = await sendGuildChatMessage(membership.guildId, userId, msg.message);
+          const members = await listGuildMembers(membership.guildId);
+          for (const m of members) connections.get(m.userId)?.send({ type:'guild_chat_message', guildId: membership.guildId, message });
+        } catch (e) {
+          if (e.code !== 'guild_chat_empty') console.error('[arena] guild_chat_send failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_chat_send_failed' });
+        }
+        break;
+      }
 
       /* ── SOCIAL: duels (1v1 challenges) — plain WS request/response,
        * exactly like matchmaking; nothing about a duel invite is persisted. ── */
@@ -2216,6 +2305,18 @@ const presenceSweep = setInterval(() => {
   }
 }, PRESENCE_SWEEP_MS);
 wss.on('close', () => clearInterval(presenceSweep));
+
+/* guild chat retention: messages older than 7 days are deleted hourly.
+ * Also run once shortly after boot in case the server was down past the
+ * top of an hour and a backlog built up. The read path in
+ * listGuildChatMessages() defensively re-filters by age too, so nothing
+ * expired is ever served even in the gap between sweeps. */
+const GUILD_CHAT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+setTimeout(() => cleanupExpiredGuildChatMessages().catch(e => console.error('[arena] guild chat cleanup failed', e)), Number(process.env.GUILD_CHAT_INITIAL_CLEANUP_DELAY_MS) || 10_000);
+const guildChatCleanup = setInterval(() => {
+  cleanupExpiredGuildChatMessages().catch(e => console.error('[arena] guild chat cleanup failed', e));
+}, GUILD_CHAT_CLEANUP_INTERVAL_MS);
+wss.on('close', () => clearInterval(guildChatCleanup));
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
