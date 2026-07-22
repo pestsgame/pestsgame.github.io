@@ -1394,6 +1394,17 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .guild-create-cost-note{display:flex;align-items:center;font-size:.68rem;color:rgba(196,181,253,.8);background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;padding:9px 12px;}
 .pf-frame-swatch{width:44px;height:44px;}
 
+.guild-chat-panel{
+  display:flex;flex-direction:column;height:280px;margin:0 24px 20px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(139,92,246,.2);border-radius:12px;overflow:hidden;
+}
+.guild-chat-header{
+  padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.08);
+  font-family:'Cinzel',serif;font-weight:700;letter-spacing:.05em;color:#fff;font-size:.74rem;
+  display:flex;flex-direction:column;gap:2px;flex-shrink:0;
+}
+.guild-chat-messages{flex:1;}
+
 /* Generic "are you sure" confirm dialog — used by leave/kick/disband guild
  * actions. Same visual language as the trade confirm dialog, but not tied
  * to trades specifically. */
@@ -1671,7 +1682,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         <span id="social-tab-badge" class="social-tab-badge" style="display:none;"></span>
       </button>
       <button class="menu-tab" onclick="switchMenuTab('guild')" data-tab="guild">
-        <span class="menu-tab-icon">⚜</span>
+        <span class="menu-tab-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M9 11.4h6M9 14.4h6"/></svg></span>
         <div class="menu-tab-text">
           <span class="menu-tab-label">Guild</span>
           <span class="menu-tab-sub">Brotherhood</span>
@@ -1846,7 +1857,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <!-- GUILD PANEL -->
       <div class="menu-panel" id="menu-panel-guild">
         <div class="panel-topbar">
-          <div class="panel-title">⚜ Guild</div>
+          <div class="panel-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M9 11.4h6M9 14.4h6"/></svg>Guild</div>
           <div class="panel-meta" id="guild-panel-meta">No Guild</div>
         </div>
         <div class="social-body">
@@ -1854,7 +1865,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <!-- NOT IN A GUILD, no pending invite/application -->
           <div id="guild-view-none">
             <div class="guild-cta-row">
-              <button class="bbtn bbtn-battle" onclick="openGuildCreateModal()">⚜ Found a Guild <span class="guild-cta-cost"><img src="gem.png" alt="">200</span></button>
+              <button class="bbtn bbtn-battle" onclick="openGuildCreateModal()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M9 11.4h6M9 14.4h6"/></svg>Found a Guild <span class="guild-cta-cost"><img src="gem.png" alt="">200</span></button>
             </div>
             <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Browse Guilds</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
             <div class="guild-browse-search-row">
@@ -1873,9 +1884,28 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div id="guild-view-mine" style="display:none;">
             <div class="guild-header-card" id="guild-header-card"></div>
 
+            <div class="guild-chat-panel">
+              <div class="guild-chat-header">
+                <span>Guild Chat</span>
+                <span class="gc-online-note">messages auto-delete after 7 days · tap a name to view their profile</span>
+              </div>
+              <div id="guild-chat-messages" class="gc-messages guild-chat-messages">
+                <div class="gc-empty-note">No messages yet — say hello to your guild!</div>
+              </div>
+              <form id="guild-chat-form" class="gc-input-row" onsubmit="return sendGuildChat(event)">
+                <input id="guild-chat-input" maxlength="300" placeholder="Message your guild..." autocomplete="off">
+                <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
+              </form>
+            </div>
+
             <div id="guild-applications-section" style="display:none;">
               <div class="shop-row-header"><div class="shop-row-header-label gold-label">Applications</div><div class="shop-row-header-line gold-line"></div></div>
               <div id="guild-applications-list" class="social-list"></div>
+            </div>
+
+            <div id="guild-invites-sent-section" style="display:none;">
+              <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Pending Invites</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
+              <div id="guild-invites-sent-list" class="social-list"></div>
             </div>
 
             <div class="guild-invite-row" id="guild-invite-row" style="display:none;">
@@ -3409,6 +3439,12 @@ function renderDuelIcon(size=14){
 function renderFriendIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3.6 2.5-6.2 5.5-6.2s5.5 2.6 5.5 6.2"/><circle cx="17" cy="8.6" r="2.4"/><path d="M15.3 13.8c2.6.5 4.5 2.8 4.8 6"/></svg>`;
 }
+/** Crest-and-banner glyph used anywhere the Guild feature needs an icon
+ * (sidebar tab, panel header, the "Found a Guild" button, toasts) — a
+ * shield outline with two engraved crest lines, no emoji, ever. */
+function renderGuildTabIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M9 11.4h6M9 14.4h6"/></svg>`;
+}
 /** The animated purple spectate-eye — replaces a player's normal avatar
  * icon anywhere they're shown while they're in a live match. Deliberately
  * unlike any normal profile icon (glowing, blinking, drifting pupil) so it
@@ -3894,6 +3930,7 @@ let GuildOptions={
   icons:['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'],
   frames:['ring','hex','shield','crest','laurel','spiked','ironclad','gilded'],
   nameMin:3, nameMax:24, maxMembers:30, createCostGems:200, joinFeeMaxGold:100000, joinFeeMaxGems:10000,
+  chatMessageMax:300, chatRetentionDays:7,
 };
 /** Exactly one of guild/invite/application is ever meaningfully populated —
  * you can't be in a guild AND have a pending invite/application at once. */
@@ -3921,18 +3958,26 @@ function renderGuildPanel(){
     renderGuildHeaderCard();
     renderGuildMembersList();
     renderGuildApplicationsList();
+    renderGuildInvitesSentList();
     const isLeader=g.myRole==='leader';
     document.getElementById('guild-invite-row').style.display=isLeader?'':'none';
     document.getElementById('guild-leave-btn').style.display=isLeader?'none':'';
     document.getElementById('guild-disband-btn').style.display=isLeader?'':'none';
+    if(GuildChatState.guildId!==g.guildId){
+      GuildChatState={guildId:g.guildId, messages:[]};
+      renderGuildChatMessages();
+      Net.send({type:'guild_chat_history'});
+    }
   } else if(GuildState.invite || GuildState.application){
     none.style.display='none'; mine.style.display='none'; pending.style.display='';
     meta.textContent='Pending';
     renderGuildPendingCard();
+    GuildChatState={guildId:null, messages:[]};
   } else {
     mine.style.display='none'; pending.style.display='none'; none.style.display='';
     meta.textContent='No Guild';
     Net.send({type:'guild_browse', search:document.getElementById('guild-browse-input')?.value.trim()||''});
+    GuildChatState={guildId:null, messages:[]};
   }
   updateGuildBadge();
 }
@@ -3976,6 +4021,73 @@ function renderGuildApplicationsList(){
     actionsHtml:`<button class="social-btn accept" onclick="respondGuildApplication('${a.userId}',true)">Accept</button>
                  <button class="social-btn decline" onclick="respondGuildApplication('${a.userId}',false)">Decline</button>`,
   })).join('');
+}
+
+/** Leader-only: everyone the guild currently has an outstanding invite out
+ * to, with a Cancel action — so an invite sent to the wrong player (or one
+ * who's gone quiet) doesn't just sit there forever. */
+function renderGuildInvitesSentList(){
+  const g=GuildState.guild;
+  const invites=(g.myRole==='leader' && Array.isArray(g.invitesSent))?g.invitesSent:[];
+  document.getElementById('guild-invites-sent-section').style.display=invites.length?'':'none';
+  document.getElementById('guild-invites-sent-list').innerHTML=invites.map(i=>socialRow({
+    userId:i.userId, username:i.username, icon:i.icon, statusText:'Invite pending', showDot:false,
+    actionsHtml:`<button class="social-btn cancel" onclick="cancelGuildInvite('${i.userId}')">Cancel</button>`,
+  })).join('');
+}
+function cancelGuildInvite(userId){ Net.send({type:'guild_invite_cancel', userId}); }
+
+/* ── Guild chat. Persisted server-side for 7 days, fetched fresh whenever
+ * the panel switches to a different guild (see renderGuildPanel above);
+ * live messages arrive as 'guild_chat_message' broadcasts while the panel
+ * is open. Rendering follows the same escapeHtml-in-template convention as
+ * the rest of the guild UI. ── */
+let GuildChatState={guildId:null, messages:[]};
+
+function guildChatMessageHtml(m){
+  const isOwn=m.userId===Net.userId;
+  return `<div class="gc-msg${isOwn?' own':''}">
+    <div class="gc-msg-avatar" onclick="viewPlayerProfile('${m.userId}')" style="cursor:pointer;">${avatarContent(m.userId,m.icon,15)}</div>
+    <div class="gc-msg-body">
+      <div class="gc-msg-top">
+        <span class="gc-msg-name" onclick="viewPlayerProfile('${m.userId}')" style="cursor:pointer;">${escapeHtml(m.username)}</span>
+        <span class="gc-msg-time">${formatChatTime(m.createdAt)}</span>
+      </div>
+      <div class="gc-msg-text">${escapeHtml(m.message)}</div>
+    </div>
+  </div>`;
+}
+function renderGuildChatMessages(){
+  const list=document.getElementById('guild-chat-messages');
+  if(!GuildChatState.messages.length){
+    list.innerHTML='<div class="gc-empty-note">No messages yet — say hello to your guild!</div>';
+    return;
+  }
+  const wasNearBottom=list.scrollTop+list.clientHeight >= list.scrollHeight-40;
+  list.innerHTML=GuildChatState.messages.map(guildChatMessageHtml).join('');
+  if(wasNearBottom) list.scrollTop=list.scrollHeight;
+}
+function handleGuildChatHistory(msg){
+  GuildChatState={guildId:msg.guildId, messages:msg.messages||[]};
+  renderGuildChatMessages();
+  const list=document.getElementById('guild-chat-messages');
+  list.scrollTop=list.scrollHeight;
+}
+function handleGuildChatMessage(msg){
+  if(!GuildState.guild || msg.guildId!==GuildState.guild.guildId) return; // stale/other-guild message, ignore
+  if(GuildChatState.guildId!==msg.guildId) GuildChatState={guildId:msg.guildId, messages:[]};
+  GuildChatState.messages.push(msg.message);
+  if(GuildChatState.messages.length>200) GuildChatState.messages.shift();
+  renderGuildChatMessages();
+}
+function sendGuildChat(e){
+  e.preventDefault();
+  const input=document.getElementById('guild-chat-input');
+  const text=input.value.trim();
+  if(!text) return false;
+  Net.send({type:'guild_chat_send', message:text.slice(0,GuildOptions.chatMessageMax)});
+  input.value='';
+  return false;
 }
 
 function renderGuildPendingCard(){
@@ -6268,6 +6380,9 @@ const Net={
           if(typeof msg.guildOptions.createCostGems==='number')GuildOptions.createCostGems=msg.guildOptions.createCostGems;
           if(typeof msg.guildOptions.joinFeeMaxGold==='number')GuildOptions.joinFeeMaxGold=msg.guildOptions.joinFeeMaxGold;
           if(typeof msg.guildOptions.joinFeeMaxGems==='number')GuildOptions.joinFeeMaxGems=msg.guildOptions.joinFeeMaxGems;
+          if(typeof msg.guildOptions.chatMessageMax==='number')GuildOptions.chatMessageMax=msg.guildOptions.chatMessageMax;
+          if(typeof msg.guildOptions.chatRetentionDays==='number')GuildOptions.chatRetentionDays=msg.guildOptions.chatRetentionDays;
+          document.getElementById('guild-chat-input').maxLength=GuildOptions.chatMessageMax;
         }
         // Presence starts here — the moment the player is actually "on,"
         // never before (not during load, not before auth completes).
@@ -6322,10 +6437,16 @@ const Net={
         GuildState={guild:msg.guild||null, invite:msg.invite||null, application:msg.application||null};
         closeGuildCreateModal();
         renderGuildPanel();
-        showToast('⚜ Guild founded!');
+        showToast('Guild founded!', 2200, renderGuildTabIcon(13));
         break;
       case 'guild_invite_sent':
         showToast('Invite sent!');
+        break;
+      case 'guild_chat_history':
+        handleGuildChatHistory(msg);
+        break;
+      case 'guild_chat_message':
+        handleGuildChatMessage(msg);
         break;
       case 'friend_request_received':
         showToast(`${msg.username||'Someone'} sent you a friend request!`, 2200, renderFriendIcon(13));
@@ -6438,6 +6559,10 @@ const Net={
           showToast('⚠ That player is already in a guild.');
         } else if(msg.reason==='guild_application_accepted_but_underfunded'){
           showToast('That applicant could no longer afford the join fee, so they were not seated.', 4000);
+        } else if(msg.reason==='guild_chat_rate_limited'){
+          showToast("You're sending messages too fast.");
+        } else if(msg.reason==='not_in_guild'){
+          showToast("⚠ You're not in a guild.");
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
