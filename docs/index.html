@@ -1367,6 +1367,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pf-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3);}
 .pf-btn-cancel{background:transparent;border-color:rgba(255,255,255,.1);color:var(--txt-muted);}
 
+/* Inline "content not here yet" indicator for panels like Social/Guild
+ * whose real content depends on a server round trip after switching tabs.
+ * Reuses the exact same bouncing-dot + Cinzel status-text look as the
+ * pack-loading/profile-loading fullscreen overlays, just laid out inline
+ * within the panel instead of covering the whole screen — so nothing
+ * misleading (like an empty "no friends"/"no guild" state) is ever shown
+ * before the real answer has actually arrived. */
+.panel-loading-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:70px 24px;color:#fff;font-family:'Cinzel',serif;}
+.panel-loading-status{font-size:.75rem;color:#c4b5fd;letter-spacing:.05em;}
+
 /* ══════ GUILDS ══════ */
 .guild-cta-row{padding:0 24px 6px;}
 .guild-cta-row .bbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;}
@@ -1832,6 +1842,17 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
         <div class="social-body">
 
+          <div id="social-loading-overlay" class="panel-loading-overlay">
+            <div style="display:flex;gap:8px;">
+              <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+            </div>
+            <div class="panel-loading-status">Loading friends...</div>
+          </div>
+
+          <div id="social-content" style="display:none;">
+
           <div class="social-add-row">
             <input type="text" id="social-add-input" class="pf-name-input" maxlength="24" placeholder="Add a friend by username..." onkeydown="if(event.key==='Enter')sendFriendRequestByUsername()">
             <button class="bbtn bbtn-battle" style="padding:0 20px;font-size:.68rem;white-space:nowrap;" onclick="sendFriendRequestByUsername()">Add Friend</button>
@@ -1851,6 +1872,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div id="social-friends-list" class="social-list"></div>
           <div id="social-empty-msg" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:10px 24px 30px;">No friends yet — add one by username above.</div>
 
+          </div><!-- /social-content -->
+
         </div>
       </div>
 
@@ -1861,6 +1884,17 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div class="panel-meta" id="guild-panel-meta">No Guild</div>
         </div>
         <div class="social-body">
+
+          <div id="guild-loading-overlay" class="panel-loading-overlay">
+            <div style="display:flex;gap:8px;">
+              <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+            </div>
+            <div class="panel-loading-status">Loading guild...</div>
+          </div>
+
+          <div id="guild-content" style="display:none;">
 
           <!-- NOT IN A GUILD, no pending invite/application -->
           <div id="guild-view-none">
@@ -1921,6 +1955,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <button class="social-btn remove" id="guild-disband-btn" style="display:none;" onclick="confirmDisbandGuild()">Disband Guild</button>
             </div>
           </div>
+
+          </div><!-- /guild-content -->
 
         </div>
       </div>
@@ -3809,6 +3845,23 @@ function showScreen(id){
 ══════════════════════════════════════ */
 let SocialState={friends:[],incoming:[],outgoing:[]};
 
+/** Tracks whether we've ever gotten a real friends_list response back from
+ * the server. Until then, the panel shows the same inline loading dots the
+ * pack-opening flow uses instead of any content — so a slow first round
+ * trip never gets mistaken for "you have no friends". Once true, later
+ * tab-switches just refresh quietly in the background (old data stays on
+ * screen — no loading flicker — since it's not misleading anymore). */
+let _socialLoadedOnce=false;
+function showSocialLoading(){
+  document.getElementById('social-loading-overlay').style.display='flex';
+  document.getElementById('social-content').style.display='none';
+}
+function hideSocialLoading(){
+  document.getElementById('social-loading-overlay').style.display='none';
+  document.getElementById('social-content').style.display='';
+  _socialLoadedOnce=true;
+}
+
 function updateSocialBadge(data){
   const n=(data.incoming||[]).length;
   const badge=document.getElementById('social-tab-badge');
@@ -3831,6 +3884,7 @@ function socialRow({userId,username,icon,statusText,online,showDot,actionsHtml})
 }
 
 function renderSocial(data){
+  hideSocialLoading();
   SocialState=data;
   updateSocialBadge(data);
 
@@ -3946,7 +4000,23 @@ function updateGuildBadge(){
   else badge.style.display='none';
 }
 
+/** Same pattern as _socialLoadedOnce: hides the whole guild-content area
+ * (including the "No Guild" browse view) behind the inline loading dots
+ * until the first real guild_state response has actually come back, so
+ * "no guild joined" is never shown before that's confirmed true. */
+let _guildLoadedOnce=false;
+function showGuildLoading(){
+  document.getElementById('guild-loading-overlay').style.display='flex';
+  document.getElementById('guild-content').style.display='none';
+}
+function hideGuildLoading(){
+  document.getElementById('guild-loading-overlay').style.display='none';
+  document.getElementById('guild-content').style.display='';
+  _guildLoadedOnce=true;
+}
+
 function renderGuildPanel(){
+  hideGuildLoading();
   const none=document.getElementById('guild-view-none');
   const pending=document.getElementById('guild-view-pending');
   const mine=document.getElementById('guild-view-mine');
@@ -4729,8 +4799,8 @@ function switchMenuTab(tab){
   if(panel) panel.classList.add('active');
   if(tab==='deck') refreshDeckBuilder();
   if(tab==='market') renderShop();
-  if(tab==='social') Net.send({type:'friends_list'});
-  if(tab==='guild') Net.send({type:'guild_state'});
+  if(tab==='social'){ if(!_socialLoadedOnce) showSocialLoading(); Net.send({type:'friends_list'}); }
+  if(tab==='guild'){ if(!_guildLoadedOnce) showGuildLoading(); Net.send({type:'guild_state'}); }
 }
 
 function enterArena(){
