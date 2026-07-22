@@ -1918,20 +1918,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div id="guild-view-mine" style="display:none;">
             <div class="guild-header-card" id="guild-header-card"></div>
 
-            <div class="guild-chat-panel gc-panel">
-              <div class="gc-header">
-                <span>Guild Chat</span>
-                <span class="gc-online-note">messages auto-delete after 7 days · tap a name to view their profile</span>
-              </div>
-              <div id="guild-chat-messages" class="gc-messages">
-                <div class="gc-empty-note">No messages yet — say hello to your guild!</div>
-              </div>
-              <form id="guild-chat-form" class="gc-input-row" onsubmit="return sendGuildChat(event)">
-                <input id="guild-chat-input" class="gc-input" maxlength="300" placeholder="Say something…" autocomplete="off">
-                <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
-              </form>
-            </div>
-
             <div id="guild-applications-section" style="display:none;">
               <div class="shop-row-header"><div class="shop-row-header-label gold-label">Applications</div><div class="shop-row-header-line gold-line"></div></div>
               <div id="guild-applications-list" class="social-list"></div>
@@ -1949,6 +1935,20 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
             <div class="shop-row-header"><div class="shop-row-header-label" style="color:rgba(196,181,253,.85);">Members</div><div class="shop-row-header-line" style="background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);"></div></div>
             <div id="guild-members-list" class="social-list"></div>
+
+            <div class="guild-chat-panel gc-panel">
+              <div class="gc-header">
+                <span>Guild Chat</span>
+                <span class="gc-online-note">messages auto-delete after 7 days · tap a name to view their profile</span>
+              </div>
+              <div id="guild-chat-messages" class="gc-messages">
+                <div class="gc-empty-note">No messages yet — say hello to your guild!</div>
+              </div>
+              <form id="guild-chat-form" class="gc-input-row" onsubmit="return sendGuildChat(event)">
+                <input id="guild-chat-input" class="gc-input" maxlength="300" placeholder="Say something…" autocomplete="off">
+                <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
+              </form>
+            </div>
 
             <div class="guild-footer-actions">
               <button class="social-btn remove" id="guild-leave-btn" onclick="confirmLeaveGuild()">Leave Guild</button>
