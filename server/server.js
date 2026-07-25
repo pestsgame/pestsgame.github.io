@@ -88,6 +88,27 @@ const queueTimers = new Map();
 /** targetUserId -> requesterUserId — at most one live incoming duel invite
  * tracked per target; a newer invite simply replaces an older unanswered one. */
 const pendingDuels = new Map();
+/** targetUserId -> requesterUserId — same shape as pendingDuels, but for
+ * trade invites. A player can have at most one pending trade AND one
+ * pending duel at a time, tracked independently. */
+const pendingTrades = new Map();
+/** tradeId -> TradeSession — live trade negotiations. */
+const tradeSessions = new Map();
+/** userId -> TradeSession — at most one active trade per user, mirroring
+ * activeMatchByUser so "already trading"/"already in a match" checks read
+ * the same way everywhere. */
+const activeTradeByUser = new Map();
+/** userId -> matchId — at most one live spectate session per viewer;
+ * starting a new one silently replaces whatever they were watching before. */
+const spectatingUserMatch = new Map();
+
+/** Sends to literally every connected client — used only for the
+ * lightweight "this player is now in/out of a match" presence blip that
+ * powers the purple spectate-eye indicator client-side. Small enough scale
+ * here that a full broadcast is simpler and cheaper than targeted fan-out. */
+function broadcastAll(payload) {
+  for (const c of connections.values()) c.send(payload);
+}
 
 /* Presence: a user only counts as online when BOTH a live WS connection
  * exists on this process AND its last heartbeat is recent. The Supabase
@@ -98,6 +119,27 @@ const PRESENCE_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000; // no heartbeat in this lon
 const PRESENCE_SWEEP_MS = 60 * 1000;
 const guestPresence = new Map(); // userId -> { lastHeartbeat, online } — only used when Supabase isn't configured
 const guestFriendships = new Map(); // pairKey -> { status:'pending'|'accepted', requestedBy, createdAt } — guest-mode fallback
+
+/** Guild registries — only used when Supabase isn't configured. Mirrors the
+ * shape of the real tables closely enough that the data-layer functions
+ * below can branch on HAS_SUPABASE the same way every other feature does. */
+const guestGuilds = new Map();              // guildId -> { id, name, leaderId, icon, frame, visibility, joinFeeEnabled, joinFeeCurrency, joinFeeAmount, createdAt }
+const guestGuildMembers = new Map();         // guildId -> Map(userId -> { role, joinedAt })
+const guestUserGuild = new Map();            // userId -> guildId (a player is in at most one guild)
+const guestGuildApplications = new Map();    // guildId -> Map(userId -> { createdAt })
+const guestUserApplication = new Map();      // userId -> guildId (at most one pending application at a time)
+const guestGuildInvites = new Map();         // guildId -> Map(userId -> { invitedBy, createdAt })
+const guestUserInvite = new Map();           // userId -> guildId (at most one pending invite at a time)
+const guestGuildChatMessages = new Map();    // guildId -> Array<{ id, userId, message, createdAt }>, oldest first
+const guildChatLastSentAt = new Map();       // userId -> ms timestamp of their last chat message (simple per-user rate limit)
+
+/** Marketplace registries — only used when Supabase isn't configured.
+ * Mirrors marketplace_listings/marketplace_bids/direct_messages closely
+ * enough that the data-layer functions below branch on HAS_SUPABASE the
+ * same way every other feature does. */
+const guestListings = new Map();             // listingId -> listing object (camelCase, see rowToListing shape)
+const guestBids = new Map();                 // listingId -> Array<{id,bidderId,amount,createdAt}>, oldest first
+const guestDMs = new Map();                  // pairKey(a,b) -> Array<message>, oldest first
 
 let nextGuestId = 1;
 
@@ -112,6 +154,38 @@ const PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian',
 const BIO_MAX = 140;
 const USERNAME_MAX = 24;
 const FAVORITES_MAX = 3;
+
+/* ── GUILDS (validated allow-lists, same posture as profile icons/banners) ─
+ * `icon` is the emblem drawn in the middle (reuses the same hand-drawn SVG
+ * glyph set as player profiles — never emoji). `frame` is a separate
+ * decorative border drawn around it; the client maps each id to its own
+ * SVG ring/border shape. Keep both lists in sync with GUILD_ICON_SVGS /
+ * GUILD_FRAME_SVGS in docs/index.html. */
+const GUILD_ICONS = PROFILE_ICONS;
+const GUILD_FRAMES = ['ring','hex','shield','crest','laurel','spiked','ironclad','gilded'];
+const GUILD_NAME_MIN = 3;
+const GUILD_NAME_MAX = 24;
+const GUILD_MAX_MEMBERS = 30;
+const GUILD_CREATE_COST_GEMS = Number(process.env.GUILD_CREATE_COST_GEMS) || 200;
+const GUILD_JOIN_FEE_MAX_GOLD = 100000;
+const GUILD_JOIN_FEE_MAX_GEMS = 10000;
+const GUILD_CHAT_MESSAGE_MAX = 300;
+const GUILD_CHAT_HISTORY_LIMIT = 100;
+const GUILD_CHAT_RETENTION_MS = Number(process.env.GUILD_CHAT_RETENTION_MS) || 7 * 24 * 60 * 60 * 1000; // messages auto-delete after 7 days
+const GUILD_CHAT_RATE_LIMIT_MS = 800; // per-user minimum gap between messages
+
+/* ── MARKETPLACE + DIRECT MESSAGES ────────────────────────────────── */
+const MARKET_TAX_NORMAL = 0.10;       // paid by buyer on top, taken from seller's earnings
+const MARKET_TAX_SAME_GUILD = 0.05;   // reduced rate when buyer + seller share a guild
+const MARKET_MIN_DURATION_DAYS = 1;
+const MARKET_MAX_DURATION_DAYS = 14;
+const MARKET_MAX_AMOUNT = 10_000_000; // sanity ceiling on price/bid fields
+const MARKET_SWEEP_MS = 30_000;       // how often expired listings/auctions get settled
+const MARKET_BROWSE_LIMIT = 200;
+const MARKET_MY_LISTINGS_LIMIT = 100;
+const DM_MESSAGE_MAX = 300;
+const DM_HISTORY_LIMIT = 200;
+const DM_CONVERSATIONS_LIMIT = 50;
 
 /** Picks out only the whitelisted, well-formed fields from a client's
  * `update_profile` message. Anything absent or invalid is simply omitted
@@ -154,21 +228,22 @@ async function fetchProfile(userId, fallbackName) {
     const { data: created, error: insErr } = await supabase.from('profiles').insert(insert).select('*').single();
     if (insErr) throw insErr;
     profile = created;
-    // seed starter collection for brand-new accounts
+    // seed starter collection for brand-new accounts — one jsonb row, not
+    // one row per starter card
     const starter = seedStarterIds();
     await supabase.from('player_cards').upsert(
-      starter.map(card_id => ({ owner_id: userId, card_id, quantity: 1 })),
-      { onConflict: 'owner_id,card_id' }
+      { owner_id: userId, cards: collectionCounts(starter) },
+      { onConflict: 'owner_id' }
     );
   }
-  const { data: cardRows } = await supabase.from('player_cards').select('card_id,quantity').eq('owner_id', userId);
+  const { data: cardsRow } = await supabase.from('player_cards').select('cards').eq('owner_id', userId).maybeSingle();
   const { data: deckRow } = await supabase.from('player_decks').select('card_ids').eq('owner_id', userId).maybeSingle();
   return {
     id: profile.id, username: profile.username, gold: profile.gold, gems: profile.gems,
     wins: profile.wins, losses: profile.losses,
     icon: profile.icon || 'star', banner: profile.banner || 'violet', bio: profile.bio || '',
     favoriteCards: profile.favorite_cards || [],
-    collection: (cardRows || []).flatMap(r => Array(r.quantity).fill(r.card_id)),
+    collection: Object.entries(cardsRow?.cards || {}).flatMap(([id, qty]) => Array(qty).fill(id)),
     deck: (deckRow && deckRow.card_ids) || [],
   };
 }
@@ -365,13 +440,939 @@ async function buildFriendsList(userId) {
     userId: r.otherId,
     username: summaries.get(r.otherId)?.username || 'Unknown',
     icon: summaries.get(r.otherId)?.icon || 'star',
-    ...(withOnline ? { online: !!online.get(r.otherId) } : {}),
+    ...(withOnline ? { online: !!online.get(r.otherId), inMatch: activeMatchByUser.has(r.otherId) } : {}),
   });
   return {
     friends: friends.map(toEntry(true)),
     incoming: incoming.map(toEntry(false)),
     outgoing: outgoing.map(toEntry(false)),
   };
+}
+
+/* ── GUILDS LAYER (Supabase-backed, guest fallback) ───────────────────
+ * A player is in at most one guild at a time (enforced by the unique
+ * `user_id` constraint on guild_members, and by the guest-mode maps
+ * mirroring it). Everything here is an ordinary WS request/response, same
+ * as friends — the client never talks to these tables directly. */
+
+/** Case-insensitive exact-name lookup, used to reject duplicate guild names
+ * before ever attempting an insert. */
+async function findGuildByName(name) {
+  if (!HAS_SUPABASE) {
+    for (const g of guestGuilds.values()) if (g.name.toLowerCase() === name.toLowerCase()) return g;
+    return null;
+  }
+  const { data, error } = await supabase.from('guilds').select('*').ilike('name', name).maybeSingle();
+  if (error) throw error;
+  return data ? rowToGuild(data) : null;
+}
+
+function rowToGuild(row) {
+  return {
+    id: row.id, name: row.name, leaderId: row.leader_id, icon: row.icon, frame: row.frame,
+    visibility: row.visibility, joinFeeEnabled: row.join_fee_enabled,
+    joinFeeCurrency: row.join_fee_currency, joinFeeAmount: row.join_fee_amount, createdAt: row.created_at,
+  };
+}
+
+async function getGuildById(guildId) {
+  if (!HAS_SUPABASE) return guestGuilds.get(guildId) || null;
+  const { data, error } = await supabase.from('guilds').select('*').eq('id', guildId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToGuild(data) : null;
+}
+
+/** {guildId, role} for whatever guild userId currently belongs to, or null. */
+async function getGuildMembership(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserGuild.get(userId);
+    if (!guildId) return null;
+    const m = guestGuildMembers.get(guildId)?.get(userId);
+    return m ? { guildId, role: m.role } : null;
+  }
+  const { data, error } = await supabase.from('guild_members').select('guild_id,role').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id, role: data.role } : null;
+}
+
+async function countGuildMembers(guildId) {
+  if (!HAS_SUPABASE) return guestGuildMembers.get(guildId)?.size || 0;
+  const { count, error } = await supabase.from('guild_members').select('user_id', { count: 'exact', head: true }).eq('guild_id', guildId);
+  if (error) throw error;
+  return count || 0;
+}
+
+/** Full enriched roster: userId/username/icon/online/role/joinedAt, sorted
+ * leader-first then alphabetically — same "who's actually here" shape the
+ * friends list already gives the client. */
+async function listGuildMembers(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildMembers.get(guildId) || new Map())].map(([userId, m]) => ({ userId, role: m.role, joinedAt: m.joinedAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_members').select('user_id,role,joined_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, role: r.role, joinedAt: r.joined_at }));
+  }
+  const [summaries, online] = await Promise.all([
+    fetchProfileSummaries(rows.map(r => r.userId)),
+    onlineStatusBatch(rows.map(r => r.userId)),
+  ]);
+  return rows
+    .map(r => ({
+      userId: r.userId, role: r.role, joinedAt: r.joinedAt,
+      username: summaries.get(r.userId)?.username || 'Unknown',
+      icon: summaries.get(r.userId)?.icon || 'star',
+      online: !!online.get(r.userId),
+      inMatch: activeMatchByUser.has(r.userId),
+    }))
+    .sort((a, b) => (a.role === b.role ? a.username.localeCompare(b.username) : (a.role === 'leader' ? -1 : 1)));
+}
+
+async function addGuildMember(guildId, userId, role) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildMembers.has(guildId)) guestGuildMembers.set(guildId, new Map());
+    guestGuildMembers.get(guildId).set(userId, { role, joinedAt: new Date().toISOString() });
+    guestUserGuild.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_members').insert({ guild_id: guildId, user_id: userId, role });
+  if (error) throw error;
+}
+
+async function removeGuildMember(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildMembers.get(guildId)?.delete(userId);
+    guestUserGuild.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_members').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function setGuildLeader(guildId, newLeaderId) {
+  if (!HAS_SUPABASE) {
+    const g = guestGuilds.get(guildId); if (g) g.leaderId = newLeaderId;
+    const members = guestGuildMembers.get(guildId);
+    if (members) for (const [uid, m] of members) m.role = uid === newLeaderId ? 'leader' : 'member';
+    return;
+  }
+  const { error: e1 } = await supabase.from('guilds').update({ leader_id: newLeaderId }).eq('id', guildId);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase.from('guild_members').update({ role: 'member' }).eq('guild_id', guildId);
+  if (e2) throw e2;
+  const { error: e3 } = await supabase.from('guild_members').update({ role: 'leader' }).eq('guild_id', guildId).eq('user_id', newLeaderId);
+  if (e3) throw e3;
+}
+
+async function deleteGuild(guildId) {
+  if (!HAS_SUPABASE) {
+    guestGuilds.delete(guildId);
+    guestGuildMembers.delete(guildId);
+    guestGuildApplications.delete(guildId);
+    guestGuildInvites.delete(guildId);
+    for (const [uid, gid] of guestUserGuild) if (gid === guildId) guestUserGuild.delete(uid);
+    for (const [uid, gid] of guestUserApplication) if (gid === guildId) guestUserApplication.delete(uid);
+    for (const [uid, gid] of guestUserInvite) if (gid === guildId) guestUserInvite.delete(uid);
+    return;
+  }
+  const { error } = await supabase.from('guilds').delete().eq('id', guildId); // cascades members/applications/invites
+  if (error) throw error;
+}
+
+/** Validated field extraction shared by guild_create — throws with a `.code`
+ * the client can key off of, same convention as saveDeck/grantPack. */
+function sanitizeGuildCreateFields(msg) {
+  const name = String(msg.name || '').trim();
+  if (name.length < GUILD_NAME_MIN || name.length > GUILD_NAME_MAX) {
+    const e = new Error('bad_guild_name'); e.code = 'guild_name_invalid'; throw e;
+  }
+  const icon = GUILD_ICONS.includes(msg.icon) ? msg.icon : GUILD_ICONS[0];
+  const frame = GUILD_FRAMES.includes(msg.frame) ? msg.frame : GUILD_FRAMES[0];
+  const visibility = msg.visibility === 'private' ? 'private' : 'public';
+  let joinFeeEnabled = !!msg.joinFeeEnabled;
+  let joinFeeCurrency = null, joinFeeAmount = 0;
+  if (joinFeeEnabled) {
+    joinFeeCurrency = msg.joinFeeCurrency === 'gems' ? 'gems' : 'gold';
+    const max = joinFeeCurrency === 'gems' ? GUILD_JOIN_FEE_MAX_GEMS : GUILD_JOIN_FEE_MAX_GOLD;
+    joinFeeAmount = Math.max(0, Math.min(max, Math.floor(Number(msg.joinFeeAmount) || 0)));
+    if (joinFeeAmount <= 0) joinFeeEnabled = false; // "enabled" with a 0 amount is just "no fee"
+  }
+  return { name, icon, frame, visibility, joinFeeEnabled, joinFeeCurrency, joinFeeAmount };
+}
+
+/** Creates a new guild, deducting the flat gem cost from the founder first.
+ * Founder becomes leader and member #1. Throws with `.code` on any failure
+ * (insufficient funds, duplicate name, already in a guild, bad fields) —
+ * nothing is created or charged unless every check passes. */
+async function createGuild(userId, msg) {
+  const existing = await getGuildMembership(userId);
+  if (existing) { const e = new Error('already_in_guild'); e.code = 'already_in_guild'; throw e; }
+  const fields = sanitizeGuildCreateFields(msg);
+  if (await findGuildByName(fields.name)) { const e = new Error('guild_name_taken'); e.code = 'guild_name_taken'; throw e; }
+
+  const profile = await fetchProfile(userId);
+  if (profile.gems < GUILD_CREATE_COST_GEMS) { const e = new Error('insufficient_funds'); e.code = 'insufficient_funds'; throw e; }
+  const newGems = profile.gems - GUILD_CREATE_COST_GEMS;
+  if (!HAS_SUPABASE) {
+    guestProfiles.get(userId).gems = newGems;
+  } else {
+    const { error } = await supabase.from('profiles').update({ gems: newGems }).eq('id', userId);
+    if (error) throw error;
+  }
+
+  let guildId;
+  if (!HAS_SUPABASE) {
+    guildId = crypto.randomUUID();
+    guestGuilds.set(guildId, { id: guildId, leaderId: userId, createdAt: new Date().toISOString(), ...fields });
+  } else {
+    const { data, error } = await supabase.from('guilds').insert({
+      name: fields.name, leader_id: userId, icon: fields.icon, frame: fields.frame, visibility: fields.visibility,
+      join_fee_enabled: fields.joinFeeEnabled, join_fee_currency: fields.joinFeeCurrency, join_fee_amount: fields.joinFeeAmount,
+    }).select('*').single();
+    if (error) throw error;
+    guildId = data.id;
+  }
+  await addGuildMember(guildId, userId, 'leader');
+  return guildId;
+}
+
+/** Charges a guild's join fee (if any) to userId. Throws `insufficient_funds`
+ * without mutating anything if they can't afford it. No-op if the guild has
+ * no fee configured. */
+async function chargeJoinFee(guild, userId) {
+  if (!guild.joinFeeEnabled || guild.joinFeeAmount <= 0) return;
+  const profile = await fetchProfile(userId);
+  const balance = guild.joinFeeCurrency === 'gems' ? profile.gems : profile.gold;
+  if (balance < guild.joinFeeAmount) { const e = new Error('insufficient_funds'); e.code = 'insufficient_funds'; throw e; }
+  const newBalance = balance - guild.joinFeeAmount;
+  const field = guild.joinFeeCurrency === 'gems' ? 'gems' : 'gold';
+  if (!HAS_SUPABASE) {
+    guestProfiles.get(userId)[field] = newBalance;
+  } else {
+    const { error } = await supabase.from('profiles').update({ [field]: newBalance }).eq('id', userId);
+    if (error) throw error;
+  }
+}
+
+/** Shared join logic (public join, accepted application, accepted invite):
+ * re-checks capacity/membership/fee right before actually seating the
+ * player, since time may have passed since the original request. */
+async function seatNewMember(guildId, userId) {
+  if (await getGuildMembership(userId)) { const e = new Error('already_in_guild'); e.code = 'already_in_guild'; throw e; }
+  const guild = await getGuildById(guildId);
+  if (!guild) { const e = new Error('guild_not_found'); e.code = 'guild_not_found'; throw e; }
+  if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) { const e = new Error('guild_full'); e.code = 'guild_full'; throw e; }
+  await chargeJoinFee(guild, userId);
+  await addGuildMember(guildId, userId, 'member');
+  return guild;
+}
+
+/* ── Applications (private guilds: player asks, leader decides) ── */
+async function getUserApplication(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserApplication.get(userId);
+    return guildId ? { guildId } : null;
+  }
+  const { data, error } = await supabase.from('guild_applications').select('guild_id').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id } : null;
+}
+
+async function createApplication(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildApplications.has(guildId)) guestGuildApplications.set(guildId, new Map());
+    guestGuildApplications.get(guildId).set(userId, { createdAt: new Date().toISOString() });
+    guestUserApplication.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_applications').insert({ guild_id: guildId, user_id: userId });
+  if (error) throw error;
+}
+
+async function deleteApplication(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildApplications.get(guildId)?.delete(userId);
+    if (guestUserApplication.get(userId) === guildId) guestUserApplication.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_applications').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+async function listApplications(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildApplications.get(guildId) || new Map())].map(([userId, a]) => ({ userId, createdAt: a.createdAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_applications').select('user_id,created_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({ userId: r.userId, createdAt: r.createdAt, username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star' }));
+}
+
+/* ── Invites (leader reaches out to a specific player) ── */
+async function getUserInvite(userId) {
+  if (!HAS_SUPABASE) {
+    const guildId = guestUserInvite.get(userId);
+    return guildId ? { guildId } : null;
+  }
+  const { data, error } = await supabase.from('guild_invites').select('guild_id,invited_by').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? { guildId: data.guild_id, invitedBy: data.invited_by } : null;
+}
+
+async function createInvite(guildId, userId, invitedBy) {
+  if (!HAS_SUPABASE) {
+    if (!guestGuildInvites.has(guildId)) guestGuildInvites.set(guildId, new Map());
+    guestGuildInvites.get(guildId).set(userId, { invitedBy, createdAt: new Date().toISOString() });
+    guestUserInvite.set(userId, guildId);
+    return;
+  }
+  const { error } = await supabase.from('guild_invites').insert({ guild_id: guildId, user_id: userId, invited_by: invitedBy });
+  if (error) throw error;
+}
+
+async function deleteInvite(guildId, userId) {
+  if (!HAS_SUPABASE) {
+    guestGuildInvites.get(guildId)?.delete(userId);
+    if (guestUserInvite.get(userId) === guildId) guestUserInvite.delete(userId);
+    return;
+  }
+  const { error } = await supabase.from('guild_invites').delete().eq('guild_id', guildId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+/** Everyone a guild has outstanding invites out to right now — shown only
+ * to the leader, so they can see (and cancel) invites they've sent instead
+ * of them just silently sitting there until the invitee responds. */
+async function listGuildInvites(guildId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...(guestGuildInvites.get(guildId) || new Map())].map(([userId, i]) => ({ userId, createdAt: i.createdAt }));
+  } else {
+    const { data, error } = await supabase.from('guild_invites').select('user_id,created_at').eq('guild_id', guildId);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ userId: r.user_id, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({ userId: r.userId, createdAt: r.createdAt, username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star' }));
+}
+
+/* ── Guild chat. Persisted, but pruned after 7 days (see the hourly
+ * cleanupExpiredGuildChatMessages sweep near server startup below) — the
+ * read path also defensively re-filters to the last 7 days on every fetch,
+ * so a delayed cleanup pass can never surface a stale message either. ── */
+async function cleanupExpiredGuildChatMessages() {
+  const cutoffIso = new Date(Date.now() - GUILD_CHAT_RETENTION_MS).toISOString();
+  if (!HAS_SUPABASE) {
+    for (const [guildId, msgs] of guestGuildChatMessages) {
+      const kept = msgs.filter(m => m.createdAt >= cutoffIso);
+      if (kept.length !== msgs.length) guestGuildChatMessages.set(guildId, kept);
+    }
+    return;
+  }
+  const { error } = await supabase.from('guild_chat_messages').delete().lt('created_at', cutoffIso);
+  if (error) console.error('[arena] guild chat cleanup failed', error);
+}
+
+async function listGuildChatMessages(guildId) {
+  const cutoffIso = new Date(Date.now() - GUILD_CHAT_RETENTION_MS).toISOString();
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = (guestGuildChatMessages.get(guildId) || []).filter(m => m.createdAt >= cutoffIso).slice(-GUILD_CHAT_HISTORY_LIMIT);
+  } else {
+    const { data, error } = await supabase.from('guild_chat_messages').select('id,user_id,message,created_at')
+      .eq('guild_id', guildId).gte('created_at', cutoffIso).order('created_at', { ascending: true }).limit(GUILD_CHAT_HISTORY_LIMIT);
+    if (error) throw error;
+    rows = (data || []).map(r => ({ id: r.id, userId: r.user_id, message: r.message, createdAt: r.created_at }));
+  }
+  const summaries = await fetchProfileSummaries(rows.map(r => r.userId));
+  return rows.map(r => ({
+    id: r.id, userId: r.userId, message: r.message, createdAt: r.createdAt,
+    username: summaries.get(r.userId)?.username || 'Unknown', icon: summaries.get(r.userId)?.icon || 'star',
+  }));
+}
+
+/** Inserts one message and returns it fully enriched (username/icon) —
+ * exactly the shape the client needs to render it immediately, whether
+ * from guild_chat_history or a live guild_chat_message broadcast. */
+async function sendGuildChatMessage(guildId, userId, text) {
+  const message = String(text || '').trim().slice(0, GUILD_CHAT_MESSAGE_MAX);
+  if (!message) { const e = new Error('guild_chat_empty'); e.code = 'guild_chat_empty'; throw e; }
+  let row;
+  if (!HAS_SUPABASE) {
+    row = { id: crypto.randomUUID(), userId, message, createdAt: new Date().toISOString() };
+    if (!guestGuildChatMessages.has(guildId)) guestGuildChatMessages.set(guildId, []);
+    guestGuildChatMessages.get(guildId).push(row);
+  } else {
+    const { data, error } = await supabase.from('guild_chat_messages').insert({ guild_id: guildId, user_id: userId, message }).select('id,created_at').single();
+    if (error) throw error;
+    row = { id: data.id, userId, message, createdAt: data.created_at };
+  }
+  const summary = (await fetchProfileSummaries([userId])).get(userId);
+  return { id: row.id, userId, message: row.message, createdAt: row.createdAt, username: summary?.username || 'Unknown', icon: summary?.icon || 'star' };
+}
+
+/** Browsable list for the "find a guild" screen: public guilds always show;
+ * private guilds show too (so a name search can find them to apply to) but
+ * the client is told `visibility` so it renders "Apply" instead of "Join". */
+async function browseGuilds(search) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [...guestGuilds.values()];
+    if (search) rows = rows.filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
+  } else {
+    let q = supabase.from('guilds').select('*').limit(40);
+    if (search) q = q.ilike('name', `%${search}%`);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = (data || []).map(rowToGuild);
+  }
+  const counts = await Promise.all(rows.map(g => countGuildMembers(g.id)));
+  return rows
+    .map((g, i) => ({
+      guildId: g.id, name: g.name, icon: g.icon, frame: g.frame, visibility: g.visibility,
+      memberCount: counts[i], maxMembers: GUILD_MAX_MEMBERS,
+      joinFeeEnabled: g.joinFeeEnabled, joinFeeCurrency: g.joinFeeCurrency, joinFeeAmount: g.joinFeeAmount,
+    }))
+    .sort((a, b) => b.memberCount - a.memberCount)
+    .slice(0, 40);
+}
+
+/** Full state payload for the caller's own client: their guild (with full
+ * roster + pending applications if they lead it), any invite waiting on
+ * them, and their own outgoing application status. Exactly one of
+ * guild/invite/application is meaningfully populated at a time, since you
+ * can't be in a guild AND have a pending application/invite simultaneously. */
+async function buildGuildState(userId) {
+  const membership = await getGuildMembership(userId);
+  if (membership) {
+    const guild = await getGuildById(membership.guildId);
+    const isLeader = membership.role === 'leader';
+    const [members, applications, invitesSent] = await Promise.all([
+      listGuildMembers(membership.guildId),
+      isLeader ? listApplications(membership.guildId) : Promise.resolve([]),
+      isLeader ? listGuildInvites(membership.guildId) : Promise.resolve([]),
+    ]);
+    return {
+      guild: {
+        guildId: guild.id, name: guild.name, icon: guild.icon, frame: guild.frame, visibility: guild.visibility,
+        joinFeeEnabled: guild.joinFeeEnabled, joinFeeCurrency: guild.joinFeeCurrency, joinFeeAmount: guild.joinFeeAmount,
+        myRole: membership.role, members, maxMembers: GUILD_MAX_MEMBERS,
+        applications: isLeader ? applications : undefined,
+        invitesSent: isLeader ? invitesSent : undefined,
+      },
+      invite: null, application: null,
+    };
+  }
+  const [invite, application] = await Promise.all([getUserInvite(userId), getUserApplication(userId)]);
+  let invitePayload = null, applicationPayload = null;
+  if (invite) {
+    const g = await getGuildById(invite.guildId);
+    if (g) invitePayload = { guildId: g.id, name: g.name, icon: g.icon, frame: g.frame };
+  }
+  if (application) {
+    const g = await getGuildById(application.guildId);
+    if (g) applicationPayload = { guildId: g.id, name: g.name, icon: g.icon, frame: g.frame };
+  }
+  return { guild: null, invite: invitePayload, application: applicationPayload };
+}
+
+async function sendGuildState(userId) {
+  const conn = connections.get(userId);
+  if (conn) { try { conn.send({ type: 'guild_state', ...(await buildGuildState(userId)) }); } catch (e) { console.error('[arena] sendGuildState failed', e); } }
+}
+
+/** Pushes a fresh guild_state to every currently-connected member of a
+ * guild — used after any join/leave/kick/disband/leadership-change so
+ * every open client's roster stays in sync without polling. */
+async function broadcastGuildState(guildId) {
+  try {
+    const members = await listGuildMembers(guildId);
+    await Promise.all(members.map(m => sendGuildState(m.userId)));
+  } catch (e) { console.error('[arena] broadcastGuildState failed', e); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ * MARKETPLACE + DIRECT MESSAGES
+ *
+ * A listing escrows the physical card off the seller's collection the
+ * moment it's created, so it can't be double-listed, traded away, or
+ * spent in a pack re-roll while up for sale. Cancelling/expiring gives
+ * it back; a completed sale hands it straight to the buyer.
+ *
+ * Tax: 10% normal, 5% if buyer + seller share a guild at the moment the
+ * deal locks in (bid time for auctions, purchase/offer-accept time for
+ * price listings). The buyer pays price+tax; the seller receives
+ * price-tax — both cuts use the same rate. Once locked into a listing
+ * (tax_rate column), that rate is reused at settlement rather than
+ * recomputed, so a bid made while sharing a guild doesn't retroactively
+ * lose its discount if someone leaves the guild before the auction ends.
+ * ══════════════════════════════════════════════════════════════════ */
+
+function notifyUser(userId, payload) { connections.get(userId)?.send(payload); }
+
+async function guildIdFor(userId) {
+  const m = await getGuildMembership(userId);
+  return m ? m.guildId : null;
+}
+function computeTaxRate(buyerGuildId, sellerGuildId) {
+  return (buyerGuildId && sellerGuildId && buyerGuildId === sellerGuildId) ? MARKET_TAX_SAME_GUILD : MARKET_TAX_NORMAL;
+}
+
+function rowToListing(row) {
+  return {
+    id: row.id, sellerId: row.seller_id, cardId: row.card_id, listingType: row.listing_type, currency: row.currency,
+    price: row.price, startingBid: row.starting_bid, buyoutPrice: row.buyout_price,
+    currentBid: row.current_bid, currentBidderId: row.current_bidder_id, currentBidEscrow: row.current_bid_escrow,
+    taxRate: row.tax_rate == null ? null : Number(row.tax_rate), status: row.status, durationDays: row.duration_days,
+    createdAt: row.created_at, expiresAt: row.expires_at, settledAt: row.settled_at,
+  };
+}
+function listingToRow(l) {
+  return {
+    id: l.id, seller_id: l.sellerId, card_id: l.cardId, listing_type: l.listingType, currency: l.currency,
+    price: l.price, starting_bid: l.startingBid, buyout_price: l.buyoutPrice,
+    current_bid: l.currentBid, current_bidder_id: l.currentBidderId, current_bid_escrow: l.currentBidEscrow,
+    tax_rate: l.taxRate, status: l.status, duration_days: l.durationDays,
+    created_at: l.createdAt, expires_at: l.expiresAt, settled_at: l.settledAt,
+  };
+}
+/** Client-facing shape for a listing — adds display names/icons (from a
+ * pre-fetched summaries Map) and never leaks internal escrow bookkeeping
+ * (current_bid_escrow) beyond what the UI needs. */
+function marketListingPayload(l, summaries) {
+  const seller = summaries.get(l.sellerId) || { username: 'Unknown', icon: 'star' };
+  const bidder = l.currentBidderId ? (summaries.get(l.currentBidderId) || { username: 'Unknown', icon: 'star' }) : null;
+  return {
+    id: l.id, sellerId: l.sellerId, sellerName: seller.username, sellerIcon: seller.icon,
+    cardId: l.cardId, listingType: l.listingType, currency: l.currency,
+    price: l.price, startingBid: l.startingBid, buyoutPrice: l.buyoutPrice,
+    currentBid: l.currentBid, currentBidderId: l.currentBidderId,
+    currentBidderName: bidder ? bidder.username : null,
+    status: l.status, createdAt: l.createdAt, expiresAt: l.expiresAt,
+  };
+}
+
+async function getListing(listingId) {
+  if (!HAS_SUPABASE) return guestListings.get(listingId) || null;
+  const { data, error } = await supabase.from('marketplace_listings').select('*').eq('id', listingId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToListing(data) : null;
+}
+async function saveListing(listing) {
+  if (!HAS_SUPABASE) { guestListings.set(listing.id, listing); return; }
+  const { error } = await supabase.from('marketplace_listings').upsert(listingToRow(listing));
+  if (error) throw error;
+}
+async function browseActiveListings(filter) {
+  const nowIso = new Date().toISOString();
+  if (!HAS_SUPABASE) {
+    let rows = [...guestListings.values()].filter(l => l.status === 'active' && l.expiresAt > nowIso);
+    if (filter && filter.currency) rows = rows.filter(l => l.currency === filter.currency);
+    if (filter && filter.listingType) rows = rows.filter(l => l.listingType === filter.listingType);
+    return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, MARKET_BROWSE_LIMIT);
+  }
+  let q = supabase.from('marketplace_listings').select('*').eq('status', 'active').gt('expires_at', nowIso);
+  if (filter && filter.currency) q = q.eq('currency', filter.currency);
+  if (filter && filter.listingType) q = q.eq('listing_type', filter.listingType);
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(MARKET_BROWSE_LIMIT);
+  if (error) throw error;
+  return (data || []).map(rowToListing);
+}
+async function listingsBySeller(userId) {
+  if (!HAS_SUPABASE) {
+    return [...guestListings.values()].filter(l => l.sellerId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, MARKET_MY_LISTINGS_LIMIT);
+  }
+  const { data, error } = await supabase.from('marketplace_listings').select('*').eq('seller_id', userId)
+    .order('created_at', { ascending: false }).limit(MARKET_MY_LISTINGS_LIMIT);
+  if (error) throw error;
+  return (data || []).map(rowToListing);
+}
+async function recordBid(listingId, bidderId, amount) {
+  if (!HAS_SUPABASE) {
+    const arr = guestBids.get(listingId) || [];
+    arr.push({ id: crypto.randomUUID(), bidderId, amount, createdAt: new Date().toISOString() });
+    guestBids.set(listingId, arr);
+    return;
+  }
+  const { error } = await supabase.from('marketplace_bids').insert({ listing_id: listingId, bidder_id: bidderId, amount });
+  if (error) throw error;
+}
+
+/** Creates a listing: validates params, escrows one copy of the card off
+ * the seller's collection, and persists the row. Returns { error } on any
+ * validation failure, never throws for bad input. */
+async function createListing(userId, msg) {
+  const cardId = typeof msg.cardId === 'string' ? msg.cardId : null;
+  const cardDef = cardId && Engine.CardDB.find(c => c.id === cardId);
+  if (!cardDef) return { error: 'card_not_found' };
+
+  const listingType = msg.listingType === 'auction' ? 'auction' : (msg.listingType === 'price' ? 'price' : null);
+  if (!listingType) return { error: 'invalid_listing_params' };
+  const currency = msg.currency === 'gems' ? 'gems' : (msg.currency === 'gold' ? 'gold' : null);
+  if (!currency) return { error: 'invalid_listing_params' };
+
+  const durationDays = Math.floor(Number(msg.durationDays));
+  if (!Number.isInteger(durationDays) || durationDays < MARKET_MIN_DURATION_DAYS || durationDays > MARKET_MAX_DURATION_DAYS) {
+    return { error: 'invalid_duration' };
+  }
+
+  let price = null, startingBid = null, buyoutPrice = null;
+  if (listingType === 'price') {
+    price = Math.floor(Number(msg.price));
+    if (!Number.isInteger(price) || price <= 0 || price > MARKET_MAX_AMOUNT) return { error: 'invalid_listing_params' };
+  } else {
+    startingBid = Math.floor(Number(msg.startingBid));
+    if (!Number.isInteger(startingBid) || startingBid <= 0 || startingBid > MARKET_MAX_AMOUNT) return { error: 'invalid_listing_params' };
+    if (msg.buyoutPrice !== undefined && msg.buyoutPrice !== null && msg.buyoutPrice !== '') {
+      buyoutPrice = Math.floor(Number(msg.buyoutPrice));
+      if (!Number.isInteger(buyoutPrice) || buyoutPrice <= startingBid || buyoutPrice > MARKET_MAX_AMOUNT) return { error: 'invalid_listing_params' };
+    }
+  }
+
+  const profile = await fetchProfile(userId);
+  const counts = collectionCounts(profile.collection);
+  if (!counts[cardId]) return { error: 'card_not_owned' };
+
+  await adjustCardQuantity(userId, cardId, -1);
+
+  const now = Date.now();
+  const listing = {
+    id: crypto.randomUUID(), sellerId: userId, cardId, listingType, currency,
+    price, startingBid, buyoutPrice, currentBid: null, currentBidderId: null, currentBidEscrow: null,
+    taxRate: null, status: 'active', durationDays,
+    createdAt: new Date(now).toISOString(), expiresAt: new Date(now + durationDays * 24 * 60 * 60 * 1000).toISOString(),
+    settledAt: null,
+  };
+  await saveListing(listing);
+  return { ok: true, listing };
+}
+
+async function cancelListing(userId, listingId) {
+  const listing = await getListing(listingId);
+  if (!listing) return { error: 'listing_not_found' };
+  if (listing.sellerId !== userId) return { error: 'not_your_listing' };
+  if (listing.status !== 'active') return { error: 'listing_not_active' };
+  if (listing.currentBidderId && listing.currentBidEscrow) {
+    await adjustWallet(listing.currentBidderId, listing.currency === 'gold' ? listing.currentBidEscrow : 0, listing.currency === 'gems' ? listing.currentBidEscrow : 0);
+    notifyUser(listing.currentBidderId, { type: 'market_outbid', listingId: listing.id, reason: 'cancelled' });
+  }
+  await adjustCardQuantity(userId, listing.cardId, 1);
+  listing.status = 'cancelled'; listing.settledAt = new Date().toISOString();
+  await saveListing(listing);
+  return { ok: true, listing };
+}
+
+/** Buy-it-now for a 'price' listing, or the buyout shortcut for an
+ * 'auction' listing that has one set. Re-checks the buyer's live balance
+ * right before moving anything. */
+async function buyListing(userId, listingId) {
+  const listing = await getListing(listingId);
+  if (!listing) return { error: 'listing_not_found' };
+  if (listing.status !== 'active' || new Date(listing.expiresAt).getTime() <= Date.now()) return { error: 'listing_not_active' };
+  if (listing.sellerId === userId) return { error: 'cannot_buy_own_listing' };
+
+  const buyerGuild = await guildIdFor(userId);
+  const sellerGuild = await guildIdFor(listing.sellerId);
+  const taxRate = computeTaxRate(buyerGuild, sellerGuild);
+
+  if (listing.listingType === 'auction') {
+    if (!listing.buyoutPrice) return { error: 'auction_requires_bid' };
+    return executeAuctionBuyout(listing, userId, taxRate);
+  }
+
+  const amount = listing.price;
+  const taxAmt = Math.round(amount * taxRate);
+  const totalCost = amount + taxAmt;
+  const profile = await fetchProfile(userId);
+  const balance = listing.currency === 'gold' ? profile.gold : profile.gems;
+  if (balance < totalCost) return { error: 'insufficient_funds' };
+  const sellerNet = amount - taxAmt;
+
+  await adjustWallet(userId, listing.currency === 'gold' ? -totalCost : 0, listing.currency === 'gems' ? -totalCost : 0);
+  await adjustWallet(listing.sellerId, listing.currency === 'gold' ? sellerNet : 0, listing.currency === 'gems' ? sellerNet : 0);
+  await adjustCardQuantity(userId, listing.cardId, 1);
+
+  listing.status = 'sold'; listing.currentBidderId = userId; listing.currentBid = amount;
+  listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
+  await saveListing(listing);
+  return { ok: true, listing, sellerNet, taxAmt };
+}
+
+/** Shared by (a) an auction bid that meets/exceeds the buyout price and
+ * (b) buyListing() called directly on an auction with a buyout set.
+ * Refunds whoever was previously winning, since they're being bought out
+ * rather than merely outbid. */
+async function executeAuctionBuyout(listing, buyerId, taxRate) {
+  const amount = listing.buyoutPrice;
+  const taxAmt = Math.round(amount * taxRate);
+  const totalCost = amount + taxAmt;
+  const profile = await fetchProfile(buyerId);
+  const balance = listing.currency === 'gold' ? profile.gold : profile.gems;
+  if (balance < totalCost) return { error: 'insufficient_funds' };
+
+  const previousBidderId = listing.currentBidderId;
+  if (previousBidderId && listing.currentBidEscrow) {
+    await adjustWallet(previousBidderId, listing.currency === 'gold' ? listing.currentBidEscrow : 0, listing.currency === 'gems' ? listing.currentBidEscrow : 0);
+    notifyUser(previousBidderId, { type: 'market_outbid', listingId: listing.id, reason: 'bought_out' });
+  }
+  await adjustWallet(buyerId, listing.currency === 'gold' ? -totalCost : 0, listing.currency === 'gems' ? -totalCost : 0);
+  const sellerNet = amount - taxAmt;
+  await adjustWallet(listing.sellerId, listing.currency === 'gold' ? sellerNet : 0, listing.currency === 'gems' ? sellerNet : 0);
+  await adjustCardQuantity(buyerId, listing.cardId, 1);
+
+  listing.status = 'sold'; listing.currentBid = amount; listing.currentBidderId = buyerId;
+  listing.currentBidEscrow = totalCost; listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
+  await saveListing(listing);
+  return { ok: true, listing, bought: true, previousBidderId };
+}
+
+/** Places (or raises) a bid on an auction. Escrows bid+tax from the
+ * bidder immediately and refunds whoever it outbids, so the leaderboard
+ * bidder's balance always reflects money that's actually spoken for. */
+async function placeBid(userId, listingId, amountRaw) {
+  const listing = await getListing(listingId);
+  if (!listing) return { error: 'listing_not_found' };
+  if (listing.status !== 'active' || new Date(listing.expiresAt).getTime() <= Date.now()) return { error: 'listing_not_active' };
+  if (listing.listingType !== 'auction') return { error: 'not_an_auction' };
+  if (listing.sellerId === userId) return { error: 'cannot_bid_own_listing' };
+
+  const amount = Math.floor(Number(amountRaw));
+  if (!Number.isInteger(amount) || amount <= 0 || amount > MARKET_MAX_AMOUNT) return { error: 'invalid_amount' };
+  const minRequired = listing.currentBid ? listing.currentBid + 1 : listing.startingBid;
+  if (amount < minRequired) return { error: 'bid_too_low', minRequired };
+
+  const buyerGuild = await guildIdFor(userId);
+  const sellerGuild = await guildIdFor(listing.sellerId);
+  const taxRate = computeTaxRate(buyerGuild, sellerGuild);
+
+  if (listing.buyoutPrice && amount >= listing.buyoutPrice) {
+    return executeAuctionBuyout(listing, userId, taxRate);
+  }
+
+  const taxAmt = Math.round(amount * taxRate);
+  const totalEscrow = amount + taxAmt;
+  const profile = await fetchProfile(userId);
+  const balance = listing.currency === 'gold' ? profile.gold : profile.gems;
+  if (balance < totalEscrow) return { error: 'insufficient_funds' };
+
+  const previousBidderId = listing.currentBidderId;
+  const previousEscrow = listing.currentBidEscrow;
+  await adjustWallet(userId, listing.currency === 'gold' ? -totalEscrow : 0, listing.currency === 'gems' ? -totalEscrow : 0);
+  if (previousBidderId && previousBidderId !== userId && previousEscrow) {
+    await adjustWallet(previousBidderId, listing.currency === 'gold' ? previousEscrow : 0, listing.currency === 'gems' ? previousEscrow : 0);
+    notifyUser(previousBidderId, { type: 'market_outbid', listingId: listing.id, reason: 'outbid' });
+  }
+
+  listing.currentBid = amount; listing.currentBidderId = userId; listing.currentBidEscrow = totalEscrow; listing.taxRate = taxRate;
+  await saveListing(listing);
+  await recordBid(listingId, userId, amount);
+  return { ok: true, listing, previousBidderId };
+}
+
+/** Settles every listing whose expires_at has passed: auctions with a bid
+ * go to the highest bidder (their escrow already covers it in full — see
+ * placeBid), everything else returns the card to the seller. */
+async function settleExpiredListings() {
+  let candidates;
+  const nowIso = new Date().toISOString();
+  if (!HAS_SUPABASE) {
+    candidates = [...guestListings.values()].filter(l => l.status === 'active' && l.expiresAt <= nowIso);
+  } else {
+    const { data, error } = await supabase.from('marketplace_listings').select('*').eq('status', 'active').lte('expires_at', nowIso).limit(200);
+    if (error) throw error;
+    candidates = (data || []).map(rowToListing);
+  }
+  for (const listing of candidates) {
+    try {
+      if (listing.listingType === 'auction' && listing.currentBidderId) {
+        const taxRate = listing.taxRate != null ? listing.taxRate : MARKET_TAX_NORMAL;
+        const taxAmt = Math.round(listing.currentBid * taxRate);
+        const sellerNet = listing.currentBid - taxAmt;
+        await adjustWallet(listing.sellerId, listing.currency === 'gold' ? sellerNet : 0, listing.currency === 'gems' ? sellerNet : 0);
+        await adjustCardQuantity(listing.currentBidderId, listing.cardId, 1);
+        listing.status = 'sold'; listing.settledAt = new Date().toISOString();
+        await saveListing(listing);
+        notifyUser(listing.currentBidderId, { type: 'market_auction_won', listingId: listing.id, cardId: listing.cardId, amount: listing.currentBid, currency: listing.currency });
+        notifyUser(listing.sellerId, { type: 'market_item_sold', listingId: listing.id, cardId: listing.cardId, amount: sellerNet, currency: listing.currency });
+      } else {
+        await adjustCardQuantity(listing.sellerId, listing.cardId, 1);
+        listing.status = 'expired'; listing.settledAt = new Date().toISOString();
+        await saveListing(listing);
+        notifyUser(listing.sellerId, { type: 'market_listing_expired', listingId: listing.id, cardId: listing.cardId });
+      }
+    } catch (e) { console.error('[arena] failed to settle listing', listing.id, e); }
+  }
+}
+
+/* ── Direct messages (marketplace negotiation only — not a general inbox) ── */
+function rowToDM(row) {
+  return {
+    id: row.id, fromId: row.from_id, toId: row.to_id, listingId: row.listing_id, message: row.message,
+    offerAmount: row.offer_amount, offerCurrency: row.offer_currency, offerStatus: row.offer_status,
+    read: row.read, createdAt: row.created_at,
+  };
+}
+async function saveDM(m) {
+  if (!HAS_SUPABASE) {
+    const key = pairKey(m.fromId, m.toId);
+    const arr = guestDMs.get(key) || []; arr.push(m); guestDMs.set(key, arr);
+    return m;
+  }
+  const { data, error } = await supabase.from('direct_messages').insert({
+    from_id: m.fromId, to_id: m.toId, listing_id: m.listingId, message: m.message,
+    offer_amount: m.offerAmount, offer_currency: m.offerCurrency, offer_status: m.offerStatus,
+  }).select('*').single();
+  if (error) throw error;
+  return rowToDM(data);
+}
+async function getDMMessageById(messageId) {
+  if (!HAS_SUPABASE) {
+    for (const arr of guestDMs.values()) { const found = arr.find(m => m.id === messageId); if (found) return found; }
+    return null;
+  }
+  const { data, error } = await supabase.from('direct_messages').select('*').eq('id', messageId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToDM(data) : null;
+}
+async function setOfferStatus(messageId, status) {
+  if (!HAS_SUPABASE) {
+    for (const arr of guestDMs.values()) { const found = arr.find(m => m.id === messageId); if (found) { found.offerStatus = status; return; } }
+    return;
+  }
+  const { error } = await supabase.from('direct_messages').update({ offer_status: status }).eq('id', messageId);
+  if (error) throw error;
+}
+async function markMessagesRead(ids, guestRowsRef) {
+  if (!ids.length) return;
+  if (!HAS_SUPABASE) { for (const m of guestRowsRef) if (ids.includes(m.id)) m.read = true; return; }
+  const { error } = await supabase.from('direct_messages').update({ read: true }).in('id', ids);
+  if (error) throw error;
+}
+async function dmHistory(userId, otherId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = (guestDMs.get(pairKey(userId, otherId)) || []).slice(-DM_HISTORY_LIMIT);
+  } else {
+    const { data, error } = await supabase.from('direct_messages').select('*')
+      .or(`and(from_id.eq.${userId},to_id.eq.${otherId}),and(from_id.eq.${otherId},to_id.eq.${userId})`)
+      .order('created_at', { ascending: true }).limit(DM_HISTORY_LIMIT);
+    if (error) throw error;
+    rows = (data || []).map(rowToDM);
+  }
+  const unreadIds = rows.filter(m => m.toId === userId && !m.read).map(m => m.id);
+  await markMessagesRead(unreadIds, rows);
+  return rows;
+}
+async function dmConversations(userId) {
+  let rows;
+  if (!HAS_SUPABASE) {
+    rows = [];
+    for (const [key, arr] of guestDMs.entries()) {
+      const [a, b] = key.split('|');
+      if (a !== userId && b !== userId) continue;
+      rows.push(...arr);
+    }
+  } else {
+    const { data, error } = await supabase.from('direct_messages').select('*')
+      .or(`from_id.eq.${userId},to_id.eq.${userId}`)
+      .order('created_at', { ascending: false }).limit(1000);
+    if (error) throw error;
+    rows = (data || []).map(rowToDM);
+  }
+  const byOther = new Map();
+  for (const m of rows) {
+    const other = m.fromId === userId ? m.toId : m.fromId;
+    const existing = byOther.get(other);
+    if (!existing || m.createdAt > existing.lastMessage.createdAt) byOther.set(other, { lastMessage: m, unread: 0 });
+  }
+  for (const m of rows) {
+    if (m.toId === userId && !m.read) {
+      const entry = byOther.get(m.fromId);
+      if (entry) entry.unread++;
+    }
+  }
+  return [...byOther.entries()]
+    .map(([otherId, v]) => ({ userId: otherId, lastMessage: v.lastMessage, unread: v.unread }))
+    .sort((a, b) => b.lastMessage.createdAt.localeCompare(a.lastMessage.createdAt))
+    .slice(0, DM_CONVERSATIONS_LIMIT);
+}
+
+/** Sends a DM. `listingId`/`offerAmount`/`offerCurrency` are optional — an
+ * offer is just a message that also carries a proposed price the *seller*
+ * can accept to trigger an immediate sale via acceptOffer(). Only ever
+ * used for 'price' listings; auctions negotiate through bids only. */
+async function sendDM(fromId, toId, text, opts = {}) {
+  if (typeof toId !== 'string' || toId === fromId) return { error: 'dm_invalid' };
+  const message = typeof text === 'string' ? text.trim() : '';
+  if (!message || message.length > DM_MESSAGE_MAX) return { error: 'dm_invalid' };
+
+  let listingId = null, offerAmount = null, offerCurrency = null, offerStatus = null;
+  if (opts.listingId) {
+    const listing = await getListing(opts.listingId);
+    if (!listing || listing.listingType !== 'price') return { error: 'dm_invalid' };
+    listingId = listing.id;
+  }
+  if (opts.offerAmount !== undefined && opts.offerAmount !== null && opts.offerAmount !== '') {
+    const amt = Math.floor(Number(opts.offerAmount));
+    if (!Number.isInteger(amt) || amt <= 0 || amt > MARKET_MAX_AMOUNT) return { error: 'dm_invalid' };
+    const cur = opts.offerCurrency === 'gems' ? 'gems' : (opts.offerCurrency === 'gold' ? 'gold' : null);
+    if (!cur) return { error: 'dm_invalid' };
+    offerAmount = amt; offerCurrency = cur; offerStatus = 'pending';
+  }
+
+  const saved = await saveDM({
+    id: crypto.randomUUID(), fromId, toId, listingId, message,
+    offerAmount, offerCurrency, offerStatus, read: false, createdAt: new Date().toISOString(),
+  });
+  return { ok: true, message: saved };
+}
+
+/** The seller (or, if the seller sent the offer, the buyer) accepts a
+ * pending price offer from a DM, executing the sale immediately at the
+ * offered amount. Only the message's recipient can accept it. */
+async function acceptOffer(userId, messageId) {
+  const message = await getDMMessageById(messageId);
+  if (!message) return { error: 'offer_not_found' };
+  if (message.toId !== userId) return { error: 'not_your_offer' };
+  if (message.offerStatus !== 'pending' || !message.offerAmount || !message.listingId) return { error: 'offer_not_pending' };
+
+  const listing = await getListing(message.listingId);
+  if (!listing || listing.status !== 'active' || listing.listingType !== 'price') return { error: 'listing_not_active' };
+
+  let buyerId;
+  if (listing.sellerId === message.fromId) buyerId = message.toId;
+  else if (listing.sellerId === message.toId) buyerId = message.fromId;
+  else return { error: 'listing_not_active' };
+  if (buyerId === listing.sellerId) return { error: 'cannot_buy_own_listing' };
+
+  const currency = message.offerCurrency || listing.currency;
+  const amount = message.offerAmount;
+  const buyerGuild = await guildIdFor(buyerId);
+  const sellerGuild = await guildIdFor(listing.sellerId);
+  const taxRate = computeTaxRate(buyerGuild, sellerGuild);
+  const taxAmt = Math.round(amount * taxRate);
+  const totalCost = amount + taxAmt;
+
+  const profile = await fetchProfile(buyerId);
+  const balance = currency === 'gold' ? profile.gold : profile.gems;
+  if (balance < totalCost) { await setOfferStatus(messageId, 'declined'); return { error: 'buyer_cannot_afford' }; }
+
+  const sellerNet = amount - taxAmt;
+  await adjustWallet(buyerId, currency === 'gold' ? -totalCost : 0, currency === 'gems' ? -totalCost : 0);
+  await adjustWallet(listing.sellerId, currency === 'gold' ? sellerNet : 0, currency === 'gems' ? sellerNet : 0);
+  await adjustCardQuantity(buyerId, listing.cardId, 1);
+
+  listing.status = 'sold'; listing.currentBidderId = buyerId; listing.currentBid = amount;
+  listing.currency = currency; listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
+  await saveListing(listing);
+  await setOfferStatus(messageId, 'accepted');
+  return { ok: true, listing, buyerId, sellerId: listing.sellerId };
 }
 
 function seedStarterIds() {
@@ -417,14 +1418,15 @@ async function grantPack(userId, packId) {
     const field = result.currency === 'gems' ? 'gems' : 'gold';
     const { error } = await supabase.from('profiles').update({ [field]: newBalance }).eq('id', userId);
     if (error) throw error;
-    // bump quantities: fetch existing then upsert (small N, simplicity over cleverness)
+    // bump quantities: one read + one write for the whole pack, regardless
+    // of how many distinct cards it contained — all of it lives in the
+    // single jsonb blob for this player now.
     const counts = {};
     result.cards.forEach(c => { counts[c.id] = (counts[c.id] || 0) + 1; });
-    for (const [card_id, addQty] of Object.entries(counts)) {
-      const { data: existing } = await supabase.from('player_cards').select('quantity').eq('owner_id', userId).eq('card_id', card_id).maybeSingle();
-      const quantity = (existing?.quantity || 0) + addQty;
-      await supabase.from('player_cards').upsert({ owner_id: userId, card_id, quantity }, { onConflict: 'owner_id,card_id' });
-    }
+    const { data: existing } = await supabase.from('player_cards').select('cards').eq('owner_id', userId).maybeSingle();
+    const cards = { ...(existing?.cards || {}) };
+    for (const [card_id, addQty] of Object.entries(counts)) cards[card_id] = (cards[card_id] || 0) + addQty;
+    await supabase.from('player_cards').upsert({ owner_id: userId, cards }, { onConflict: 'owner_id' });
   }
   return { cards: result.cards, newBalance, currency: result.currency };
 }
@@ -485,8 +1487,13 @@ class Match {
     this.readyForBattle = [false, false];
     this.timer = null;
     this.disconnectTimers = [null, null];
+    /** userIds currently spectating this match — see addSpectator/removeSpectator. */
+    this.spectators = new Set();
     matches.set(this.id, this);
     this.users.forEach(u => activeMatchByUser.set(u, this));
+    // Tell every connected client these two are now "in a match" so their
+    // avatar becomes the purple spectate-eye anywhere it's shown.
+    broadcastAll({ type:'match_presence', userIds:this.users, inMatch:true });
   }
 
   otherSide(side) { return side === 0 ? 1 : 0; }
@@ -522,6 +1529,44 @@ class Match {
       const c = this.conn(side);
       if (c) c.send({ type: 'state', matchId: this.id, phase: this.phase, turn: this.turn, you: side, state: this.perspective(side), events: events || [] });
     }
+    this.broadcastToSpectators(events);
+  }
+
+  /** Public, hidden-hand-free view of both sides — spectators never see
+   * either player's hand, only counts, matching how the opponent's hand is
+   * already hidden from a normal player. */
+  spectatorView() {
+    const strip = s => ({
+      hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
+      weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length, handCount: s.hand.length,
+    });
+    return { sideA: strip(this.sides[0]), sideB: strip(this.sides[1]) };
+  }
+
+  addSpectator(userId) { this.spectators.add(userId); }
+  removeSpectator(userId) { this.spectators.delete(userId); }
+
+  broadcastToSpectators(events) {
+    if (!this.spectators.size) return;
+    const payload = {
+      type: 'spectate_state', matchId: this.id, phase: this.phase, turn: this.turn,
+      players: [
+        { userId: this.users[0], username: this.usernames?.[0] || 'Player', icon: this.icons?.[0] || 'star' },
+        { userId: this.users[1], username: this.usernames?.[1] || 'Player', icon: this.icons?.[1] || 'star' },
+      ],
+      state: this.spectatorView(), events: events || [],
+    };
+    for (const uid of this.spectators) connections.get(uid)?.send(payload);
+  }
+
+  /** Notify every current spectator the match is over, and forget them —
+   * called right before the match itself is torn down. */
+  clearSpectators(reason) {
+    for (const uid of this.spectators) {
+      connections.get(uid)?.send({ type:'spectate_ended', matchId:this.id, reason: reason || 'finished' });
+      if (spectatingUserMatch.get(uid) === this.id) spectatingUserMatch.delete(uid);
+    }
+    this.spectators.clear();
   }
 
   /** Never leak the opponent's hand contents — only its count. */
@@ -695,6 +1740,8 @@ class Match {
     if (this.finished) return; this.finished = true;
     this.clearTimer();
     this.disconnectTimers.forEach(t => t && clearTimeout(t));
+    this.clearSpectators('finished');
+    broadcastAll({ type:'match_presence', userIds:this.users, inMatch:false });
     const winnerId = this.users[winnerSide], loserId = this.users[this.otherSide(winnerSide)];
     matches.delete(this.id);
     this.users.forEach(u => activeMatchByUser.delete(u));
@@ -888,6 +1935,172 @@ async function startDuelMatch(uA, uB) {
   }
 }
 
+/* ── TRADING ──────────────────────────────────────────────────────
+ * A trade is a live negotiation between two connected players: each side
+ * builds an "offer" (some cards + gold + gems taken from their own
+ * collection/wallet), both sides must explicitly mark themselves ready,
+ * and then both sides must explicitly *confirm* — matching the client's
+ * "are you sure?" prompt — before anything is actually moved. Every offer
+ * is re-validated server-side against a fresh profile snapshot both when
+ * it's submitted and again right before the swap executes, so a stale
+ * client (or a spent-in-between-messages race, like buying a pack mid
+ * trade) can never move cards/currency the player doesn't actually have. */
+
+/** {cardId: quantity} tally of a flat collection array (which stores one
+ * entry per copy owned, same shape fetchProfile always returns). */
+function collectionCounts(collection) {
+  const out = {};
+  for (const id of collection || []) out[id] = (out[id] || 0) + 1;
+  return out;
+}
+
+/** Clamps a client-submitted offer down to what's actually legal: only
+ * owned card ids, only positive integer quantities no greater than what's
+ * owned, and gold/gems clamped to [0, balance]. Never trusts the client's
+ * numbers directly. */
+function sanitizeTradeOffer(raw, ownedCounts, gold, gems) {
+  const cards = {};
+  if (raw && typeof raw.cards === 'object' && raw.cards) {
+    for (const [cardId, qtyRaw] of Object.entries(raw.cards)) {
+      const qty = Math.floor(Number(qtyRaw));
+      const owned = ownedCounts[cardId] || 0;
+      if (!Number.isFinite(qty) || qty <= 0 || owned <= 0) continue;
+      cards[cardId] = Math.min(qty, owned);
+    }
+  }
+  let goldOffer = Math.floor(Number(raw && raw.gold));
+  let gemsOffer = Math.floor(Number(raw && raw.gems));
+  if (!Number.isFinite(goldOffer) || goldOffer < 0) goldOffer = 0;
+  if (!Number.isFinite(gemsOffer) || gemsOffer < 0) gemsOffer = 0;
+  return { cards, gold: Math.min(goldOffer, gold), gems: Math.min(gemsOffer, gems) };
+}
+
+/** Final, authoritative check right before cards/currency actually move —
+ * re-checks against a *fresh* profile fetch, not whatever was true when the
+ * offer was last submitted. */
+function tradeOfferIsValid(offer, profile) {
+  const counts = collectionCounts(profile.collection);
+  for (const [cardId, qty] of Object.entries(offer.cards || {})) {
+    if (!Number.isInteger(qty) || qty <= 0) return false;
+    if (qty > (counts[cardId] || 0)) return false;
+  }
+  if (!Number.isInteger(offer.gold) || offer.gold < 0 || offer.gold > profile.gold) return false;
+  if (!Number.isInteger(offer.gems) || offer.gems < 0 || offer.gems > profile.gems) return false;
+  return true;
+}
+
+function tradeStatePayload(session) {
+  return { type: 'trade_state', tradeId: session.id, users: session.users,
+    offers: session.offers, ready: session.ready, confirmed: session.confirmed };
+}
+function broadcastTradeState(session) {
+  const payload = tradeStatePayload(session);
+  for (const uid of session.users) connections.get(uid)?.send(payload);
+}
+/** Any offer change invalidates both sides' ready/confirm state — same
+ * "if terms change, everyone has to re-agree" rule real trade UIs use. */
+function resetTradeProgress(session) {
+  for (const uid of session.users) { session.ready[uid] = false; session.confirmed[uid] = false; }
+}
+function endTradeSession(session) {
+  tradeSessions.delete(session.id);
+  for (const uid of session.users) if (activeTradeByUser.get(uid) === session) activeTradeByUser.delete(uid);
+}
+function cancelTrade(session, byUserId, reason = 'cancelled') {
+  endTradeSession(session);
+  for (const uid of session.users) connections.get(uid)?.send({ type: 'trade_cancelled', tradeId: session.id, byUserId, reason });
+}
+
+/** Starts a live trade session between two already-agreed players — same
+ * request/response shape as startDuelMatch, just opening a negotiation
+ * instead of a battle. */
+async function startTradeSession(uA, uB) {
+  const connA = connections.get(uA), connB = connections.get(uB);
+  try {
+    const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+    const session = {
+      id: crypto.randomUUID(),
+      users: [uA, uB],
+      offers: { [uA]: { cards: {}, gold: 0, gems: 0 }, [uB]: { cards: {}, gold: 0, gems: 0 } },
+      ready: { [uA]: false, [uB]: false },
+      confirmed: { [uA]: false, [uB]: false },
+    };
+    tradeSessions.set(session.id, session);
+    activeTradeByUser.set(uA, session); activeTradeByUser.set(uB, session);
+    connA?.send({ type: 'trade_started', tradeId: session.id,
+      opponent: { userId: uB, username: profileB.username, icon: profileB.icon || 'star' },
+      yourCollection: collectionCounts(profileA.collection), yourGold: profileA.gold, yourGems: profileA.gems });
+    connB?.send({ type: 'trade_started', tradeId: session.id,
+      opponent: { userId: uA, username: profileA.username, icon: profileA.icon || 'star' },
+      yourCollection: collectionCounts(profileB.collection), yourGold: profileB.gold, yourGems: profileB.gems });
+    broadcastTradeState(session);
+  } catch (e) {
+    console.error('[arena] trade session failed', e);
+    connA?.send({ type: 'error', reason: 'trade_start_failed' });
+    connB?.send({ type: 'error', reason: 'trade_start_failed' });
+  }
+}
+
+/** +delta gives copies to userId, -delta removes them — used for both
+ * sides of a trade swap. Guest mode mutates the in-memory flat array;
+ * Supabase mode updates one key inside the player's single jsonb cards row. */
+async function adjustCardQuantity(userId, cardId, delta) {
+  if (!delta) return;
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId); if (!p) return;
+    if (delta > 0) { for (let i = 0; i < delta; i++) p.collection.push(cardId); }
+    else {
+      let n = -delta;
+      for (let i = p.collection.length - 1; i >= 0 && n > 0; i--) {
+        if (p.collection[i] === cardId) { p.collection.splice(i, 1); n--; }
+      }
+    }
+    return;
+  }
+  const { data: existing } = await supabase.from('player_cards').select('cards').eq('owner_id', userId).maybeSingle();
+  const cards = { ...(existing?.cards || {}) };
+  const newQty = (cards[cardId] || 0) + delta;
+  if (newQty <= 0) delete cards[cardId]; else cards[cardId] = newQty;
+  await supabase.from('player_cards').upsert({ owner_id: userId, cards }, { onConflict: 'owner_id' });
+}
+
+async function adjustWallet(userId, goldDelta, gemsDelta) {
+  if (!goldDelta && !gemsDelta) return;
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId); if (p) { p.gold += goldDelta; p.gems += gemsDelta; }
+    return;
+  }
+  const { data } = await supabase.from('profiles').select('gold,gems').eq('id', userId).maybeSingle();
+  if (!data) return;
+  await supabase.from('profiles').update({ gold: data.gold + goldDelta, gems: data.gems + gemsDelta }).eq('id', userId);
+}
+
+/** The actual swap — only ever called once both sides have confirmed.
+ * Re-validates both offers against fresh profiles first (defends against
+ * e.g. spending gold on a pack mid-negotiation), and throws rather than
+ * moving anything if either side no longer checks out. */
+async function executeTrade(session) {
+  const [uA, uB] = session.users;
+  const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+  const offerA = session.offers[uA], offerB = session.offers[uB];
+  if (!tradeOfferIsValid(offerA, profileA) || !tradeOfferIsValid(offerB, profileB)) {
+    const e = new Error('trade_invalid'); e.code = 'trade_invalid'; throw e;
+  }
+  for (const [cardId, qty] of Object.entries(offerA.cards)) { await adjustCardQuantity(uA, cardId, -qty); await adjustCardQuantity(uB, cardId, qty); }
+  for (const [cardId, qty] of Object.entries(offerB.cards)) { await adjustCardQuantity(uB, cardId, -qty); await adjustCardQuantity(uA, cardId, qty); }
+  await adjustWallet(uA, offerB.gold - offerA.gold, offerB.gems - offerA.gems);
+  await adjustWallet(uB, offerA.gold - offerB.gold, offerA.gems - offerB.gems);
+  if (HAS_SUPABASE) {
+    try {
+      await supabase.from('trade_history').insert({
+        player_a: uA, player_b: uB,
+        offer_a: { cards: offerA.cards, gold: offerA.gold, gems: offerA.gems },
+        offer_b: { cards: offerB.cards, gold: offerB.gold, gems: offerB.gems },
+      });
+    } catch (e) { /* history logging is best-effort — never blocks the trade itself */ }
+  }
+}
+
 async function tryMatch() {
   while (queue.length >= 2) {
     const uA = queue.shift(), uB = queue.shift();
@@ -985,7 +2198,7 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
-        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX } });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -1060,7 +2273,7 @@ wss.on('connection', (ws) => {
             const rel = await getFriendship(userId, targetId);
             friendship = !rel ? 'none' : rel.status === 'accepted' ? 'friends' : (rel.requestedBy === userId ? 'outgoing' : 'incoming');
           }
-          conn.send({ type:'player_profile', profile: publicFields, friendship });
+          conn.send({ type:'player_profile', profile: publicFields, friendship, inMatch: activeMatchByUser.has(targetId) });
         } catch (e) {
           conn.send({ type:'error', reason:'profile_fetch_failed' });
         }
@@ -1170,6 +2383,227 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      /* ── SOCIAL: guilds. Same request/response posture as everything
+       * above — every mutation re-validates from scratch server-side
+       * (membership, capacity, funds) rather than trusting client state. ── */
+      case 'guild_state': {
+        try { conn.send({ type:'guild_state', ...(await buildGuildState(userId)) }); }
+        catch (e) { console.error('[arena] guild_state failed', e); conn.send({ type:'error', reason:'guild_state_failed' }); }
+        break;
+      }
+      case 'guild_browse': {
+        try {
+          const search = typeof msg.search === 'string' ? msg.search.trim().slice(0, GUILD_NAME_MAX) : '';
+          conn.send({ type:'guild_browse_result', guilds: await browseGuilds(search) });
+        } catch (e) { console.error('[arena] guild_browse failed', e); conn.send({ type:'error', reason:'guild_browse_failed' }); }
+        break;
+      }
+      case 'guild_create': {
+        try {
+          const guildId = await createGuild(userId, msg);
+          conn.send({ type:'guild_created', guildId, ...(await buildGuildState(userId)) });
+        } catch (e) {
+          if (!['guild_name_invalid','guild_name_taken','already_in_guild','insufficient_funds'].includes(e.code)) console.error('[arena] guild_create failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_create_failed', guildCreateCost: GUILD_CREATE_COST_GEMS });
+        }
+        break;
+      }
+      case 'guild_join': {
+        try {
+          const guildId = msg.guildId;
+          if (typeof guildId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          const guild = await getGuildById(guildId);
+          if (!guild) return conn.send({ type:'error', reason:'guild_not_found' });
+          if (guild.visibility !== 'public') return conn.send({ type:'error', reason:'guild_not_public' });
+          await seatNewMember(guildId, userId);
+          await sendGuildState(userId);
+          await broadcastGuildState(guildId);
+        } catch (e) {
+          if (!['already_in_guild','guild_not_found','guild_full','insufficient_funds'].includes(e.code)) console.error('[arena] guild_join failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_join_failed' });
+        }
+        break;
+      }
+      case 'guild_apply': {
+        try {
+          const guildId = msg.guildId;
+          if (typeof guildId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          if (await getGuildMembership(userId)) return conn.send({ type:'error', reason:'already_in_guild' });
+          if (await getUserApplication(userId)) return conn.send({ type:'error', reason:'application_already_pending' });
+          if (await getUserInvite(userId)) return conn.send({ type:'error', reason:'invite_already_pending' });
+          const guild = await getGuildById(guildId);
+          if (!guild) return conn.send({ type:'error', reason:'guild_not_found' });
+          if (guild.visibility !== 'private') return conn.send({ type:'error', reason:'guild_not_private' });
+          if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) return conn.send({ type:'error', reason:'guild_full' });
+          await createApplication(guildId, userId);
+          await sendGuildState(userId);
+          // notify the leader (and only the leader — no officer role yet) if online
+          const leaderConn = connections.get(guild.leaderId);
+          if (leaderConn) sendGuildState(guild.leaderId);
+        } catch (e) { console.error('[arena] guild_apply failed', e); conn.send({ type:'error', reason:'guild_apply_failed' }); }
+        break;
+      }
+      case 'guild_application_cancel': {
+        try {
+          const app = await getUserApplication(userId);
+          if (!app) return conn.send({ type:'error', reason:'no_pending_application' });
+          await deleteApplication(app.guildId, userId);
+          await sendGuildState(userId);
+          const guild = await getGuildById(app.guildId);
+          if (guild) { const leaderConn = connections.get(guild.leaderId); if (leaderConn) sendGuildState(guild.leaderId); }
+        } catch (e) { console.error('[arena] guild_application_cancel failed', e); conn.send({ type:'error', reason:'guild_application_cancel_failed' }); }
+        break;
+      }
+      case 'guild_application_respond': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const applicantId = msg.userId;
+          if (typeof applicantId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          const apps = await listApplications(membership.guildId);
+          if (!apps.some(a => a.userId === applicantId)) return conn.send({ type:'error', reason:'no_pending_application' });
+          await deleteApplication(membership.guildId, applicantId);
+          if (msg.accept) {
+            try {
+              await seatNewMember(membership.guildId, applicantId);
+              await broadcastGuildState(membership.guildId);
+            } catch (e) {
+              // applicant can no longer be seated (guild filled up, or they can't
+              // afford the fee anymore) — tell them plainly instead of silently
+              // dropping their application.
+              connections.get(applicantId)?.send({ type:'error', reason: e.code === 'insufficient_funds' ? 'guild_application_accepted_but_underfunded' : (e.code || 'guild_application_accept_failed') });
+            }
+          }
+          await sendGuildState(userId);
+          await sendGuildState(applicantId);
+        } catch (e) { console.error('[arena] guild_application_respond failed', e); conn.send({ type:'error', reason:'guild_application_respond_failed' }); }
+        break;
+      }
+      case 'guild_invite': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          let targetId = typeof msg.userId === 'string' && msg.userId ? msg.userId : null;
+          if (!targetId && typeof msg.username === 'string') targetId = await findUserIdByUsername(msg.username);
+          if (!targetId) return conn.send({ type:'error', reason:'user_not_found' });
+          if (targetId === userId) return conn.send({ type:'error', reason:'cannot_invite_self' });
+          if (await getGuildMembership(targetId)) return conn.send({ type:'error', reason:'user_already_in_guild' });
+          if (await getUserInvite(targetId)) return conn.send({ type:'error', reason:'invite_already_pending' });
+          if (await getUserApplication(targetId)) return conn.send({ type:'error', reason:'application_already_pending' });
+          if ((await countGuildMembers(membership.guildId)) >= GUILD_MAX_MEMBERS) return conn.send({ type:'error', reason:'guild_full' });
+          await createInvite(membership.guildId, targetId, userId);
+          conn.send({ type:'guild_invite_sent', userId: targetId });
+          await sendGuildState(targetId);
+          await sendGuildState(userId); // so the leader's own "invites sent" list updates immediately
+        } catch (e) { console.error('[arena] guild_invite failed', e); conn.send({ type:'error', reason:'guild_invite_failed' }); }
+        break;
+      }
+      case 'guild_invite_respond': {
+        try {
+          const invite = await getUserInvite(userId);
+          if (!invite || invite.guildId !== msg.guildId) return conn.send({ type:'error', reason:'no_pending_invite' });
+          const guild = await getGuildById(invite.guildId);
+          await deleteInvite(invite.guildId, userId);
+          if (msg.accept) {
+            try {
+              await seatNewMember(invite.guildId, userId);
+              await broadcastGuildState(invite.guildId); // leader (an existing member) gets refreshed as part of this
+            } catch (e) {
+              conn.send({ type:'error', reason: e.code || 'guild_invite_accept_failed' });
+            }
+          } else if (guild) {
+            await sendGuildState(guild.leaderId); // so the declined invite drops off the leader's "invites sent" list
+          }
+          await sendGuildState(userId);
+        } catch (e) { console.error('[arena] guild_invite_respond failed', e); conn.send({ type:'error', reason:'guild_invite_respond_failed' }); }
+        break;
+      }
+      case 'guild_invite_cancel': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const targetId = msg.userId;
+          if (typeof targetId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          await deleteInvite(membership.guildId, targetId);
+          await sendGuildState(targetId);
+          await sendGuildState(userId); // so the invite disappears from the leader's own list immediately
+        } catch (e) { console.error('[arena] guild_invite_cancel failed', e); conn.send({ type:'error', reason:'guild_invite_cancel_failed' }); }
+        break;
+      }
+      case 'guild_leave': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          await removeGuildMember(membership.guildId, userId);
+          if (membership.role === 'leader') {
+            const remaining = await listGuildMembers(membership.guildId);
+            if (remaining.length === 0) {
+              await deleteGuild(membership.guildId);
+            } else {
+              // hand leadership to whoever's been there longest
+              const next = [...remaining].sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))[0];
+              await setGuildLeader(membership.guildId, next.userId);
+            }
+          }
+          await sendGuildState(userId);
+          await broadcastGuildState(membership.guildId);
+        } catch (e) { console.error('[arena] guild_leave failed', e); conn.send({ type:'error', reason:'guild_leave_failed' }); }
+        break;
+      }
+      case 'guild_kick': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const targetId = msg.userId;
+          if (typeof targetId !== 'string') return conn.send({ type:'error', reason:'bad_request' });
+          if (targetId === userId) return conn.send({ type:'error', reason:'cannot_kick_self' });
+          const targetMembership = await getGuildMembership(targetId);
+          if (!targetMembership || targetMembership.guildId !== membership.guildId) return conn.send({ type:'error', reason:'user_not_in_guild' });
+          await removeGuildMember(membership.guildId, targetId);
+          await sendGuildState(targetId);
+          await broadcastGuildState(membership.guildId);
+        } catch (e) { console.error('[arena] guild_kick failed', e); conn.send({ type:'error', reason:'guild_kick_failed' }); }
+        break;
+      }
+      case 'guild_disband': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership || membership.role !== 'leader') return conn.send({ type:'error', reason:'not_guild_leader' });
+          const members = await listGuildMembers(membership.guildId);
+          await deleteGuild(membership.guildId);
+          await Promise.all(members.map(m => sendGuildState(m.userId)));
+        } catch (e) { console.error('[arena] guild_disband failed', e); conn.send({ type:'error', reason:'guild_disband_failed' }); }
+        break;
+      }
+      case 'guild_chat_history': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          const messages = await listGuildChatMessages(membership.guildId);
+          conn.send({ type:'guild_chat_history', guildId: membership.guildId, messages });
+        } catch (e) { console.error('[arena] guild_chat_history failed', e); conn.send({ type:'error', reason:'guild_chat_history_failed' }); }
+        break;
+      }
+      case 'guild_chat_send': {
+        try {
+          const membership = await getGuildMembership(userId);
+          if (!membership) return conn.send({ type:'error', reason:'not_in_guild' });
+          const now = Date.now();
+          if (now - (guildChatLastSentAt.get(userId) || 0) < GUILD_CHAT_RATE_LIMIT_MS) {
+            return conn.send({ type:'error', reason:'guild_chat_rate_limited' });
+          }
+          if (typeof msg.message !== 'string' || !msg.message.trim()) return conn.send({ type:'error', reason:'guild_chat_empty' });
+          guildChatLastSentAt.set(userId, now);
+          const message = await sendGuildChatMessage(membership.guildId, userId, msg.message);
+          const members = await listGuildMembers(membership.guildId);
+          for (const m of members) connections.get(m.userId)?.send({ type:'guild_chat_message', guildId: membership.guildId, message });
+        } catch (e) {
+          if (e.code !== 'guild_chat_empty') console.error('[arena] guild_chat_send failed', e);
+          conn.send({ type:'error', reason: e.code || 'guild_chat_send_failed' });
+        }
+        break;
+      }
+
       /* ── SOCIAL: duels (1v1 challenges) — plain WS request/response,
        * exactly like matchmaking; nothing about a duel invite is persisted. ── */
       case 'duel_request': {
@@ -1209,6 +2643,228 @@ wss.on('connection', (ws) => {
         await startDuelMatch(fromId, userId);
         break;
       }
+
+      /* ── SOCIAL: trading — a live negotiation, not a one-shot request
+       * like a duel. Anybody currently connected can be traded with (no
+       * friendship requirement), same as pressing "Trade" from any
+       * profile view client-side. ── */
+      case 'trade_request': {
+        const targetId = msg.userId;
+        if (typeof targetId !== 'string') { conn.send({ type:'error', reason:'bad_request' }); break; }
+        if (targetId === userId) { conn.send({ type:'error', reason:'cannot_trade_self' }); break; }
+        if (isBotId(targetId)) { conn.send({ type:'error', reason:'cannot_trade_bot' }); break; }
+        if (activeMatchByUser.has(userId)) { conn.send({ type:'error', reason:'already_in_match' }); break; }
+        if (activeTradeByUser.has(userId)) { conn.send({ type:'error', reason:'already_trading' }); break; }
+        const targetConn = connections.get(targetId);
+        if (!targetConn) { conn.send({ type:'error', reason:'user_offline' }); break; }
+        if (activeMatchByUser.has(targetId) || activeTradeByUser.has(targetId)) { conn.send({ type:'error', reason:'user_busy' }); break; }
+        pendingTrades.set(targetId, userId);
+        targetConn.send({ type:'trade_request_received', userId, username: conn.username, icon: conn.icon });
+        conn.send({ type:'trade_request_sent', userId: targetId });
+        break;
+      }
+      case 'trade_respond': {
+        const fromId = msg.userId;
+        if (pendingTrades.get(userId) !== fromId) { conn.send({ type:'error', reason:'no_pending_trade' }); break; }
+        pendingTrades.delete(userId);
+        const fromConn = connections.get(fromId);
+        if (!msg.accept) {
+          if (fromConn) fromConn.send({ type:'trade_declined', userId });
+          break;
+        }
+        if (activeMatchByUser.has(userId) || activeMatchByUser.has(fromId) ||
+            activeTradeByUser.has(userId) || activeTradeByUser.has(fromId) || !fromConn) {
+          conn.send({ type:'error', reason:'trade_unavailable' });
+          break;
+        }
+        await startTradeSession(fromId, userId);
+        break;
+      }
+      case 'trade_update_offer': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        try {
+          const profile = await fetchProfile(userId, conn.username);
+          const counts = collectionCounts(profile.collection);
+          session.offers[userId] = sanitizeTradeOffer(msg.offer, counts, profile.gold, profile.gems);
+          resetTradeProgress(session);
+          broadcastTradeState(session);
+        } catch (e) { conn.send({ type:'error', reason:'trade_update_failed' }); }
+        break;
+      }
+      case 'trade_set_ready': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        session.ready[userId] = !!msg.ready;
+        if (!msg.ready) session.confirmed[userId] = false;
+        broadcastTradeState(session);
+        break;
+      }
+      case 'trade_confirm': {
+        const session = activeTradeByUser.get(userId);
+        if (!session) { conn.send({ type:'error', reason:'no_active_trade' }); break; }
+        const [uA, uB] = session.users;
+        if (!session.ready[uA] || !session.ready[uB]) { conn.send({ type:'error', reason:'not_ready' }); break; }
+        session.confirmed[userId] = true;
+        broadcastTradeState(session);
+        if (session.confirmed[uA] && session.confirmed[uB]) {
+          try {
+            await executeTrade(session);
+            const [freshA, freshB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+            endTradeSession(session);
+            connections.get(uA)?.send({ type:'trade_complete', tradeId: session.id, profile: freshA });
+            connections.get(uB)?.send({ type:'trade_complete', tradeId: session.id, profile: freshB });
+          } catch (e) {
+            console.error('[arena] trade execution failed', e);
+            endTradeSession(session);
+            connections.get(uA)?.send({ type:'error', reason:'trade_failed' });
+            connections.get(uB)?.send({ type:'error', reason:'trade_failed' });
+          }
+        }
+        break;
+      }
+      case 'trade_cancel': {
+        const session = activeTradeByUser.get(userId);
+        if (session) cancelTrade(session, userId);
+        break;
+      }
+
+      /* ── SPECTATING: read-only live view of someone else's match, entered
+       * by tapping their purple "in a match" indicator anywhere their
+       * avatar shows up. Never leaks either player's hand. ── */
+      case 'spectate_request': {
+        const targetId = msg.userId;
+        if (typeof targetId !== 'string') { conn.send({ type:'error', reason:'bad_request' }); break; }
+        const match = activeMatchByUser.get(targetId);
+        if (!match) { conn.send({ type:'error', reason:'not_in_match' }); break; }
+        const prevMatchId = spectatingUserMatch.get(userId);
+        if (prevMatchId && prevMatchId !== match.id) matches.get(prevMatchId)?.removeSpectator(userId);
+        match.addSpectator(userId);
+        spectatingUserMatch.set(userId, match.id);
+        conn.send({
+          type: 'spectate_started', matchId: match.id,
+          players: [
+            { userId: match.users[0], username: match.usernames?.[0] || 'Player', icon: match.icons?.[0] || 'star' },
+            { userId: match.users[1], username: match.usernames?.[1] || 'Player', icon: match.icons?.[1] || 'star' },
+          ],
+          phase: match.phase, turn: match.turn, state: match.spectatorView(),
+        });
+        break;
+      }
+      case 'spectate_leave': {
+        const matchId = spectatingUserMatch.get(userId);
+        if (matchId) { matches.get(matchId)?.removeSpectator(userId); spectatingUserMatch.delete(userId); }
+        break;
+      }
+
+      /* ── MARKETPLACE ──────────────────────────────────────────── */
+      case 'market_browse': {
+        try {
+          const filter = {};
+          if (msg.currency === 'gold' || msg.currency === 'gems') filter.currency = msg.currency;
+          if (msg.listingType === 'price' || msg.listingType === 'auction') filter.listingType = msg.listingType;
+          const listings = await browseActiveListings(filter);
+          const summaries = await fetchProfileSummaries(listings.flatMap(l => [l.sellerId, l.currentBidderId].filter(Boolean)));
+          conn.send({ type: 'market_listings', listings: listings.map(l => marketListingPayload(l, summaries)) });
+        } catch (e) { console.error('[arena] market_browse failed', e); conn.send({ type: 'error', reason: 'market_browse_failed' }); }
+        break;
+      }
+      case 'market_my_listings': {
+        try {
+          const listings = await listingsBySeller(userId);
+          const summaries = await fetchProfileSummaries(listings.flatMap(l => [l.sellerId, l.currentBidderId].filter(Boolean)));
+          conn.send({ type: 'market_my_listings', listings: listings.map(l => marketListingPayload(l, summaries)) });
+        } catch (e) { console.error('[arena] market_my_listings failed', e); conn.send({ type: 'error', reason: 'market_my_listings_failed' }); }
+        break;
+      }
+      case 'market_list_card': {
+        try {
+          const result = await createListing(userId, msg);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          const summaries = await fetchProfileSummaries([userId]);
+          conn.send({ type: 'market_listing_created', listing: marketListingPayload(result.listing, summaries), profile: await fetchProfile(userId) });
+        } catch (e) { console.error('[arena] market_list_card failed', e); conn.send({ type: 'error', reason: 'market_list_failed' }); }
+        break;
+      }
+      case 'market_cancel_listing': {
+        try {
+          const result = await cancelListing(userId, msg.listingId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'market_listing_cancelled', listingId: result.listing.id, profile: await fetchProfile(userId) });
+        } catch (e) { console.error('[arena] market_cancel_listing failed', e); conn.send({ type: 'error', reason: 'market_cancel_failed' }); }
+        break;
+      }
+      case 'market_buy_listing': {
+        try {
+          const before = await getListing(msg.listingId);
+          const result = await buyListing(userId, msg.listingId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          const buyerProfile = await fetchProfile(userId);
+          conn.send({ type: 'market_purchase_complete', listingId: result.listing.id, cardId: result.listing.cardId, profile: buyerProfile });
+          if (before) {
+            notifyUser(before.sellerId, { type: 'market_item_sold', listingId: result.listing.id, cardId: result.listing.cardId, amount: result.sellerNet ?? (result.listing.currentBid - Math.round(result.listing.currentBid * result.listing.taxRate)), currency: result.listing.currency, buyerName: conn.username });
+            if (result.previousBidderId) notifyUser(result.previousBidderId, { type: 'market_outbid', listingId: result.listing.id, reason: 'bought_out' });
+          }
+        } catch (e) { console.error('[arena] market_buy_listing failed', e); conn.send({ type: 'error', reason: 'market_buy_failed' }); }
+        break;
+      }
+      case 'market_place_bid': {
+        try {
+          const result = await placeBid(userId, msg.listingId, msg.amount);
+          if (result.error) { conn.send({ type: 'error', reason: result.error, minRequired: result.minRequired }); break; }
+          const summaries = await fetchProfileSummaries([result.listing.sellerId, result.listing.currentBidderId].filter(Boolean));
+          const payload = marketListingPayload(result.listing, summaries);
+          if (result.bought) {
+            conn.send({ type: 'market_purchase_complete', listingId: result.listing.id, cardId: result.listing.cardId, profile: await fetchProfile(userId) });
+          } else {
+            conn.send({ type: 'market_bid_placed', listing: payload });
+          }
+          notifyUser(result.listing.sellerId, { type: 'market_new_bid', listing: payload });
+        } catch (e) { console.error('[arena] market_place_bid failed', e); conn.send({ type: 'error', reason: 'market_bid_failed' }); }
+        break;
+      }
+
+      /* ── DIRECT MESSAGES (marketplace negotiation) ───────────────── */
+      case 'dm_conversations': {
+        try {
+          const conversations = await dmConversations(userId);
+          const summaries = await fetchProfileSummaries(conversations.map(c => c.userId));
+          conn.send({ type: 'dm_conversations', conversations: conversations.map(c => ({ ...c, username: summaries.get(c.userId)?.username || 'Unknown', icon: summaries.get(c.userId)?.icon || 'star' })) });
+        } catch (e) { console.error('[arena] dm_conversations failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
+        break;
+      }
+      case 'dm_history': {
+        try {
+          const otherId = msg.userId;
+          if (typeof otherId !== 'string') { conn.send({ type: 'error', reason: 'bad_request' }); break; }
+          const messages = await dmHistory(userId, otherId);
+          const summaries = await fetchProfileSummaries([userId, otherId]);
+          conn.send({ type: 'dm_history', userId: otherId, username: summaries.get(otherId)?.username || 'Unknown', icon: summaries.get(otherId)?.icon || 'star', messages });
+        } catch (e) { console.error('[arena] dm_history failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
+        break;
+      }
+      case 'dm_send': {
+        try {
+          if (isBotId(msg.toId)) { conn.send({ type: 'error', reason: 'dm_invalid' }); break; }
+          const result = await sendDM(userId, msg.toId, msg.text, { listingId: msg.listingId, offerAmount: msg.offerAmount, offerCurrency: msg.offerCurrency });
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'dm_message', message: result.message });
+          notifyUser(msg.toId, { type: 'dm_message', message: result.message, fromUsername: conn.username, fromIcon: conn.icon });
+        } catch (e) { console.error('[arena] dm_send failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
+        break;
+      }
+      case 'dm_accept_offer': {
+        try {
+          const result = await acceptOffer(userId, msg.messageId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          const [buyerProfile, sellerProfile] = await Promise.all([fetchProfile(result.buyerId), fetchProfile(result.sellerId)]);
+          notifyUser(result.buyerId, { type: 'market_purchase_complete', listingId: result.listing.id, cardId: result.listing.cardId, profile: buyerProfile });
+          notifyUser(result.sellerId, { type: 'profile', profile: sellerProfile });
+          notifyUser(result.sellerId, { type: 'market_item_sold', listingId: result.listing.id, cardId: result.listing.cardId, amount: result.listing.currentBid - Math.round(result.listing.currentBid * result.listing.taxRate), currency: result.listing.currency });
+        } catch (e) { console.error('[arena] dm_accept_offer failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
+        break;
+      }
+
       default:
         conn.send({ type:'error', reason:'unknown_message_type' });
     }
@@ -1227,6 +2883,12 @@ wss.on('connection', (ws) => {
       }
       pendingDuels.delete(conn.userId);
       for (const [target, requester] of pendingDuels) if (requester === conn.userId) pendingDuels.delete(target);
+      pendingTrades.delete(conn.userId);
+      for (const [target, requester] of pendingTrades) if (requester === conn.userId) pendingTrades.delete(target);
+      const tradeSession = activeTradeByUser.get(conn.userId);
+      if (tradeSession) cancelTrade(tradeSession, conn.userId, 'disconnected');
+      const specMatchId = spectatingUserMatch.get(conn.userId);
+      if (specMatchId) { matches.get(specMatchId)?.removeSpectator(conn.userId); spectatingUserMatch.delete(conn.userId); }
     }
   });
 });
@@ -1255,6 +2917,29 @@ const presenceSweep = setInterval(() => {
   }
 }, PRESENCE_SWEEP_MS);
 wss.on('close', () => clearInterval(presenceSweep));
+
+/* guild chat retention: messages older than 7 days are deleted hourly.
+ * Also run once shortly after boot in case the server was down past the
+ * top of an hour and a backlog built up. The read path in
+ * listGuildChatMessages() defensively re-filters by age too, so nothing
+ * expired is ever served even in the gap between sweeps. */
+const GUILD_CHAT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+setTimeout(() => cleanupExpiredGuildChatMessages().catch(e => console.error('[arena] guild chat cleanup failed', e)), Number(process.env.GUILD_CHAT_INITIAL_CLEANUP_DELAY_MS) || 10_000);
+const guildChatCleanup = setInterval(() => {
+  cleanupExpiredGuildChatMessages().catch(e => console.error('[arena] guild chat cleanup failed', e));
+}, GUILD_CHAT_CLEANUP_INTERVAL_MS);
+wss.on('close', () => clearInterval(guildChatCleanup));
+
+/* marketplace sweep: settles any listing/auction whose expires_at has
+ * passed — auctions with a bid go to the highest bidder, everything else
+ * (no-bid auctions, unsold price listings) returns the card to the seller.
+ * Runs frequently since listings can be as short as 1 day and players
+ * shouldn't wait an hour to get an expired card back. */
+setTimeout(() => settleExpiredListings().catch(e => console.error('[arena] marketplace sweep failed', e)), 5_000);
+const marketSweep = setInterval(() => {
+  settleExpiredListings().catch(e => console.error('[arena] marketplace sweep failed', e));
+}, MARKET_SWEEP_MS);
+wss.on('close', () => clearInterval(marketSweep));
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
