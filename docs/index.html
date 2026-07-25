@@ -1593,49 +1593,83 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.72rem;padding:7px 10px;outline:none;
 }
 
-/* listing card wrapper — reuses .card / renderCard() underneath, adds a
- * price/status footer + corner ribbon, same "wrap the renderer" pattern
- * as .db-card-slot / .shop-coll-card-slot elsewhere in the app. */
-.bazaar-card-slot{position:relative;display:flex;flex-direction:column;gap:6px;width:144px;}
-.bazaar-listing-ribbon{
-  position:absolute;top:-6px;left:50%;transform:translateX(-50%);z-index:3;
-  font-family:'Cinzel',serif;font-size:.52rem;font-weight:900;letter-spacing:.06em;
-  padding:2px 9px;border-radius:20px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.5);white-space:nowrap;
+/* ── Minimal grid tile — a cropped card-art thumbnail + a single price
+ * line. Deliberately small; tap it for the full detail modal instead of
+ * cramming buy/bid/message controls into every tile. ── */
+.bazaar-grid{display:flex;flex-wrap:wrap;gap:10px;}
+.bazaar-tile{
+  width:98px;cursor:pointer;border-radius:10px;overflow:hidden;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);
+  transition:transform .15s,border-color .15s,box-shadow .15s;
 }
-.bazaar-listing-ribbon.rb-price{background:linear-gradient(135deg,#059669,#10b981);}
-.bazaar-listing-ribbon.rb-auction{background:linear-gradient(135deg,#b45309,#f59e0b);color:#1a1206;}
-.bazaar-card-footer{
-  background:rgba(10,8,20,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;
-  padding:7px 8px;display:flex;flex-direction:column;gap:5px;font-family:'Rajdhani',sans-serif;
+.bazaar-tile:hover{transform:translateY(-3px);border-color:rgba(139,92,246,.4);box-shadow:0 8px 20px rgba(0,0,0,.4);}
+.bazaar-tile-art{width:98px;height:68px;overflow:hidden;position:relative;background:#0a0a16;}
+.bazaar-tile-art .card{transform:scale(.34);transform-origin:top left;}
+.bazaar-tile-ribbon{
+  position:absolute;top:3px;left:3px;z-index:2;font-family:'Rajdhani',sans-serif;font-size:.5rem;font-weight:800;
+  letter-spacing:.04em;padding:1px 5px;border-radius:20px;color:#fff;
 }
-.bazaar-price-row{display:flex;align-items:center;justify-content:center;gap:4px;font-size:.82rem;font-weight:800;color:#fde68a;}
-.bazaar-price-row img{width:13px;height:13px;}
-.bazaar-sub-row{font-size:.6rem;color:var(--txt-dim);text-align:center;letter-spacing:.02em;}
-.bazaar-seller-row{font-size:.58rem;color:var(--txt-muted);text-align:center;}
-.bazaar-bid-row{display:flex;gap:4px;}
-.bazaar-bid-input{
-  width:0;flex:1;min-width:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
-  border-radius:6px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.68rem;padding:5px 6px;outline:none;
+.bazaar-tile-ribbon.rb-price{background:rgba(5,150,105,.9);}
+.bazaar-tile-ribbon.rb-auction{background:rgba(217,119,6,.92);color:#1a1206;}
+.bazaar-tile-footer{padding:6px 7px;font-family:'Rajdhani',sans-serif;}
+.bazaar-tile-name{font-size:.6rem;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;}
+.bazaar-tile-price{display:flex;align-items:center;gap:3px;font-size:.68rem;font-weight:800;color:#fde68a;}
+.bazaar-tile-price img{width:11px;height:11px;}
+.bazaar-tile-status{font-size:.56rem;font-weight:800;letter-spacing:.04em;}
+.bazaar-tile-status.sold{color:#6ee7b7;}
+.bazaar-tile-status.expired,.bazaar-tile-status.cancelled{color:#9ca3af;}
+
+/* ── Listing detail modal (reuses .profile-modal shell) ── */
+#bazaar-listing-overlay{
+  display:none;position:fixed;inset:0;z-index:1150;align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#bazaar-listing-overlay.open{display:flex;}
+#bazaar-listing-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
+.bazaar-listing-modal{width:min(520px,94vw);max-height:88vh;padding:20px;position:relative;}
+.bazaar-listing-modal-close{
+  position:absolute;top:12px;right:12px;width:28px;height:28px;border-radius:8px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--txt-dim);
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);z-index:2;
+}
+.bazaar-listing-modal-close:hover{color:var(--txt);}
+.bazaar-detail-top{display:flex;gap:16px;margin-bottom:14px;}
+.bazaar-detail-card{width:144px;flex:0 0 144px;}
+.bazaar-detail-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-top:2px;}
+.bazaar-detail-name{font-family:'Cinzel',serif;font-weight:800;font-size:1rem;color:var(--txt);}
+.bazaar-detail-seller{font-size:.7rem;color:var(--txt-muted);}
+.bazaar-detail-timer{font-size:.66rem;color:#c4b5fd;}
+.bazaar-detail-price-block{margin-top:4px;}
+.bazaar-detail-price-label{font-size:.6rem;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.05em;}
+.bazaar-detail-price-value{display:flex;align-items:center;gap:5px;font-size:1.3rem;font-weight:900;color:#fde68a;}
+.bazaar-detail-price-value img{width:18px;height:18px;}
+.bazaar-detail-tax-note{font-size:.62rem;color:var(--txt-muted);line-height:1.5;margin-top:10px;}
+.bazaar-detail-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.bazaar-detail-bid-row{display:flex;gap:6px;}
+.bazaar-detail-bid-row input{
+  flex:1;min-width:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  border-radius:8px;color:var(--txt);font-family:'Rajdhani',sans-serif;font-size:.82rem;padding:9px 10px;outline:none;
 }
 .bazaar-btn{
-  border:none;border-radius:6px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.64rem;
-  letter-spacing:.03em;padding:6px 8px;cursor:pointer;color:#fff;white-space:nowrap;
+  border:none;border-radius:8px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.75rem;
+  letter-spacing:.03em;padding:10px 14px;cursor:pointer;color:#fff;white-space:nowrap;text-align:center;
 }
-.bazaar-btn.buy{background:linear-gradient(135deg,#059669,#10b981);flex:1;}
+.bazaar-btn.buy{background:linear-gradient(135deg,#059669,#10b981);}
 .bazaar-btn.bid{background:linear-gradient(135deg,#b45309,#f59e0b);color:#1a1206;flex:0 0 auto;}
-.bazaar-btn.msg{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);flex:1;}
-.bazaar-btn.cancel{background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.4);color:#fca5a5;flex:1;}
+.bazaar-btn.msg{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);}
+.bazaar-btn.cancel{background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.4);color:#fca5a5;}
 .bazaar-btn:disabled{opacity:.4;cursor:not-allowed;}
-.bazaar-status-tag{
-  text-align:center;font-size:.6rem;font-weight:800;letter-spacing:.05em;padding:3px 0;border-radius:5px;
+.bazaar-detail-status-banner{
+  text-align:center;font-size:.72rem;font-weight:800;letter-spacing:.04em;padding:9px;border-radius:8px;margin-top:14px;
 }
-.bazaar-status-tag.sold{background:rgba(16,185,129,.15);color:#6ee7b7;}
-.bazaar-status-tag.expired,.bazaar-status-tag.cancelled{background:rgba(156,163,175,.15);color:#9ca3af;}
+.bazaar-detail-status-banner.sold{background:rgba(16,185,129,.14);color:#6ee7b7;}
+.bazaar-detail-status-banner.expired,.bazaar-detail-status-banner.cancelled{background:rgba(156,163,175,.14);color:#9ca3af;}
 
-/* Sell form */
+/* Sell form — the selected card is a small thumbnail chip, not a full
+ * card render, so it never competes with the fields below for space. */
 .bazaar-sell-form-card{
   background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:12px;
-  padding:16px;display:flex;flex-direction:column;gap:12px;max-width:420px;
+  padding:14px;display:flex;flex-direction:column;gap:12px;max-width:420px;
 }
 .bazaar-form-row{display:flex;flex-direction:column;gap:5px;}
 .bazaar-form-label{font-size:.66rem;color:var(--txt-dim);letter-spacing:.05em;text-transform:uppercase;font-weight:700;}
@@ -1651,14 +1685,24 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 .bazaar-toggle.active{background:linear-gradient(135deg,#5b21b6,#7c3aed);border-color:#7c3aed;color:#fff;}
 .bazaar-duration-value{color:#c4b5fd;font-weight:800;}
-.bazaar-selected-card-row{display:flex;gap:12px;align-items:center;}
 .bazaar-tax-note{font-size:.62rem;color:var(--txt-muted);line-height:1.5;}
+.bazaar-sell-header{display:flex;align-items:center;gap:10px;padding-bottom:2px;}
+.bazaar-sell-thumb{width:46px;height:68px;flex:0 0 46px;overflow:hidden;border-radius:6px;border:1px solid rgba(255,255,255,.12);position:relative;background:#0a0a16;}
+.bazaar-sell-thumb .card{transform:scale(.319);transform-origin:top left;}
+.bazaar-sell-header-text{min-width:0;}
+.bazaar-sell-name{font-family:'Cinzel',serif;font-weight:800;font-size:.85rem;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bazaar-link-btn{
+  background:none;border:none;color:#a78bfa;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.66rem;
+  cursor:pointer;padding:3px 0;display:inline-flex;align-items:center;gap:3px;
+}
+.bazaar-link-btn:hover{color:#c4b5fd;}
 
-/* DM inbox — mirrors the guild chat (.gc-*) layout but as a two-pane list+thread */
-.dm-layout{display:flex;gap:14px;height:100%;min-height:360px;}
-.dm-conv-list{width:190px;flex:0 0 190px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;}
+/* ── DM inbox — fixed-height two-pane list+thread, everything scrolls
+ * INSIDE its own pane (never the outer page) ── */
+.dm-layout{display:flex;gap:14px;height:58vh;min-height:320px;max-height:560px;}
+.dm-conv-list{width:190px;flex:0 0 190px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;height:100%;}
 .dm-conv-row{
-  display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;flex-shrink:0;
   border:1px solid transparent;transition:background .15s;
 }
 .dm-conv-row:hover{background:rgba(255,255,255,.04);}
@@ -1667,26 +1711,30 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .dm-conv-preview{font-size:.6rem;color:var(--txt-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
 .dm-conv-unread{
   margin-left:auto;background:#7c3aed;color:#fff;font-size:.56rem;font-weight:900;border-radius:20px;
-  padding:1px 6px;min-width:16px;text-align:center;
+  padding:1px 6px;min-width:16px;text-align:center;flex-shrink:0;
 }
-.dm-thread{flex:1;display:flex;flex-direction:column;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;}
+.dm-thread{
+  flex:1;min-width:0;height:100%;display:flex;flex-direction:column;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;
+}
 .dm-thread-empty{margin:auto;color:var(--txt-muted);font-size:.72rem;text-align:center;padding:20px;font-style:italic;}
-.dm-thread-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+.dm-thread-messages{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
 .dm-bubble{max-width:78%;padding:8px 10px;border-radius:10px;font-size:.76rem;line-height:1.4;}
 .dm-bubble.theirs{align-self:flex-start;background:rgba(255,255,255,.06);}
 .dm-bubble.mine{align-self:flex-end;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;}
 .dm-offer-bubble{
   align-self:center;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);
-  border-radius:10px;padding:10px 12px;font-size:.72rem;text-align:center;max-width:85%;
+  border-radius:10px;padding:10px 12px;font-size:.72rem;text-align:center;max-width:85%;flex-shrink:0;
 }
 .dm-offer-amount{font-weight:900;color:#fde68a;font-size:.9rem;}
 .dm-offer-status{font-size:.6rem;color:var(--txt-muted);margin-top:2px;}
-.dm-thread-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid rgba(255,255,255,.08);}
-.dm-offer-row{display:flex;gap:6px;padding:0 10px 10px;}
+.dm-thread-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0;}
+.dm-offer-row{display:flex;gap:6px;padding:0 10px 10px;flex-shrink:0;}
 .dm-offer-row input{width:90px;}
 @media (max-width:640px){
-  .dm-layout{flex-direction:column;}
-  .dm-conv-list{width:100%;flex:0 0 auto;flex-direction:row;overflow-x:auto;}
+  .dm-layout{flex-direction:column;height:70vh;}
+  .dm-conv-list{width:100%;flex:0 0 auto;flex-direction:row;overflow-x:auto;height:auto;max-height:90px;}
+  .bazaar-detail-top{flex-direction:column;}
 }
 </style>
 </head>
@@ -1818,7 +1866,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         <span id="guild-tab-badge" class="social-tab-badge" style="display:none;"></span>
       </button>
       <button class="menu-tab" onclick="switchMenuTab('bazaar')" data-tab="bazaar">
-        <span class="menu-tab-icon">⚖</span>
+        <span class="menu-tab-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h13M13 3l4 4-4 4"/><path d="M20 17H7M11 21l-4-4 4-4"/></svg></span>
         <div class="menu-tab-text">
           <span class="menu-tab-label">Bazaar</span>
           <span class="menu-tab-sub">Buy · Sell · Auction</span>
@@ -2090,7 +2138,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <!-- BAZAAR PANEL (marketplace + DM negotiation) -->
       <div class="menu-panel" id="menu-panel-bazaar">
         <div class="panel-topbar">
-          <div class="panel-title">⚖ Bazaar</div>
+          <div class="panel-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><path d="M4 7h13M13 3l4 4-4 4"/><path d="M20 17H7M11 21l-4-4 4-4"/></svg>Bazaar</div>
           <div class="panel-meta">10% tax · 5% same-guild</div>
         </div>
         <div class="bazaar-subtabs">
@@ -2116,9 +2164,9 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
                 <option value="gold">Gold only</option>
                 <option value="gems">Gems only</option>
               </select>
-              <button class="bbtn bbtn-battle" style="padding:0 16px;font-size:.65rem;" onclick="refreshBazaarBrowse()">↻ Refresh</button>
+              <button class="bbtn bbtn-battle" style="padding:0 14px;font-size:.65rem;" onclick="refreshBazaarBrowse()"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:3px;"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5.5 9a7 7 0 0112.3-2.7M18.5 15a7 7 0 01-12.3 2.7"/></svg>Refresh</button>
             </div>
-            <div id="bazaar-browse-grid" class="card-grid-small"></div>
+            <div id="bazaar-browse-grid" class="bazaar-grid"></div>
             <div id="bazaar-browse-empty" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:30px 24px;">No listings match right now — check back soon, or list one yourself!</div>
           </div>
 
@@ -2126,14 +2174,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <div class="bazaar-view" id="bazaar-view-sell">
             <div id="bazaar-sell-picker">
               <div class="subscreen-section-label">Choose a card to list</div>
-              <div id="bazaar-sell-grid" class="card-grid-small"></div>
+              <div id="bazaar-sell-grid" class="bazaar-grid"></div>
             </div>
             <div id="bazaar-sell-form"></div>
           </div>
 
           <!-- MY LISTINGS -->
           <div class="bazaar-view" id="bazaar-view-mine">
-            <div id="bazaar-mine-grid" class="card-grid-small"></div>
+            <div id="bazaar-mine-grid" class="bazaar-grid"></div>
             <div id="bazaar-mine-empty" style="display:none;text-align:center;color:var(--txt-dim);font-size:.75rem;padding:30px 24px;">You haven't listed anything yet — head to the Sell tab.</div>
           </div>
 
@@ -2152,6 +2200,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
     </div><!-- /menu-content -->
   </div><!-- /menu-layout -->
+
+  <!-- LISTING DETAIL MODAL — opened by tapping any Bazaar card; keeps the
+       grid tiles themselves tiny (price + type only) while still surfacing
+       full detail (seller, timer, bid/buy/message) on demand. -->
+  <div id="bazaar-listing-overlay" onclick="handleBazaarListingBackdrop(event)">
+    <div class="profile-modal bazaar-listing-modal" onclick="event.stopPropagation()">
+      <div class="bazaar-listing-modal-close" onclick="closeBazaarListingModal()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      <div id="bazaar-listing-modal-body"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ══════ GAME TOPBAR OVERRIDE ══════ -->
@@ -2272,6 +2330,18 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   .pack-loading-dot{width:12px;height:12px;border-radius:50%;background:#a78bfa;animation:pack-dot-bounce 1s ease-in-out infinite;}
   @keyframes pack-dot-bounce{0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;}}
 </style>
+
+<!-- Same quick round-trip pattern as pack-loading-overlay, used for Bazaar
+     actions (buy/bid/list/cancel/accept-offer) that have a server round
+     trip — without this, those clicks feel like the game froze. -->
+<div id="bazaar-loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.75);z-index:2100;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-family:'Cinzel',serif;">
+  <div style="display:flex;gap:8px;">
+    <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+    <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+    <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+  </div>
+  <div id="bazaar-loading-status" style="font-size:.75rem;color:#c4b5fd;letter-spacing:.05em;">Contacting the Bazaar...</div>
+</div>
 
 <!-- Same quick round-trip pattern, used while waiting on the server's authoritative
      profile for a 'view_profile' request (chat clicks) — the profile modal itself
@@ -3682,6 +3752,23 @@ function renderFriendIcon(size=14){
  * shield outline with two engraved crest lines, no emoji, ever. */
 function renderGuildTabIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M9 11.4h6M9 14.4h6"/></svg>`;
+}
+/** Crossed-arrows exchange glyph used anywhere the Bazaar feature needs an
+ * icon (sidebar tab, panel header, success toasts) — no emoji, ever. */
+function renderBazaarTabIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 7h13M13 3l4 4-4 4"/><path d="M20 17H7M11 21l-4-4 4-4"/></svg>`;
+}
+function renderRefreshIcon(size=13){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5.5 9a7 7 0 0112.3-2.7M18.5 15a7 7 0 01-12.3 2.7"/></svg>`;
+}
+function renderBackIcon(size=13){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>`;
+}
+function renderCheckIcon(size=13){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg>`;
+}
+function renderCloseIcon(size=13){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 }
 /** The animated purple spectate-eye — replaces a player's normal avatar
  * icon anywhere they're shown while they're in a live match. Deliberately
@@ -6617,10 +6704,10 @@ function serverWaitStatusText(){
    BAZAAR: MARKETPLACE + DM NEGOTIATION
 ══════════════════════════════════════ */
 let BazaarState={
-  browse:[], mine:[], sellCardId:null, sellListingType:'price',
+  browse:[], mine:[], sellCardId:null, sellListingType:'price', sellCurrency:'gold',
   dmConversations:[], dmActiveUserId:null, dmMessages:[], dmActiveListingId:null,
+  modalListingId:null, modalMode:null,
 };
-let _bazaarLoadedOnce=false;
 
 function initBazaarTab(){
   refreshBazaarBrowse();
@@ -6637,6 +6724,16 @@ function switchBazaarTab(tab){
   if(tab==='messages') Net.send({type:'dm_conversations'});
 }
 
+/* ── Loading overlay — same "quick round trip" pattern as pack purchases,
+ * so buy/bid/list/cancel/accept-offer never feel like the game froze. ── */
+function showBazaarLoading(status){
+  document.getElementById('bazaar-loading-overlay').style.display='flex';
+  document.getElementById('bazaar-loading-status').textContent=status;
+}
+function hideBazaarLoading(){
+  document.getElementById('bazaar-loading-overlay').style.display='none';
+}
+
 function refreshBazaarBrowse(){
   const type=document.getElementById('bazaar-filter-type').value;
   const currency=document.getElementById('bazaar-filter-currency').value;
@@ -6645,6 +6742,7 @@ function refreshBazaarBrowse(){
   if(currency) req.currency=currency;
   Net.send(req);
 }
+function renderBazaarBrowse(){ refreshBazaarBrowse(); }
 
 function msLeftLabel(expiresAt){
   const ms=new Date(expiresAt).getTime()-Date.now();
@@ -6654,92 +6752,143 @@ function msLeftLabel(expiresAt){
   if(hrs>0) return `${hrs}h ${mins}m left`;
   return `${Math.max(1,mins)}m left`;
 }
-
 function currencyIcon(cur){ return `<img src="${cur==='gems'?'gem.png':'coin.png'}" alt="">`; }
+function findListingById(id){ return BazaarState.browse.find(l=>l.id===id) || BazaarState.mine.find(l=>l.id===id) || null; }
 
-/** Renders one listing as a wrapped card slot — same "wrap renderCard()"
- * pattern as .db-card-slot / .shop-coll-card-slot elsewhere in the app. */
-function bazaarListingCardHtml(l, mode){
+/* ── Minimal grid tile — cropped card-art thumbnail + one price line.
+ * Tap it for the full detail modal instead of cramming buy/bid/message
+ * controls into every tile. ── */
+function bazaarTileHtml(l, mode){
   const def=CardDB.find(c=>c.id===l.cardId);
   if(!def) return '';
   const displayCard=defToDisplayCard(def);
-  const isMine=mode==='mine';
   const isAuction=l.listingType==='auction';
-  const ribbon=isAuction?`<div class="bazaar-listing-ribbon rb-auction">AUCTION</div>`:`<div class="bazaar-listing-ribbon rb-price">BUY NOW</div>`;
-
-  let footer='';
+  const ribbon=l.status==='active'
+    ? `<div class="bazaar-tile-ribbon ${isAuction?'rb-auction':'rb-price'}">${isAuction?'AUCTION':'BUY NOW'}</div>`
+    : '';
+  let priceLine;
   if(l.status!=='active'){
-    const label=l.status==='sold'?'✓ SOLD':l.status==='expired'?'EXPIRED — returned':'CANCELLED — returned';
-    footer=`<div class="bazaar-card-footer"><div class="bazaar-status-tag ${l.status}">${label}</div></div>`;
-  } else if(isAuction){
-    const current=l.currentBid || l.startingBid;
-    const label=l.currentBid?'Current Bid':'Starting Bid';
-    footer=`<div class="bazaar-card-footer">
-      <div class="bazaar-price-row">${currencyIcon(l.currency)}${current.toLocaleString()}</div>
-      <div class="bazaar-sub-row">${label}${l.buyoutPrice?` · Buyout ${l.buyoutPrice.toLocaleString()}`:''}</div>
-      <div class="bazaar-sub-row">${msLeftLabel(l.expiresAt)}</div>
-      ${!isMine?`<div class="bazaar-seller-row">Seller: ${escapeHtml(l.sellerName||'Unknown')}</div>`:''}
-      ${isMine
-        ? `<button class="bazaar-btn cancel" ${l.currentBidderId?'disabled title="Can\'t cancel — this auction already has a bid"':''} onclick="event.stopPropagation();cancelBazaarListing('${l.id}')">Cancel</button>`
-        : `<div class="bazaar-bid-row">
-            <input type="number" class="bazaar-bid-input" id="bid-input-${l.id}" placeholder="${(current+1).toLocaleString()}+" min="${current+1}">
-            <button class="bazaar-btn bid" onclick="event.stopPropagation();placeBazaarBid('${l.id}')">Bid</button>
-          </div>
-          ${l.buyoutPrice?`<button class="bazaar-btn buy" onclick="event.stopPropagation();buyBazaarListing('${l.id}')">Buy Now · ${l.buyoutPrice.toLocaleString()}</button>`:''}`
-      }
-    </div>`;
+    const label=l.status==='sold'?'Sold':l.status==='expired'?'Expired':'Cancelled';
+    priceLine=`<div class="bazaar-tile-status ${l.status}">${label}</div>`;
   } else {
-    const totalCost=Math.round(l.price*1.10)+l.price; // worst-case (non-guild) preview; server computes the real total
-    footer=`<div class="bazaar-card-footer">
-      <div class="bazaar-price-row">${currencyIcon(l.currency)}${l.price.toLocaleString()}</div>
-      <div class="bazaar-sub-row">+tax at checkout (10%, or 5% same guild)</div>
-      <div class="bazaar-sub-row">${msLeftLabel(l.expiresAt)}</div>
-      ${!isMine?`<div class="bazaar-seller-row">Seller: ${escapeHtml(l.sellerName||'Unknown')}</div>`:''}
-      ${isMine
-        ? `<button class="bazaar-btn cancel" onclick="event.stopPropagation();cancelBazaarListing('${l.id}')">Cancel Listing</button>`
-        : `<button class="bazaar-btn buy" onclick="event.stopPropagation();buyBazaarListing('${l.id}')">Buy Now</button>
-           <button class="bazaar-btn msg" onclick="event.stopPropagation();openDMForListing('${l.sellerId}','${l.id}')">Message Seller</button>`
-      }
-    </div>`;
+    const amount=isAuction?(l.currentBid||l.startingBid):l.price;
+    priceLine=`<div class="bazaar-tile-price">${currencyIcon(l.currency)}${amount.toLocaleString()}</div>`;
   }
-
-  return `<div class="bazaar-card-slot">
-    ${ribbon}
-    ${renderCard(displayCard,false,-1,'')}
-    ${footer}
+  return `<div class="bazaar-tile" onclick="openBazaarListingModal('${l.id}','${mode}')">
+    <div class="bazaar-tile-art">${ribbon}${renderCard(displayCard,false,-1,'')}</div>
+    <div class="bazaar-tile-footer">
+      <div class="bazaar-tile-name">${escapeHtml(def.name)}</div>
+      ${priceLine}
+    </div>
   </div>`;
 }
 
-function renderBazaarBrowse(){
-  refreshBazaarBrowse();
-}
 function renderBazaarBrowseGrid(){
   const grid=document.getElementById('bazaar-browse-grid');
   const empty=document.getElementById('bazaar-browse-empty');
   const listings=BazaarState.browse.filter(l=>l.status==='active');
   if(!listings.length){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  grid.innerHTML=listings.map(l=>bazaarListingCardHtml(l,'browse')).join('');
+  grid.innerHTML=listings.map(l=>bazaarTileHtml(l,'browse')).join('');
+  if(BazaarState.modalMode==='browse' && BazaarState.modalListingId) refreshOpenModalIfShowing();
 }
-
 function renderBazaarMine(){
   const grid=document.getElementById('bazaar-mine-grid');
   const empty=document.getElementById('bazaar-mine-empty');
   if(!BazaarState.mine.length){ grid.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
-  grid.innerHTML=BazaarState.mine.map(l=>bazaarListingCardHtml(l,'mine')).join('');
+  grid.innerHTML=BazaarState.mine.map(l=>bazaarTileHtml(l,'mine')).join('');
+  if(BazaarState.modalMode==='mine' && BazaarState.modalListingId) refreshOpenModalIfShowing();
+}
+function refreshOpenModalIfShowing(){
+  const l=findListingById(BazaarState.modalListingId);
+  if(l) renderBazaarListingModalBody(l, BazaarState.modalMode);
+}
+
+/* ── Detail modal ── */
+function openBazaarListingModal(listingId, mode){
+  const l=findListingById(listingId);
+  if(!l) return;
+  BazaarState.modalListingId=listingId;
+  BazaarState.modalMode=mode;
+  renderBazaarListingModalBody(l, mode);
+  document.getElementById('bazaar-listing-overlay').classList.add('open');
+}
+function closeBazaarListingModal(){
+  document.getElementById('bazaar-listing-overlay').classList.remove('open');
+  BazaarState.modalListingId=null;
+  BazaarState.modalMode=null;
+}
+function handleBazaarListingBackdrop(ev){ if(ev.target.id==='bazaar-listing-overlay') closeBazaarListingModal(); }
+
+function renderBazaarListingModalBody(l, mode){
+  const def=CardDB.find(c=>c.id===l.cardId);
+  const body=document.getElementById('bazaar-listing-modal-body');
+  if(!def){ body.innerHTML=''; return; }
+  const displayCard=defToDisplayCard(def);
+  const isAuction=l.listingType==='auction';
+  const isMine=mode==='mine';
+  const currentAmount=isAuction?(l.currentBid||l.startingBid):l.price;
+
+  let actionsHtml='';
+  if(l.status!=='active'){
+    const label=l.status==='sold'?'Sold':l.status==='expired'?'Expired — returned to owner':'Cancelled — returned to owner';
+    actionsHtml=`<div class="bazaar-detail-status-banner ${l.status}">${label}</div>`;
+  } else if(isMine){
+    const disabledAttr=(isAuction && l.currentBidderId)?'disabled':'';
+    const disabledNote=(isAuction && l.currentBidderId)?'<div class="bazaar-tax-note">Can\'t cancel — this auction already has a bid.</div>':'';
+    actionsHtml=`<div class="bazaar-detail-actions">
+      <button class="bazaar-btn cancel" ${disabledAttr} onclick="cancelBazaarListing('${l.id}')">Cancel Listing</button>
+      ${disabledNote}
+    </div>`;
+  } else if(isAuction){
+    const minNext=(l.currentBid?l.currentBid+1:l.startingBid);
+    actionsHtml=`<div class="bazaar-detail-actions">
+      <div class="bazaar-detail-bid-row">
+        <input type="number" id="detail-bid-input" placeholder="${minNext.toLocaleString()}+" min="${minNext}">
+        <button class="bazaar-btn bid" onclick="placeBazaarBid('${l.id}')">Place Bid</button>
+      </div>
+      ${l.buyoutPrice?`<button class="bazaar-btn buy" onclick="buyBazaarListing('${l.id}')">Buy Now — ${l.buyoutPrice.toLocaleString()}</button>`:''}
+    </div>`;
+  } else {
+    actionsHtml=`<div class="bazaar-detail-actions">
+      <button class="bazaar-btn buy" onclick="buyBazaarListing('${l.id}')">Buy Now</button>
+      <button class="bazaar-btn msg" onclick="openDMForListing('${l.sellerId}','${l.id}')">Message Seller</button>
+    </div>`;
+  }
+
+  body.innerHTML=`
+    <div class="bazaar-detail-top">
+      <div class="bazaar-detail-card">${renderCard(displayCard,false,-1,'')}</div>
+      <div class="bazaar-detail-info">
+        <div class="bazaar-detail-name">${escapeHtml(def.name)}</div>
+        ${!isMine?`<div class="bazaar-detail-seller">Seller: ${escapeHtml(l.sellerName||'Unknown')}</div>`:''}
+        ${l.status==='active'?`<div class="bazaar-detail-timer">${msLeftLabel(l.expiresAt)}</div>`:''}
+        <div class="bazaar-detail-price-block">
+          <div class="bazaar-detail-price-label">${isAuction?(l.currentBid?'Current Bid':'Starting Bid'):'Price'}</div>
+          <div class="bazaar-detail-price-value">${currencyIcon(l.currency)}${currentAmount.toLocaleString()}</div>
+          ${isAuction && l.buyoutPrice?`<div class="bazaar-tax-note">Buyout: ${l.buyoutPrice.toLocaleString()} ${l.currency}</div>`:''}
+        </div>
+      </div>
+    </div>
+    ${l.status==='active' && !isMine?`<div class="bazaar-detail-tax-note">A 10% tax applies at checkout (5% if you're in the seller's guild).</div>`:''}
+    ${actionsHtml}
+  `;
 }
 
 function buyBazaarListing(listingId){
+  showBazaarLoading('Completing purchase…');
   Net.send({type:'market_buy_listing', listingId});
 }
 function placeBazaarBid(listingId){
-  const input=document.getElementById('bid-input-'+listingId);
+  const input=document.getElementById('detail-bid-input');
   const amount=Math.floor(Number(input && input.value));
   if(!Number.isFinite(amount) || amount<=0){ showToast('Enter a valid bid amount.'); return; }
+  showBazaarLoading('Placing your bid…');
   Net.send({type:'market_place_bid', listingId, amount});
 }
 function cancelBazaarListing(listingId){
+  showBazaarLoading('Cancelling listing…');
   Net.send({type:'market_cancel_listing', listingId});
 }
 
@@ -6756,9 +6905,12 @@ function renderBazaarSellPicker(){
     if(!def) return '';
     const displayCard=defToDisplayCard(def);
     const qty=counts[id];
-    return `<div class="db-card-slot" onclick="selectBazaarSellCard('${id}')">
-      ${renderCard(displayCard,false,-1,'db-card')}
-      ${qty>1?`<div class="dup-count-bubble" title="You own ${qty} copies">${qty}</div>`:''}
+    return `<div class="bazaar-tile" onclick="selectBazaarSellCard('${id}')">
+      <div class="bazaar-tile-art">${renderCard(displayCard,false,-1,'')}</div>
+      <div class="bazaar-tile-footer">
+        <div class="bazaar-tile-name">${escapeHtml(def.name)}</div>
+        ${qty>1?`<div class="bazaar-tile-status">Own: ${qty}</div>`:''}
+      </div>
     </div>`;
   }).join('');
 }
@@ -6773,6 +6925,7 @@ function collectionCountsClient(){
 function selectBazaarSellCard(cardId){
   BazaarState.sellCardId=cardId;
   BazaarState.sellListingType='price';
+  BazaarState.sellCurrency='gold';
   document.getElementById('bazaar-sell-picker').style.display='none';
   renderBazaarSellForm();
 }
@@ -6794,11 +6947,11 @@ function renderBazaarSellForm(){
   const isAuction=BazaarState.sellListingType==='auction';
   form.innerHTML=`
     <div class="bazaar-sell-form-card">
-      <div class="bazaar-selected-card-row">
-        <div style="width:90px;">${renderCard(displayCard,false,-1,'')}</div>
-        <div>
-          <div style="font-family:'Cinzel',serif;font-weight:800;color:var(--txt);">${escapeHtml(def.name)}</div>
-          <button class="bazaar-btn msg" style="margin-top:8px;" onclick="cancelBazaarSell()">← Choose a different card</button>
+      <div class="bazaar-sell-header">
+        <div class="bazaar-sell-thumb">${renderCard(displayCard,false,-1,'')}</div>
+        <div class="bazaar-sell-header-text">
+          <div class="bazaar-sell-name">${escapeHtml(def.name)}</div>
+          <button class="bazaar-link-btn" onclick="cancelBazaarSell()">${renderBackIcon(11)}Choose a different card</button>
         </div>
       </div>
 
@@ -6813,8 +6966,8 @@ function renderBazaarSellForm(){
       <div class="bazaar-form-row">
         <div class="bazaar-form-label">Currency</div>
         <div class="bazaar-toggle-row">
-          <div class="bazaar-toggle active" id="sell-currency-gold" onclick="setBazaarSellCurrency('gold')">Gold</div>
-          <div class="bazaar-toggle" id="sell-currency-gems" onclick="setBazaarSellCurrency('gems')">Gems</div>
+          <div class="bazaar-toggle ${BazaarState.sellCurrency==='gold'?'active':''}" id="sell-currency-gold" onclick="setBazaarSellCurrency('gold')">Gold</div>
+          <div class="bazaar-toggle ${BazaarState.sellCurrency==='gems'?'active':''}" id="sell-currency-gems" onclick="setBazaarSellCurrency('gems')">Gems</div>
         </div>
       </div>
 
@@ -6841,7 +6994,6 @@ function renderBazaarSellForm(){
 
       <button class="bbtn bbtn-battle" onclick="submitBazaarListing()">List Card</button>
     </div>`;
-  BazaarState.sellCurrency='gold';
 }
 function setBazaarSellCurrency(cur){
   BazaarState.sellCurrency=cur;
@@ -6870,11 +7022,13 @@ function submitBazaarListing(){
       req.buyoutPrice=buyout;
     }
   }
+  showBazaarLoading('Listing your card…');
   Net.send(req);
 }
 
 /* ── DIRECT MESSAGES ── */
 function openDMForListing(sellerId, listingId){
+  closeBazaarListingModal();
   switchMenuTab('bazaar');
   switchBazaarTab('messages');
   BazaarState.dmActiveListingId=listingId;
@@ -6908,7 +7062,6 @@ function updateDMBadge(){
 }
 function openDMThread(otherUserId){
   BazaarState.dmActiveUserId=otherUserId;
-  document.querySelectorAll('.dm-conv-row').forEach(r=>{});
   Net.send({type:'dm_history', userId:otherUserId});
 }
 function renderDMThread(){
@@ -6925,7 +7078,7 @@ function renderDMThread(){
         ${m.message?`<div style="margin-top:4px;">${escapeHtml(m.message)}</div>`:''}
         ${m.offerStatus==='pending'
           ? (canAccept?`<button class="bazaar-btn buy" style="margin-top:6px;" onclick="acceptDMOffer('${m.id}')">Accept Offer</button>`:`<div class="dm-offer-status">Waiting on a response…</div>`)
-          : `<div class="dm-offer-status">${m.offerStatus==='accepted'?'✓ Offer accepted — sale complete':m.offerStatus==='declined'?'Offer declined':'Offer expired'}</div>`}
+          : `<div class="dm-offer-status">${m.offerStatus==='accepted'?'Offer accepted — sale complete':m.offerStatus==='declined'?'Offer declined':'Offer expired'}</div>`}
       </div>`;
     }
     return `<div class="dm-bubble ${m.fromId===Net.userId?'mine':'theirs'}">${escapeHtml(m.message)}</div>`;
@@ -6964,6 +7117,7 @@ function sendDMOffer(){
   document.getElementById('dm-offer-amount').value='';
 }
 function acceptDMOffer(messageId){
+  showBazaarLoading('Accepting offer…');
   Net.send({type:'dm_accept_offer', messageId});
 }
 
@@ -7037,7 +7191,7 @@ const Net={
         // never before (not during load, not before auth completes).
         startPresenceHeartbeat();
         break;
-      case 'profile': applyServerProfile(msg.profile); break;
+      case 'profile': hideBazaarLoading(); applyServerProfile(msg.profile); break;
       case 'player_profile':
         hideProfileLoading();
         if(msg.profile){
@@ -7134,24 +7288,31 @@ const Net={
         renderBazaarMine();
         break;
       case 'market_listing_created':
+        hideBazaarLoading();
         applyServerProfile(msg.profile);
-        showToast('✦ Listed on the Bazaar!');
+        showToast('Listed on the Bazaar!', 2200, renderBazaarTabIcon(13));
         cancelBazaarSell();
         switchBazaarTab('mine');
         break;
       case 'market_listing_cancelled':
+        hideBazaarLoading();
         applyServerProfile(msg.profile);
+        closeBazaarListingModal();
         showToast('Listing cancelled — card returned to your collection.');
         Net.send({type:'market_my_listings'});
         break;
       case 'market_purchase_complete':
+        hideBazaarLoading();
         applyServerProfile(msg.profile);
-        showToast('✦ Purchase complete!');
+        closeBazaarListingModal();
+        showToast('Purchase complete!', 2200, renderCheckIcon(13));
         refreshBazaarBrowse();
         Net.send({type:'market_my_listings'});
+        if(BazaarState.dmActiveUserId) Net.send({type:'dm_history', userId:BazaarState.dmActiveUserId});
         break;
       case 'market_bid_placed':
-        showToast('Bid placed!');
+        hideBazaarLoading();
+        showToast('Bid placed!', 2200, renderCheckIcon(13));
         refreshBazaarBrowse();
         break;
       case 'market_new_bid':
@@ -7163,13 +7324,15 @@ const Net={
         refreshBazaarBrowse();
         break;
       case 'market_auction_won':
-        showToast('✦ You won an auction!');
+        showToast('You won an auction!', 2600, renderCheckIcon(13));
         Net.send({type:'get_profile'});
         break;
       case 'market_item_sold':
-        showToast(`✦ Your card sold${msg.buyerName?` to ${msg.buyerName}`:''}!`);
+        hideBazaarLoading();
+        showToast(`Your card sold${msg.buyerName?` to ${msg.buyerName}`:''}!`, 2600, renderCheckIcon(13));
         Net.send({type:'get_profile'});
         Net.send({type:'market_my_listings'});
+        if(BazaarState.dmActiveUserId) Net.send({type:'dm_history', userId:BazaarState.dmActiveUserId});
         break;
       case 'market_listing_expired':
         showToast('A listing expired unsold — card returned to your collection.');
@@ -7201,6 +7364,7 @@ const Net={
       case 'error':
         hidePackLoading();
         hideProfileLoading();
+        hideBazaarLoading();
         if(msg.reason==='card_library_mismatch'){
           const overlay=document.getElementById('mp-connecting-overlay');
           if(overlay&&overlay.style.display==='flex'){
@@ -7292,36 +7456,36 @@ const Net={
         } else if(msg.reason==='not_in_guild'){
           showToast("⚠ You're not in a guild.");
         } else if(msg.reason==='card_not_found'||msg.reason==='invalid_listing_params'){
-          showToast('⚠ That listing is not valid — check the price/bid fields.');
+          showToast('That listing is not valid — check the price/bid fields.');
         } else if(msg.reason==='invalid_duration'){
-          showToast('⚠ Listing duration must be between 1 and 14 days.');
+          showToast('Listing duration must be between 1 and 14 days.');
         } else if(msg.reason==='card_not_owned'){
-          showToast("⚠ You don't own that card.");
+          showToast("You don't own that card.");
         } else if(msg.reason==='listing_not_found'||msg.reason==='listing_not_active'){
-          showToast('⚠ That listing is no longer available.');
+          showToast('That listing is no longer available.');
           refreshBazaarBrowse();
         } else if(msg.reason==='not_your_listing'){
-          showToast("⚠ That's not your listing.");
+          showToast("That's not your listing.");
         } else if(msg.reason==='cannot_buy_own_listing'||msg.reason==='cannot_bid_own_listing'){
-          showToast("⚠ You can't buy or bid on your own listing.");
+          showToast("You can't buy or bid on your own listing.");
         } else if(msg.reason==='not_an_auction'){
-          showToast('⚠ That listing is Buy-Now only.');
+          showToast('That listing is Buy-Now only.');
         } else if(msg.reason==='auction_requires_bid'){
-          showToast('⚠ This auction has no buyout price — place a bid instead.');
+          showToast('This auction has no buyout price — place a bid instead.');
         } else if(msg.reason==='invalid_amount'){
-          showToast('⚠ Enter a valid amount.');
+          showToast('Enter a valid amount.');
         } else if(msg.reason==='bid_too_low'){
-          showToast(`⚠ Your bid must be at least ${(msg.minRequired||0).toLocaleString()}.`);
+          showToast(`Your bid must be at least ${(msg.minRequired||0).toLocaleString()}.`);
         } else if(msg.reason==='insufficient_funds'){
-          showToast("⚠ You can't afford that (tax included).");
+          showToast("You can't afford that (tax included).");
         } else if(msg.reason==='dm_invalid'){
-          showToast('⚠ Could not send that message.');
+          showToast('Could not send that message.');
         } else if(msg.reason==='offer_not_found'||msg.reason==='offer_not_pending'){
-          showToast('⚠ That offer is no longer available.');
+          showToast('That offer is no longer available.');
         } else if(msg.reason==='not_your_offer'){
-          showToast("⚠ That offer wasn't sent to you.");
+          showToast("That offer wasn't sent to you.");
         } else if(msg.reason==='buyer_cannot_afford'){
-          showToast('⚠ The buyer can no longer afford that offer — it was declined.');
+          showToast('The buyer can no longer afford that offer — it was declined.');
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
