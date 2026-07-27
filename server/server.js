@@ -218,15 +218,16 @@ async function fetchProfile(userId, fallbackName) {
   if (!HAS_SUPABASE) {
     if (!guestProfiles.has(userId)) {
       guestProfiles.set(userId, { id: userId, username: fallbackName || `Guest${nextGuestId++}`,
-        gold: 500, gems: 25, wins: 0, losses: 0, icon: 'star', banner: 'violet', bio: '', favoriteCards: [],
+        gold: 500, gems: 25, wins: 0, losses: 0, rankPoints: 0, icon: 'star', banner: 'violet', bio: '', favoriteCards: [],
         collection: seedStarterIds(), deck: [] });
     }
-    return guestProfiles.get(userId);
+    const p = guestProfiles.get(userId);
+    return { ...p, rank: Engine.getRank(p.rankPoints || 0) };
   }
   let { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
   if (!profile) {
-    const insert = { id: userId, username: fallbackName || `Pestmaster${nextGuestId++}`, gold: 500, gems: 25, wins: 0, losses: 0 };
+    const insert = { id: userId, username: fallbackName || `Pestmaster${nextGuestId++}`, gold: 500, gems: 25, wins: 0, losses: 0, rank_points: 0 };
     const { data: created, error: insErr } = await supabase.from('profiles').insert(insert).select('*').single();
     if (insErr) throw insErr;
     profile = created;
@@ -240,9 +241,10 @@ async function fetchProfile(userId, fallbackName) {
   }
   const { data: cardsRow } = await supabase.from('player_cards').select('cards').eq('owner_id', userId).maybeSingle();
   const { data: deckRow } = await supabase.from('player_decks').select('card_ids').eq('owner_id', userId).maybeSingle();
+  const rankPoints = profile.rank_points || 0;
   return {
     id: profile.id, username: profile.username, gold: profile.gold, gems: profile.gems,
-    wins: profile.wins, losses: profile.losses,
+    wins: profile.wins, losses: profile.losses, rankPoints, rank: Engine.getRank(rankPoints),
     icon: profile.icon || 'star', banner: profile.banner || 'violet', bio: profile.bio || '',
     favoriteCards: profile.favorite_cards || [],
     collection: Object.entries(cardsRow?.cards || {}).flatMap(([id, qty]) => Array(qty).fill(id)),
@@ -309,14 +311,14 @@ async function fetchProfileSummaries(userIds) {
   if (!HAS_SUPABASE) {
     for (const id of ids) {
       const p = guestProfiles.get(id);
-      out.set(id, { username: p ? p.username : 'Unknown', icon: (p && p.icon) || 'star' });
+      out.set(id, { username: p ? p.username : 'Unknown', icon: (p && p.icon) || 'star', rank: Engine.getRank(p ? (p.rankPoints || 0) : 0) });
     }
     return out;
   }
-  const { data, error } = await supabase.from('profiles').select('id,username,icon').in('id', ids);
+  const { data, error } = await supabase.from('profiles').select('id,username,icon,rank_points').in('id', ids);
   if (error) throw error;
-  for (const row of data || []) out.set(row.id, { username: row.username, icon: row.icon || 'star' });
-  for (const id of ids) if (!out.has(id)) out.set(id, { username: 'Unknown', icon: 'star' });
+  for (const row of data || []) out.set(row.id, { username: row.username, icon: row.icon || 'star', rank: Engine.getRank(row.rank_points || 0) });
+  for (const id of ids) if (!out.has(id)) out.set(id, { username: 'Unknown', icon: 'star', rank: Engine.getRank(0) });
   return out;
 }
 
@@ -442,6 +444,7 @@ async function buildFriendsList(userId) {
     userId: r.otherId,
     username: summaries.get(r.otherId)?.username || 'Unknown',
     icon: summaries.get(r.otherId)?.icon || 'star',
+    rank: summaries.get(r.otherId)?.rank || Engine.getRank(0),
     ...(withOnline ? { online: !!online.get(r.otherId), inMatch: activeMatchByUser.has(r.otherId) } : {}),
   });
   return {
@@ -1467,22 +1470,28 @@ async function grantPack(userId, packId) {
  * nothing here should try to read/write one as if it belonged to a player. */
 const isBotId = id => typeof id === 'string' && id.startsWith('bot:');
 
+const RANK_POINTS_WIN = 2, RANK_POINTS_LOSS = -1;
+
 async function applyMatchReward(winnerId, loserId) {
   if (!HAS_SUPABASE) {
     const w = guestProfiles.get(winnerId), l = guestProfiles.get(loserId);
-    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; }
-    if (l) { l.losses++; }
+    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); }
+    if (l) { l.losses++; l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); }
     return { gold: WIN_GOLD_REWARD, gems: 0 };
   }
   if (!isBotId(winnerId)) {
-    const { data: winner } = await supabase.from('profiles').select('gold,wins').eq('id', winnerId).maybeSingle();
+    const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
     if (winner) {
-      await supabase.from('profiles').update({ gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 }).eq('id', winnerId);
+      const rankPoints = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
+      await supabase.from('profiles').update({ gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1, rank_points: rankPoints }).eq('id', winnerId);
     }
   }
   if (!isBotId(loserId)) {
-    const { data: loser } = await supabase.from('profiles').select('losses').eq('id', loserId).maybeSingle();
-    if (loser) await supabase.from('profiles').update({ losses: loser.losses + 1 }).eq('id', loserId);
+    const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
+    if (loser) {
+      const rankPoints = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
+      await supabase.from('profiles').update({ losses: loser.losses + 1, rank_points: rankPoints }).eq('id', loserId);
+    }
   }
   // don't log fake matches against a bot into permanent match history
   if (!isBotId(winnerId) && !isBotId(loserId)) {
@@ -1571,7 +1580,7 @@ class Match {
     const strip = s => ({
       hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
       weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length, handCount: s.hand.length,
-      reviveBank: s.reviveBank, deathQueueCount: s.deathQueue.length, creaturesLeft: Engine.aliveCreatureCount(s),
+      graveyardCount: s.graveyard.length, creaturesLeft: Engine.aliveCreatureCount(s),
     });
     return { sideA: strip(this.sides[0]), sideB: strip(this.sides[1]) };
   }
@@ -1584,8 +1593,8 @@ class Match {
     const payload = {
       type: 'spectate_state', matchId: this.id, phase: this.phase, turn: this.turn,
       players: [
-        { userId: this.users[0], username: this.usernames?.[0] || 'Player', icon: this.icons?.[0] || 'star' },
-        { userId: this.users[1], username: this.usernames?.[1] || 'Player', icon: this.icons?.[1] || 'star' },
+        { userId: this.users[0], username: this.usernames?.[0] || 'Player', icon: this.icons?.[0] || 'star', rank: this.ranks?.[0] || null },
+        { userId: this.users[1], username: this.usernames?.[1] || 'Player', icon: this.icons?.[1] || 'star', rank: this.ranks?.[1] || null },
       ],
       state: this.spectatorView(), events: events || [],
     };
@@ -1602,17 +1611,19 @@ class Match {
     this.spectators.clear();
   }
 
-  /** Never leak the opponent's hand contents — only its count. */
+  /** Never leak the opponent's hand contents — only its count. Your own
+   * graveyard is sent in full (you need to see it to pick a revive target);
+   * the opponent's is just a count, same treatment as their hand. */
   perspective(side) {
     const opp = this.otherSide(side);
     const strip = s => ({
       hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
       weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length,
-      reviveBank: s.reviveBank, deathQueueCount: s.deathQueue.length, creaturesLeft: Engine.aliveCreatureCount(s),
+      creaturesLeft: Engine.aliveCreatureCount(s),
     });
     return {
-      you: { ...strip(this.sides[side]), hand: this.sides[side].hand },
-      opponent: { ...strip(this.sides[opp]), handCount: this.sides[opp].hand.length },
+      you: { ...strip(this.sides[side]), hand: this.sides[side].hand, graveyard: this.sides[side].graveyard },
+      opponent: { ...strip(this.sides[opp]), handCount: this.sides[opp].hand.length, graveyardCount: this.sides[opp].graveyard.length },
       actedThisTurn: [...this.actedThisTurn[side]],
     };
   }
@@ -1735,6 +1746,25 @@ class Match {
     else this.armTurnTimer();
   }
 
+  /** A card whose top effect is `revive` (instead of `attack`) can spend its
+   * turn action reviving any one creature from this side's own graveyard —
+   * player's choice of which, not automatic/earliest-first. `msg.target` is
+   * the dead creature's instanceId. */
+  handleUseAbility(userId, msg) {
+    const side = this.sideOf(userId); if (side === -1) return this.errTo(userId, 'not_in_match');
+    if (this.phase !== 'MAIN' || this.turn !== side) return this.errTo(userId, 'not_your_turn');
+    const slot = msg.slot === 'slot2' ? 'slot2' : 'slot1';
+
+    const result = Engine.executeRevive(this, side, slot, msg.target);
+    if (!result.ok) return this.errTo(userId, result.reason);
+    this.broadcastState(result.events);
+
+    const slot1Done = !this.sides[side].activeCard || this.actedThisTurn[side].has('slot1');
+    const slot2Done = !this.sides[side].activeCard2 || this.actedThisTurn[side].has('slot2');
+    if (slot1Done && slot2Done) setTimeout(() => this.endTurn(side), 600);
+    else this.armTurnTimer();
+  }
+
   handleEndTurn(userId) {
     const side = this.sideOf(userId); if (side === -1) return;
     if (this.phase !== 'MAIN' || this.turn !== side) return;
@@ -1766,7 +1796,7 @@ class Match {
     const side = this.sideOf(userId); if (side === -1) return;
     if (this.disconnectTimers[side]) { clearTimeout(this.disconnectTimers[side]); this.disconnectTimers[side] = null; }
     this.conn(this.otherSide(side))?.send({ type:'opponent_reconnected' });
-    this.conn(side)?.send({ type:'match_found', matchId: this.id, youAre: side, opponentName: this.usernames?.[this.otherSide(side)] || 'Opponent', opponentIcon: this.icons?.[this.otherSide(side)] || 'star', resumed: true });
+    this.conn(side)?.send({ type:'match_found', matchId: this.id, youAre: side, opponentName: this.usernames?.[this.otherSide(side)] || 'Opponent', opponentIcon: this.icons?.[this.otherSide(side)] || 'star', opponentRank: this.ranks?.[this.otherSide(side)] || null, resumed: true });
     this.broadcastState([]);
   }
 
@@ -1904,6 +1934,11 @@ function attachBotAI(match) {
         if (!card || match.actedThisTurn[botSide].has(slotKey)) continue;
         await sleep(randMs(700, 1900));
         if (!stillBotsTurn()) break;
+        if (card.topEffect?.type === 'revive' && entity.graveyard.length && Math.random() < 0.7) {
+          const target = entity.graveyard[Math.floor(Math.random() * entity.graveyard.length)];
+          match.handleUseAbility(match.botUserId, { slot: slotKey, target: target.instanceId });
+          continue;
+        }
         const oppEntity = match.sides[humanSide];
         const targetSlot = oppEntity.activeCard ? 'slot1' : (oppEntity.activeCard2 ? 'slot2' : null);
         const atkIndex = (card.topEffect?.type === 'attack' && Math.random() < 0.5) ? 0 : 1;
@@ -1955,10 +1990,11 @@ async function startBotMatch(userId) {
     const match = new Match(uA, uB, dA, dB);
     match.usernames = humanSide === 0 ? [profile.username, botName] : [botName, profile.username];
     match.icons = humanSide === 0 ? [profile.icon || 'star', 'skull'] : ['skull', profile.icon || 'star'];
+    match.ranks = humanSide === 0 ? [profile.rank, null] : [null, profile.rank];
     match.botSide = humanSide === 0 ? 1 : 0;
     match.botUserId = botUserId;
 
-    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName, opponentIcon: 'skull' });
+    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName, opponentIcon: 'skull', opponentRank: null });
     match.broadcastState([]);
     attachBotAI(match);
   } catch (e) {
@@ -1979,8 +2015,9 @@ async function startDuelMatch(uA, uB) {
     const match = new Match(uA, uB, deckA, deckB);
     match.usernames = [profileA.username, profileB.username];
     match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
-    connA?.send({ type: 'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star' });
-    connB?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star' });
+    match.ranks = [profileA.rank, profileB.rank];
+    connA?.send({ type: 'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank });
+    connB?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank });
     match.broadcastState([]);
   } catch (e) {
     console.error('[arena] duel match failed', e);
@@ -2169,8 +2206,9 @@ async function tryMatch() {
       const match = new Match(uA, uB, deckA, deckB);
       match.usernames = [profileA.username, profileB.username];
       match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
-      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star' });
-      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star' });
+      match.ranks = [profileA.rank, profileB.rank];
+      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank });
+      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank });
       match.broadcastState([]);
     } catch (e) {
       console.error('[arena] matchmaking failed', e);
@@ -2294,6 +2332,10 @@ wss.on('connection', (ws) => {
       }
       case 'attack': {
         activeMatchByUser.get(userId)?.handleAttack(userId, msg);
+        break;
+      }
+      case 'use_ability': {
+        activeMatchByUser.get(userId)?.handleUseAbility(userId, msg);
         break;
       }
       case 'end_turn': {
@@ -2798,8 +2840,8 @@ wss.on('connection', (ws) => {
         conn.send({
           type: 'spectate_started', matchId: match.id,
           players: [
-            { userId: match.users[0], username: match.usernames?.[0] || 'Player', icon: match.icons?.[0] || 'star' },
-            { userId: match.users[1], username: match.usernames?.[1] || 'Player', icon: match.icons?.[1] || 'star' },
+            { userId: match.users[0], username: match.usernames?.[0] || 'Player', icon: match.icons?.[0] || 'star', rank: match.ranks?.[0] || null },
+            { userId: match.users[1], username: match.usernames?.[1] || 'Player', icon: match.icons?.[1] || 'star', rank: match.ranks?.[1] || null },
           ],
           phase: match.phase, turn: match.turn, state: match.spectatorView(),
         });
