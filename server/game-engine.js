@@ -22,11 +22,11 @@
  * in the engine ever checks it to decide a match's outcome anymore.
  *
  * Death is permanent — a dead creature never returns to the deck — with one
- * exception: killing an enemy creature banks you a revive charge (1 for a
- * PESTS-classification kill, 2 for a BOSS or OVERLORD kill). Banked charges
- * are spent automatically, oldest-death-first, against your own side's dead
- * creatures (see `killCard`/`settleRevives`) — reviving a creature returns
- * it to hand at 50% max HP with all lingering statuses cleared.
+ * exception: a card whose top effect is a `revive` ability (instead of an
+ * `attack`) can be activated as that card's turn action to bring back any
+ * one creature from its own side's graveyard, player's choice, at a
+ * fraction of its max HP (see `executeRevive`). Like an attack, this uses up
+ * that slot's action for the turn — no free/automatic revives of any kind.
  */
 
 const crypto = require('crypto');
@@ -258,63 +258,59 @@ function processEffects(entity, trigger, ctx, side) {
   });
 }
 
-/** Kills whatever creature is sitting in `match.sides[side][slotKey]`.
- * Handles ALL of: permanent removal from the active slot, pushing it onto
- * that side's death queue (oldest-first), and — if `killerSide` is given
- * and differs from `side` (i.e. an opponent's action caused this death) —
- * banking that opponent a revive charge based on the dead card's
- * classification (1 for PESTS, 2 for BOSS/OVERLORD, 0 for anything else).
- * Banked charges are then spent immediately against whichever side(s) have
- * both a charge and a queued death. */
-function killCard(match, side, slotKey, events, killerSide) {
+/** Kills whatever creature is sitting in `match.sides[side][slotKey]`:
+ * removes it from the active slot and pushes it onto that side's graveyard,
+ * permanently, unless and until that side spends a `revive` ability's turn
+ * action to bring it back (see `executeRevive`). There is no automatic or
+ * banked revive of any kind — every revival is a deliberate player choice
+ * that costs a card's action, same as an attack would. */
+function killCard(match, side, slotKey, events) {
   const entity = match.sides[side];
   const card = cardInSlot(entity, slotKey);
   if (!card) return;
   events.push({ t:'death', side, slot: slotKey, card:card.instanceId, name:card.name });
   if (entity.activeCard === card) entity.activeCard = null;
   else if (entity.activeCard2 === card) entity.activeCard2 = null;
-  entity.deathQueue.push(card);
-
-  if (killerSide != null && killerSide !== side) {
-    const killerEntity = match.sides[killerSide];
-    let gain = 0;
-    if (card.classification === 'boss' || card.classification === 'overlord') gain = 2;
-    else if (card.classification === 'pests') gain = 1;
-    if (gain > 0) {
-      killerEntity.reviveBank = (killerEntity.reviveBank || 0) + gain;
-      events.push({ t:'revive_charge', side:killerSide, amount:gain, classification:card.classification, killedCard:card.instanceId });
-    }
-    settleRevives(match, killerSide, events);
-  }
-  settleRevives(match, side, events);
+  entity.graveyard.push(card);
 }
 
-/** Spends every available revive charge on `side` against its own death
- * queue, earliest death first (FIFO — never "latest"). Revived creatures
- * return to hand at 50% max HP with all lingering statuses cleared. */
-function settleRevives(match, side, events) {
+/** Activates a `revive` top-effect ability as `slotKey`'s action for the
+ * turn: the acting card must be alive, unacted-this-turn, and have
+ * `topEffect.type === 'revive'`; `deadInstanceId` must name a creature
+ * currently in this side's graveyard (the caller's choice — earliest,
+ * latest, whichever they want). The revived creature returns to hand at
+ * `topEffect.healPercent` of its max HP (50% if unspecified) with all
+ * lingering statuses cleared, and this consumes the acting card's turn
+ * exactly like an attack would. */
+function executeRevive(match, side, slotKey, deadInstanceId) {
   const entity = match.sides[side];
-  while ((entity.reviveBank || 0) > 0 && entity.deathQueue.length > 0) {
-    entity.reviveBank--;
-    const card = entity.deathQueue.shift(); // earliest death first, never latest
-    card.currentHp = Math.max(1, Math.round(card.maxHp * 0.5));
-    card.activeEffects = [];
-    entity.hand.push(card);
-    events.push({ t:'revive', side, card:card.instanceId, name:card.name, hp:card.currentHp, maxHp:card.maxHp });
-  }
+  const events = [];
+  if (match.actedThisTurn[side].has(slotKey)) return { ok:false, reason:'already_acted', events };
+  const actingCard = cardInSlot(entity, slotKey);
+  if (!actingCard) return { ok:false, reason:'no_card_in_slot', events };
+  if (!actingCard.topEffect || actingCard.topEffect.type !== 'revive') return { ok:false, reason:'no_revive_ability', events };
+
+  const idx = entity.graveyard.findIndex(c => c.instanceId === deadInstanceId);
+  if (idx === -1) return { ok:false, reason:'invalid_target', events };
+  const [card] = entity.graveyard.splice(idx, 1);
+
+  const healPercent = actingCard.topEffect.healPercent != null ? actingCard.topEffect.healPercent : 0.5;
+  card.currentHp = Math.max(1, Math.round(card.maxHp * healPercent));
+  card.activeEffects = [];
+  entity.hand.push(card);
+  events.push({ t:'revive', side, card: card.instanceId, name: card.name, hp: card.currentHp, maxHp: card.maxHp, via: actingCard.instanceId });
+
+  match.actedThisTurn[side].add(slotKey);
+  return { ok:true, events };
 }
 
 /** Checks both of `side`'s active slots for a creature at <=0 HP (e.g. after
- * onTurnStart DOT ticks, or a rocks-trap hit on deploy) and kills it. Deaths
- * found here are credited to the opposing side for revive-bank purposes,
- * since HP loss outside of a direct attack always originates from an effect
- * or trap the opponent applied. */
+ * onTurnStart DOT ticks, or a rocks-trap hit on deploy) and kills it. */
 function checkCardDeath(match, side, events) {
   const entity = match.sides[side];
-  const otherSide = side === 0 ? 1 : 0;
   ['slot1','slot2'].forEach(slotKey => {
     const c = cardInSlot(entity, slotKey);
-    if (c && c.currentHp <= 0) killCard(match, side, slotKey, events, otherSide);
+    if (c && c.currentHp <= 0) killCard(match, side, slotKey, events);
   });
 }
 
@@ -457,20 +453,11 @@ function buildDeckFromIds(ids) {
 function freshSide(deck) {
   const d = [...deck];
   applySynergies(d); // deck+hand together — synergy is about composition, not what's drawn yet
-  // Some cards grant a starting revive charge just for being in the deck
-  // (topEffect.bonusReviveCharge) — banked immediately, spent the moment
-  // there's a queued death to use it on.
-  let reviveBank = 0;
-  d.forEach(card => {
-    if (card && !card.cardType && card.topEffect && card.topEffect.type === 'passive' && card.topEffect.bonusReviveCharge) {
-      reviveBank += card.topEffect.bonusReviveCharge;
-    }
-  });
   return {
     hp: 100, maxHp: 100, // cosmetic only — see module doc; never decides the match anymore
     activeCard: null, activeCard2: null, weaponCard: null, defenseCard: null,
     deck: d, hand: d.splice(0, 4),
-    reviveBank, deathQueue: [], // deathQueue is oldest-first; revives always pop index 0
+    graveyard: [], // permanently-dead creatures, until/unless a revive ability brings one back
   };
 }
 
@@ -601,12 +588,12 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
     const r = Math.floor(dmg * .25); ac.currentHp -= r;
     events.push({ t:'curse_recoil', side, slot:atkSlotKey, card:ac.instanceId, dmg:r });
     if (ac.currentHp <= 0) {
-      killCard(match, side, atkSlotKey, events, defSide);
+      killCard(match, side, atkSlotKey, events);
       return { stop:true };
     }
   }
   if (targetCard.currentHp <= 0) {
-    killCard(match, defSide, tgtSlotKey, events, side);
+    killCard(match, defSide, tgtSlotKey, events);
     return { stop:true };
   }
   return { stop:false };
@@ -690,12 +677,41 @@ function isMatchOver(match) {
   return null;
 }
 
+/* ── RANK SYSTEM ──────────────────────────────────────────────────────
+ * Ten tiers, five sub-ranks each (V worst → I best), 5 rank points per
+ * sub-rank — 25 points to climb a whole tier, 250 to run the entire ladder.
+ * A win is +2 rank points, a loss is -1 (floored at 0 — see applyMatchReward
+ * in server.js, where rankPoints is actually persisted). This table is the
+ * single source of truth for turning a raw point total into a tier/sub-rank
+ * label; the client mirrors just the display table, never the math. */
+const RANK_TIERS = ['Copper','Bronze','Iron','Gold','Platinum','Diamond','Legend','Mythic','Godly','Absolute'];
+const RANK_SUBS = ['V','IV','III','II','I']; // index 0 = worst of the tier, index 4 = best
+const RANK_POINTS_PER_SUB = 5;
+const RANK_SUBS_PER_TIER = RANK_SUBS.length;
+const RANK_POINTS_PER_TIER = RANK_POINTS_PER_SUB * RANK_SUBS_PER_TIER; // 25
+const RANK_MAX_POINTS = RANK_TIERS.length * RANK_POINTS_PER_TIER - 1;  // 249 — top of Absolute I
+
+/** points -> {tier, sub, label, points}. Points are clamped into the valid
+ * ladder range only for the purposes of this lookup — the raw stored value
+ * is never itself clamped/mutated, so no precision is lost once someone's
+ * sitting at the very top. */
+function getRank(points) {
+  const p = Math.max(0, Number(points) || 0);
+  const clamped = Math.min(p, RANK_MAX_POINTS);
+  const step = Math.floor(clamped / RANK_POINTS_PER_SUB);
+  const tierIndex = Math.min(RANK_TIERS.length - 1, Math.floor(step / RANK_SUBS_PER_TIER));
+  const subIndex = step - tierIndex * RANK_SUBS_PER_TIER;
+  const tier = RANK_TIERS[tierIndex], sub = RANK_SUBS[subIndex];
+  return { tier, sub, label: `${tier} ${sub}`, points: p };
+}
+
 module.exports = {
   CardDB, CardById, CARD_LIBRARY_HASH, CARD_LIBRARY_RAW, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
   Effects, hasEffect, applyEffectToCard, processEffects, checkCardDeath,
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
   executeAttack, triggerRocks, isMatchOver, applyDeployAbility,
-  killCard, settleRevives, applySynergies, attackDefFor, aliveCreatureCount,
+  killCard, executeRevive, applySynergies, attackDefFor, aliveCreatureCount,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
   DECK_SIZE, MAX_CREATURES, deckClassificationOk,
+  RANK_TIERS, RANK_SUBS, RANK_POINTS_PER_SUB, RANK_POINTS_PER_TIER, RANK_MAX_POINTS, getRank,
 };
