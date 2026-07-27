@@ -186,6 +186,8 @@ const MARKET_MY_LISTINGS_LIMIT = 100;
 const DM_MESSAGE_MAX = 300;
 const DM_HISTORY_LIMIT = 200;
 const DM_CONVERSATIONS_LIMIT = 50;
+const DM_LISTING_MESSAGE_RETENTION_MS = 60 * 60 * 1000; // messages tied to a listing are purged 1hr after it's settled
+const DM_CLEANUP_SWEEP_MS = 10 * 60 * 1000;              // how often that purge runs
 
 /** Picks out only the whitelisted, well-formed fields from a client's
  * `update_profile` message. Anything absent or invalid is simply omitted
@@ -1375,13 +1377,43 @@ async function acceptOffer(userId, messageId) {
   return { ok: true, listing, buyerId, sellerId: listing.sellerId };
 }
 
+/** Purges DM messages tied to a listing once that listing has been settled
+ * (sold/expired/cancelled) for over an hour. The point of a listing-linked
+ * message is negotiating THAT sale — once it's resolved, keeping the offer
+ * back-and-forth around forever just clutters the thread the next time you
+ * message the same seller about a different card. Plain messages with no
+ * listingId (and messages on a still-active listing) are never touched. */
+async function cleanupExpiredListingDMs() {
+  const cutoffIso = new Date(Date.now() - DM_LISTING_MESSAGE_RETENTION_MS).toISOString();
+  if (!HAS_SUPABASE) {
+    const staleListingIds = new Set(
+      [...guestListings.values()]
+        .filter(l => l.status !== 'active' && l.settledAt && l.settledAt <= cutoffIso)
+        .map(l => l.id)
+    );
+    if (!staleListingIds.size) return;
+    for (const [key, arr] of guestDMs) {
+      const kept = arr.filter(m => !m.listingId || !staleListingIds.has(m.listingId));
+      if (kept.length !== arr.length) guestDMs.set(key, kept);
+    }
+    return;
+  }
+  const { data: staleListings, error: listErr } = await supabase.from('marketplace_listings')
+    .select('id').neq('status', 'active').lte('settled_at', cutoffIso).limit(500);
+  if (listErr) { console.error('[arena] DM cleanup: failed to find settled listings', listErr); return; }
+  const ids = (staleListings || []).map(l => l.id);
+  if (!ids.length) return;
+  const { error } = await supabase.from('direct_messages').delete().in('listing_id', ids);
+  if (error) console.error('[arena] DM cleanup failed', error);
+}
+
 function seedStarterIds() {
-  // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
-  // (or special Pests-tier) cards at all, so it's legal by construction under
-  // Engine.deckClassificationOk — a new player can save their whole starter
-  // collection as their first deck.
+  // All-equipment-plus-PESTS-creatures starter set contains no Boss/Overlord
+  // cards at all, so it's legal by construction under Engine.deckClassificationOk
+  // — a new player can save their whole starter collection as their first deck.
+  // Capped at Engine.MAX_CREATURES creatures, same rule a real deck must follow.
   const equipment = Engine.CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense').map(c => c.id);
-  const normals = Engine.CardDB.filter(c => !c.cardType && c.classification === 'normal').map(c => c.id);
+  const normals = Engine.CardDB.filter(c => !c.cardType && c.classification === 'pests').map(c => c.id).slice(0, Engine.MAX_CREATURES);
   return [...equipment, ...normals].slice(0, Engine.DECK_SIZE);
 }
 
@@ -1539,6 +1571,7 @@ class Match {
     const strip = s => ({
       hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
       weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length, handCount: s.hand.length,
+      reviveBank: s.reviveBank, deathQueueCount: s.deathQueue.length, creaturesLeft: Engine.aliveCreatureCount(s),
     });
     return { sideA: strip(this.sides[0]), sideB: strip(this.sides[1]) };
   }
@@ -1575,6 +1608,7 @@ class Match {
     const strip = s => ({
       hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
       weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length,
+      reviveBank: s.reviveBank, deathQueueCount: s.deathQueue.length, creaturesLeft: Engine.aliveCreatureCount(s),
     });
     return {
       you: { ...strip(this.sides[side]), hand: this.sides[side].hand },
@@ -1622,11 +1656,11 @@ class Match {
     const ctx = { events: [], skipTurn: false };
     if (entity.activeCard || entity.activeCard2) {
       Engine.processEffects(entity, 'onTurnStart', ctx, side);
-      Engine.checkCardDeath(entity, ctx.events, side);
+      Engine.checkCardDeath(this, side, ctx.events);
     }
     this.actedThisTurn = [new Set(), new Set()];
     const over = Engine.isMatchOver(this);
-    if (over !== null) { this.broadcastState(ctx.events); this.finish(over); return; }
+    if (over !== null) { this.broadcastState(ctx.events); if (over === 'draw') this.finishDraw(); else this.finish(over); return; }
     if (ctx.skipTurn) {
       this.broadcastState(ctx.events.concat([{ t:'turn_skip', side }]));
       setTimeout(() => this.endTurn(side, true), 1200);
@@ -1667,7 +1701,7 @@ class Match {
       Engine.triggerRocks(this.sides[this.otherSide(side)], card, events, side, 'slot1');
       const old = entity.activeCard;
       entity.activeCard = card; entity.hand.splice(idx, 1); entity.hand.push(old);
-      Engine.checkCardDeath(entity, events, side);
+      Engine.checkCardDeath(this, side, events);
     }
     this.broadcastState(events);
     if (this.phase === 'SETUP') this.armSetupTimer();
@@ -1693,7 +1727,7 @@ class Match {
     this.broadcastState(result.events);
 
     const over = Engine.isMatchOver(this);
-    if (over !== null) { this.finish(over); return; }
+    if (over !== null) { if (over === 'draw') this.finishDraw(); else this.finish(over); return; }
 
     const slot1Done = !this.sides[side].activeCard || this.actedThisTurn[side].has('slot1');
     const slot2Done = !this.sides[side].activeCard2 || this.actedThisTurn[side].has('slot2');
@@ -1757,6 +1791,26 @@ class Match {
       let profile = null;
       try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
       c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile });
+    }
+  }
+
+  /** Both sides ran out of creatures on the same exchange — e.g. a curse
+   * recoil kills the attacker's last creature on the same swing that kills
+   * the defender's last creature. Nobody wins; no reward either side. */
+  async finishDraw() {
+    if (this.finished) return; this.finished = true;
+    this.clearTimer();
+    this.disconnectTimers.forEach(t => t && clearTimeout(t));
+    this.clearSpectators('finished');
+    broadcastAll({ type:'match_presence', userIds:this.users, inMatch:false });
+    matches.delete(this.id);
+    this.users.forEach(u => activeMatchByUser.delete(u));
+    for (let side = 0; side < 2; side++) {
+      const c = this.conn(side);
+      if (!c) continue;
+      let profile = null;
+      try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
+      c.send({ type:'match_over', result:'draw', reward:{ gold:0, gems:0 }, profile });
     }
   }
 }
@@ -2940,6 +2994,14 @@ const marketSweep = setInterval(() => {
   settleExpiredListings().catch(e => console.error('[arena] marketplace sweep failed', e));
 }, MARKET_SWEEP_MS);
 wss.on('close', () => clearInterval(marketSweep));
+
+/* purges listing-linked DM clutter ~1hr after that listing settles — see
+ * cleanupExpiredListingDMs() for why. */
+setTimeout(() => cleanupExpiredListingDMs().catch(e => console.error('[arena] DM cleanup failed', e)), 15_000);
+const dmCleanupSweep = setInterval(() => {
+  cleanupExpiredListingDMs().catch(e => console.error('[arena] DM cleanup failed', e));
+}, DM_CLEANUP_SWEEP_MS);
+wss.on('close', () => clearInterval(dmCleanupSweep));
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
