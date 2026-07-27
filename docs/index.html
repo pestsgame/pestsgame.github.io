@@ -294,12 +294,18 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .avatar-player{ background:#0a1a2e;color:#93c5fd;border-color:#1e40af;}
 .hp-display{display:flex;flex-direction:column;gap:2px;}
 .hp-label{font-size:0.56rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--txt-dim);}
-.revive-badge{
+.graveyard-badge{
   display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 6px;border-radius:9px;
   font-size:0.56rem;font-weight:800;letter-spacing:0.02em;text-transform:none;
-  background:rgba(167,139,250,0.16);color:#c4b5fd;border:1px solid rgba(167,139,250,0.4);
+  background:rgba(148,163,184,0.16);color:#cbd5e1;border:1px solid rgba(148,163,184,0.4);
   vertical-align:middle;
 }
+.rank-badge{
+  display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:8px;
+  font-family:'Rajdhani',sans-serif;font-size:0.6rem;font-weight:800;letter-spacing:0.03em;
+  border:1px solid; vertical-align:middle; white-space:nowrap;
+}
+.rank-badge-lg{font-size:0.78rem;padding:3px 10px;border-radius:10px;}
 .hp-bar-wrap{
   width:190px;height:18px;
   background:#111120;border-radius:9px;border:1px solid var(--border);
@@ -2247,7 +2253,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="avatar-row">
       <div class="avatar-circle avatar-enemy" id="enemy-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label" id="enemy-hp-label">Enemy Creatures <span class="revive-badge" id="enemy-revive-badge" style="display:none"></span></div>
+        <div class="hp-label" id="enemy-hp-label">Enemy Creatures <span class="graveyard-badge" id="enemy-graveyard-badge" style="display:none"></span></div>
         <div class="hp-bar-wrap hp-bar-enemy">
           <div class="hp-bar-fill" id="enemy-hp-fill" style="width:100%"></div>
           <div class="hp-bar-text" id="enemy-hp-text">12 / 12</div>
@@ -2290,7 +2296,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="avatar-row">
       <div class="avatar-circle avatar-player" id="player-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label">Your Creatures <span class="revive-badge" id="player-revive-badge" style="display:none"></span></div>
+        <div class="hp-label">Your Creatures <span class="graveyard-badge" id="player-graveyard-badge" style="display:none"></span></div>
         <div class="hp-bar-wrap hp-bar-player">
           <div class="hp-bar-fill" id="player-hp-fill" style="width:100%"></div>
           <div class="hp-bar-text" id="player-hp-text">12 / 12</div>
@@ -3292,11 +3298,11 @@ let CardDB=[];
 let CardLibraryHash=null;
 
 /* ── GAME STATE ───────────────────────────────────────── */
-const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,actedThisTurn:new Set(),
-  player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]},
-  enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[]}};
+const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,pendingRevive:null,actedThisTurn:new Set(),
+  player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyard:[]},
+  enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyardCount:0}};
 /* multiplayer flags — false/0 until a real match is found and beginMultiplayerMatch() runs */
-State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';
+State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';State.opponentRank=null;
 
 /* ── HAND TRAY ───────────────────────────────────────── */
 let _handVisible=false,_handHideTimer=null;
@@ -3442,6 +3448,7 @@ function selectCard(slot){
   if(!card)return;
   if(State.actedThisTurn.has(slot)){log(`This slot has already acted this turn.`);return;}
   State.selectedSlot=State.selectedSlot===slot?null:slot;
+  State.pendingTarget=null;State.pendingRevive=null;
   updateUI();
 }
 
@@ -3449,13 +3456,34 @@ function attackTarget(targetSlot){
   if(State.turn!=='PLAYER'||State.phase!=='MAIN'||!State.selectedSlot)return;
   const atkCard=State.selectedSlot==='slot1'?State.player.activeCard:State.player.activeCard2;
   if(!atkCard||State.actedThisTurn.has(State.selectedSlot))return;
-  // store target and show attack picker
+  // store target and show attack picker (top button is auto-disabled for
+  // non-attack top effects like 'revive' — see renderPlayerSlot's picker)
+  State.pendingRevive=null;
   State.pendingTarget=targetSlot;
   updateUI();
 }
 
+/** Opens the "choose a card to revive" picker for `slot`'s revive-ability
+ * card. Unlike a normal attack, this never needs an enemy target — it's
+ * entirely about picking one of your own graveyard cards. */
+function openRevivePicker(slot){
+  if(State.turn!=='PLAYER'||State.phase!=='MAIN')return;
+  const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
+  if(!card||card.topEffect?.type!=='revive'||State.actedThisTurn.has(slot))return;
+  State.pendingTarget=null;
+  State.pendingRevive=slot;
+  updateUI();
+}
+
+function chooseReviveTarget(slot,deadInstanceId){
+  Net.send({type:'use_ability', slot, target:deadInstanceId});
+  State.selectedSlot=null;State.pendingRevive=null;
+  updateUI(); // server will follow up with the authoritative 'state' + animation events
+}
+
 function cancelPending(){
   State.pendingTarget=null;
+  State.pendingRevive=null;
   updateUI();
 }
 
@@ -3477,6 +3505,23 @@ function executeChosenAttack(atkDefIndex){
    RARITY_CONFIG color via these two custom properties, set inline on the
    .card element itself. That's what keeps the look identical everywhere
    instead of each screen having its own hand-tuned rgba() values. */
+/* ── RANK BADGES ───────────────────────────────────────
+ * The server is the single source of truth for rank math (Engine.getRank in
+ * game-engine.js) — every profile/summary/opponent payload arrives with a
+ * precomputed {tier, sub, label, points}, so the client only ever needs to
+ * pick a color for the tier and print the label. Never compute rank here. */
+const RANK_TIER_COLORS={
+  Copper:'#c17a45', Bronze:'#cd7f32', Iron:'#9099a3', Gold:'#eab308',
+  Platinum:'#67e8f9', Diamond:'#93c5fd', Legend:'#c4b5fd', Mythic:'#f472b6',
+  Godly:'#fbbf24', Absolute:'#fb7185',
+};
+function renderRankBadge(rank,size=''){
+  if(!rank||!rank.label) return '';
+  const color=RANK_TIER_COLORS[rank.tier]||'#94a3b8';
+  const cls=size==='lg'?'rank-badge rank-badge-lg':'rank-badge';
+  return `<span class="${cls}" style="color:${color};border-color:${color}66;background:${color}1f" title="${rank.points} rank points">${escapeHtml(rank.label)}</span>`;
+}
+
 function hexToRgba(hex,alpha){
   const h=hex.replace('#','');
   const full=h.length===3?h.split('').map(c=>c+c).join(''):h;
@@ -3576,13 +3621,13 @@ function updateUI(){
   };
   setCreatures('player-hp-fill','player-hp-text',State.player.creaturesLeft,State.player._maxSeenCreatures);
   setCreatures('enemy-hp-fill', 'enemy-hp-text', State.enemy.creaturesLeft, State.enemy._maxSeenCreatures);
-  const setReviveBadge=(id,bank)=>{
+  const setGraveyardBadge=(id,count)=>{
     const el=document.getElementById(id); if(!el)return;
-    if(bank>0){ el.style.display='inline-flex'; el.innerHTML=`&#9860; ${bank} revive${bank===1?'':'s'} banked`; }
+    if(count>0){ el.style.display='inline-flex'; el.innerHTML=`&#128128; ${count} in graveyard`; }
     else{ el.style.display='none'; }
   };
-  setReviveBadge('player-revive-badge',State.player.reviveBank||0);
-  setReviveBadge('enemy-revive-badge',State.enemy.reviveBank||0);
+  setGraveyardBadge('player-graveyard-badge',(State.player.graveyard||[]).length);
+  setGraveyardBadge('enemy-graveyard-badge',State.enemy.graveyardCount||0);
 
   // Battlefield
   const canAct=State.turn==='PLAYER'&&State.phase==='MAIN';
@@ -3618,6 +3663,24 @@ function updateUI(){
       const botBtn=`<button class="atk-pick-btn" onclick="executeChosenAttack(1)">${botAtk.name}<span class="pick-dmg">${botAtk.damage}</span></button>`;
       const picker=`<div class="atk-picker"><div class="atk-picker-title">Choose Attack</div>${topBtn}${botBtn}<button class="atk-pick-cancel" onclick="cancelPending()">Cancel</button></div>`;
       // wrap card in relative container so picker overlays it
+      el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
+    }
+    // A revive-ability card doesn't need an enemy target at all — offer the
+    // ability the moment it's selected, as an alternative to attacking.
+    else if(sel===slot&&State.pendingTarget===null&&card.topEffect?.type==='revive'&&State.pendingRevive!==slot){
+      const graveyard=State.player.graveyard||[];
+      const btn=graveyard.length
+        ?`<button class="atk-pick-btn" onclick="openRevivePicker('${slot}')">${card.topEffect.name}<span class="pick-dmg">Revive</span></button>`
+        :`<button class="atk-pick-btn disabled">${card.topEffect.name}<span class="pick-dmg">No dead cards</span></button>`;
+      const picker=`<div class="atk-picker"><div class="atk-picker-title">Use ability, or click an enemy to attack instead</div>${btn}<button class="atk-pick-cancel" onclick="cancelPending()">Cancel</button></div>`;
+      el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
+    }
+    // Graveyard picker — choose which of your own dead creatures to revive.
+    else if(State.pendingRevive===slot){
+      const graveyard=State.player.graveyard||[];
+      const healPct=card.topEffect?.healPercent!=null?card.topEffect.healPercent:0.5;
+      const rows=graveyard.map(g=>`<button class="atk-pick-btn" onclick="chooseReviveTarget('${slot}','${g.instanceId}')">${escapeHtml(g.name)}<span class="pick-dmg">&#8594; ${Math.max(1,Math.round(g.maxHp*healPct))}/${g.maxHp} HP</span></button>`).join('');
+      const picker=`<div class="atk-picker"><div class="atk-picker-title">Revive which creature?</div>${rows||'<div class="atk-picker-title">No dead cards</div>'}<button class="atk-pick-cancel" onclick="cancelPending()">Cancel</button></div>`;
       el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
     }
   };
@@ -3990,9 +4053,8 @@ function openProfileView(profile,opts={}){
     pfvAvatar.style.cursor=isUserInMatch(_pfvUserId)?'pointer':'';
     pfvAvatar.innerHTML=avatarContent(_pfvUserId,profile.icon,40);
   }
-  document.getElementById('pfv-name').textContent=profile.name||profile.username||'Pestmaster';
-  const rank = (profile.wins||0)>=20?'Gold':(profile.wins||0)>=10?'Silver':'Bronze';
-  document.getElementById('pfv-rank').textContent=`Rank: ${rank}`;
+  document.getElementById('pfv-name').innerHTML=`${escapeHtml(profile.name||profile.username||'Pestmaster')} ${renderRankBadge(profile.rank,'lg')}`;
+  document.getElementById('pfv-rank').textContent=`Rank: ${profile.rank?.label||'Copper V'} (${profile.rank?.points||0} pts)`;
   document.getElementById('pfv-wins').textContent=profile.wins||0;
   document.getElementById('pfv-losses').textContent=profile.losses||0;
   document.getElementById('pfv-cards').textContent=(profile.collection||[]).length;
@@ -4113,19 +4175,19 @@ function showToast(msg,dur=2200,iconSvg=''){
 function refreshMenuUI(){
   document.getElementById('menu-gold').textContent = Player.gold.toLocaleString();
   document.getElementById('menu-gems').textContent = Player.gems.toLocaleString();
-  document.getElementById('menu-profile-name').textContent = Player.name;
+  document.getElementById('menu-profile-name').innerHTML = `${escapeHtml(Player.name)} ${renderRankBadge(Player.rank,'lg')}`;
   document.getElementById('menu-avatar').innerHTML = renderIcon(Player.icon||'star',20);
   const avatarEl=document.getElementById('menu-avatar');
   avatarEl.style.setProperty('--banner-grad', BANNER_GRADIENTS[Player.banner] || BANNER_GRADIENTS.violet);
-  const rank = Player.wins>=20?'Gold':Player.wins>=10?'Silver':'Bronze';
-  document.getElementById('menu-profile-stats').textContent=`${Player.wins}W · ${Player.losses}L · Rank: ${rank}`;
+  const rankLabel=Player.rank?.label||'Copper V';
+  document.getElementById('menu-profile-stats').textContent=`${Player.wins}W · ${Player.losses}L · Rank: ${rankLabel}`;
   document.getElementById('menu-win-record').textContent=`${Player.wins} Wins · ${Player.losses} Losses`;
   document.getElementById('menu-deck-count').textContent=`${Player.deck.length} / ${DECK_SIZE} cards in deck`;
   document.getElementById('menu-collection-count').textContent=`${Player.collection.length} cards owned`;
   const ew=document.getElementById('pnl-wins');const el=document.getElementById('pnl-losses');
   const er=document.getElementById('pnl-rank');const ed=document.getElementById('pnl-deck');
   if(ew)ew.textContent=Player.wins;if(el)el.textContent=Player.losses;
-  if(er)er.textContent=rank;if(ed)ed.textContent=`${Player.deck.length}/${DECK_SIZE}`;
+  if(er)er.textContent=rankLabel;if(ed)ed.textContent=`${Player.deck.length}/${DECK_SIZE}`;
 }
 
 /* ── SCREEN NAVIGATION ────────────────────────────────── */
@@ -4177,14 +4239,14 @@ function updateSocialBadge(data){
   else badge.style.display='none';
 }
 
-function socialRow({userId,username,icon,statusText,online,showDot,actionsHtml}){
+function socialRow({userId,username,icon,rank,statusText,online,showDot,actionsHtml}){
   return `<div class="social-row">
     <div class="social-avatar-wrap">
       <div class="social-avatar" data-avatar-user="${userId}" data-avatar-icon="${icon||'star'}" data-avatar-size="18" onclick="handleAvatarSlotClick('${userId}')" title="${isUserInMatch(userId)?'Watch this match live':''}">${avatarContent(userId,icon,18)}</div>
       ${showDot?`<div class="social-status-dot ${online?'online':''}"></div>`:''}
     </div>
     <div class="social-row-name" onclick="viewPlayerProfile('${userId}')">
-      <span class="social-row-username">${escapeHtml(username)}</span>
+      <span class="social-row-username">${escapeHtml(username)}${renderRankBadge(rank)}</span>
       <span class="social-row-status">${statusText}</span>
     </div>
     <div class="social-row-actions">${actionsHtml}</div>
@@ -5036,10 +5098,10 @@ function spectateUser(userId){
 }
 
 function openSpectateOverlay(msg){
-  SpectateState={ matchId: msg.matchId, players: msg.players||[{},{}] };
+  SpectateState={ matchId: msg.matchId, players: msg.players||[{},{}], _maxSeen:[0,0] };
   const [pa,pb]=SpectateState.players;
-  document.getElementById('spec-top-hp-label').textContent=`${pa?.username||'Player'} HP`;
-  document.getElementById('spec-bottom-hp-label').textContent=`${pb?.username||'Player'} HP`;
+  document.getElementById('spec-top-hp-label').innerHTML=`${escapeHtml(pa?.username||'Player')}'s Creatures ${renderRankBadge(pa?.rank)}`;
+  document.getElementById('spec-bottom-hp-label').innerHTML=`${escapeHtml(pb?.username||'Player')}'s Creatures ${renderRankBadge(pb?.rank)}`;
   document.getElementById('spec-top-avatar').innerHTML=renderIcon(pa?.icon||'star',26);
   document.getElementById('spec-bottom-avatar').innerHTML=renderIcon(pb?.icon||'star',26);
   document.getElementById('spectate-vs-label').textContent=`${pa?.username||'Player'} vs ${pb?.username||'Player'}`;
@@ -5064,8 +5126,8 @@ function leaveSpectate(){
 function applySpectateState(msg){
   if(!SpectateState || msg.matchId!==SpectateState.matchId) return;
   SpectateState.phase=msg.phase; SpectateState.turn=msg.turn;
-  renderSpectateHalf('top', msg.state.sideA, 'bf-enemy', 'bf-enemy-wpn', 'bf-enemy-def');
-  renderSpectateHalf('bottom', msg.state.sideB, 'bf-active', 'bf-weapon', 'bf-defense');
+  renderSpectateHalf('top', msg.state.sideA, 'bf-enemy', 'bf-enemy-wpn', 'bf-enemy-def', 0);
+  renderSpectateHalf('bottom', msg.state.sideB, 'bf-active', 'bf-weapon', 'bf-defense', 1);
   const status=document.getElementById('spectate-footer-status');
   const [pa,pb]=SpectateState.players;
   if(msg.phase==='SETUP') status.textContent='Both players are setting up their board…';
@@ -5076,10 +5138,14 @@ function applySpectateState(msg){
  * updateUI() renders "player"/"enemy" — same card classes, same equipment
  * slot placeholder text, same defense-bar effect summary. `key` is 'top'
  * or 'bottom'; there is deliberately no hand tray here at all. */
-function renderSpectateHalf(key, side, activeCls, weaponCls, defenseCls){
-  const hpPct=side.maxHp?Math.max(0,side.hp/side.maxHp*100):0;
-  document.getElementById(`spec-${key}-hp-fill`).style.width=`${hpPct}%`;
-  document.getElementById(`spec-${key}-hp-text`).innerText=`${Math.max(0,side.hp)} / ${side.maxHp}`;
+function renderSpectateHalf(key, side, activeCls, weaponCls, defenseCls, sideIdx){
+  // Win condition is total creature destruction, not player HP — mirror the
+  // same creatures-remaining bar the real battle screen uses.
+  const left=side.creaturesLeft||0;
+  SpectateState._maxSeen[sideIdx]=Math.max(SpectateState._maxSeen[sideIdx]||0,left);
+  const seenMax=SpectateState._maxSeen[sideIdx]||left||1;
+  document.getElementById(`spec-${key}-hp-fill`).style.width=`${Math.max(0,left/Math.max(1,seenMax)*100)}%`;
+  document.getElementById(`spec-${key}-hp-text`).innerText=`${left} / ${seenMax}`;
 
   const slot1=document.getElementById(`spec-${key}-active-slot`);
   if(side.activeCard){ slot1.innerHTML=renderCard(side.activeCard,false,-1,activeCls); slot1.classList.add('has-card'); }
@@ -7534,6 +7600,7 @@ function applyServerProfile(p){
   if(typeof p.gems==='number')Player.gems=p.gems;
   if(typeof p.wins==='number')Player.wins=p.wins;
   if(typeof p.losses==='number')Player.losses=p.losses;
+  if(p.rank)Player.rank=p.rank;
   if(typeof p.icon==='string')Player.icon=p.icon;
   if(typeof p.banner==='string')Player.banner=p.banner;
   if(typeof p.bio==='string')Player.bio=p.bio;
@@ -7636,7 +7703,8 @@ function beginMultiplayerMatch(msg){
   State.mp=true; State.mySide=msg.youAre; State._mpOver=false;
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
-  State.selectedSlot=null; State.pendingTarget=null;
+  State.opponentRank=msg.opponentRank||null;
+  State.selectedSlot=null; State.pendingTarget=null; State.pendingRevive=null;
   State.player._maxSeenCreatures=0; State.enemy._maxSeenCreatures=0;
   document.getElementById('game-over').style.display='none';
   document.getElementById('coinflip-overlay').classList.remove('open');
@@ -7646,7 +7714,7 @@ function beginMultiplayerMatch(msg){
     document.getElementById('enemy-avatar-circle').innerHTML=renderIcon(State.opponentIcon||'star',26);
     document.getElementById('player-avatar-circle').innerHTML=renderIcon(Player.icon||'star',26);
     const enemyLabel=document.getElementById('enemy-hp-label');
-    if(enemyLabel) enemyLabel.innerHTML=`${State.opponentName||'Enemy'}'s Creatures <span class="revive-badge" id="enemy-revive-badge" style="display:none"></span>`;
+    if(enemyLabel) enemyLabel.innerHTML=`${escapeHtml(State.opponentName||'Enemy')}'s Creatures ${renderRankBadge(State.opponentRank)}<span class="graveyard-badge" id="enemy-graveyard-badge" style="display:none"></span>`;
     showScreen('game');
     initHandTray();
     setTimeout(showHandTray,400);
@@ -7664,14 +7732,14 @@ function applyServerState(msg){
 
   const you=msg.state.you, opp=msg.state.opponent;
   State.player.hp=you.hp; State.player.maxHp=you.maxHp;
-  State.player.creaturesLeft=you.creaturesLeft; State.player.reviveBank=you.reviveBank||0;
+  State.player.creaturesLeft=you.creaturesLeft; State.player.graveyard=you.graveyard||[];
   State.player.activeCard=you.activeCard; State.player.activeCard2=you.activeCard2;
   State.player.weaponCard=you.weaponCard; State.player.defenseCard=you.defenseCard;
   State.player.hand=you.hand||[];
   State.player.deck=new Array(you.deckCount||0);
 
   State.enemy.hp=opp.hp; State.enemy.maxHp=opp.maxHp;
-  State.enemy.creaturesLeft=opp.creaturesLeft; State.enemy.reviveBank=opp.reviveBank||0;
+  State.enemy.creaturesLeft=opp.creaturesLeft; State.enemy.graveyardCount=opp.graveyardCount||0;
   State.enemy.activeCard=opp.activeCard; State.enemy.activeCard2=opp.activeCard2;
   State.enemy.weaponCard=opp.weaponCard; State.enemy.defenseCard=opp.defenseCard;
   State.enemy.hand=new Array(opp.handCount||0);
