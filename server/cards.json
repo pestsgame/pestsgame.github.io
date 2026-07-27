@@ -441,7 +441,9 @@
     "name": "Cursed Blade",
     "flatBonus": 20,
     "maxDurability": 3,
-    "image": "cblade.png"
+    "image": "cblade.png",
+    "addEffects": [ { "type": "curse", "duration": 3 } ],
+    "description": "+20 dmg. Every hit also inflicts Curse for 3 turns."
   },
   {
     "id": "inferno_shard",
@@ -450,7 +452,10 @@
     "name": "Inferno Shard",
     "flatBonus": 35,
     "maxDurability": 1,
-    "image": "shard.png"
+    "image": "shard.png",
+    "ampEffects": { "burn": 25 },
+    "addEffects": [ { "type": "burn", "duration": 2 } ],
+    "description": "+35 dmg. Every hit also inflicts Burn for 2 turns, and any Burn this weapon causes deals 25 dmg/turn instead of 10."
   },
   {
     "id": "wooden_shield",
@@ -486,7 +491,10 @@
     "name": "Dragon Scale",
     "flatBonus": 30,
     "maxDurability": 2,
-    "image": "dscale.png"
+    "image": "dscale.png",
+    "ampEffects": { "burn": 20 },
+    "addEffects": [ { "type": "burn", "duration": 2 } ],
+    "description": "-30 dmg taken. Every hit it blocks reflects Burn for 2 turns back onto the attacker, dealing 20 dmg/turn instead of 10."
   },
   {
     "id": "mirror_ward",
@@ -512,12 +520,8 @@
       "name": "Ashen Rebirth",
       "value": 0,
       "effects": [],
-      "revive": {
-        "guaranteed": 1,
-        "chance": 0.3,
-        "healPercent": 0.5
-      },
-      "description": "Revives once guaranteed at 50% HP. After that, 30% chance to revive again on any death."
+      "bonusReviveCharge": 1,
+      "description": "While this card is in your deck, you start the match with 1 banked revive charge — spent automatically on the earliest creature you lose."
     },
     "bottomAttack": {
       "name": "Cinder Wing",
@@ -652,6 +656,110 @@
       "name": "Claw Swipe",
       "damage": 16,
       "element": "shadow",
+      "effects": []
+    }
+  },
+  {
+    "id": "ember_kin_scout",
+    "rarity": "common",
+    "name": "Ember-Kin Scout",
+    "hp": 55,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "ember_scout.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Kinbond (Scout)",
+      "value": 0,
+      "effects": [],
+      "synergy": {
+        "partnerIds": [
+          "ember_kin_striker",
+          "ember_kin_warden"
+        ],
+        "bonusHp": 8,
+        "bonusDamage": 4
+      },
+      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Striker / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+    },
+    "bottomAttack": {
+      "name": "Spark Jab",
+      "damage": 18,
+      "element": "fire",
+      "effects": [
+        {
+          "type": "burn",
+          "duration": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "ember_kin_striker",
+    "rarity": "common",
+    "name": "Ember-Kin Striker",
+    "hp": 60,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "ember_striker.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Kinbond (Striker)",
+      "value": 0,
+      "effects": [],
+      "synergy": {
+        "partnerIds": [
+          "ember_kin_scout",
+          "ember_kin_warden"
+        ],
+        "bonusHp": 8,
+        "bonusDamage": 4
+      },
+      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+    },
+    "bottomAttack": {
+      "name": "Cinder Fist",
+      "damage": 24,
+      "element": "fire",
+      "effects": []
+    }
+  },
+  {
+    "id": "ember_kin_warden",
+    "rarity": "common",
+    "name": "Ember-Kin Warden",
+    "hp": 75,
+    "types": [
+      "mob"
+    ],
+    "classification": "pests",
+    "image": "ember_warden.png",
+    "topEffect": {
+      "type": "passive",
+      "name": "Kinbond (Warden)",
+      "value": 0,
+      "effects": [],
+      "passiveReduction": {
+        "flat": 8
+      },
+      "synergy": {
+        "partnerIds": [
+          "ember_kin_scout",
+          "ember_kin_striker"
+        ],
+        "bonusHp": 8,
+        "bonusDamage": 4
+      },
+      "description": "\u22128 flat dmg taken. +8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Striker that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+    },
+    "bottomAttack": {
+      "name": "Guard Slam",
+      "damage": 20,
+      "element": "earth",
       "effects": []
     }
   }
