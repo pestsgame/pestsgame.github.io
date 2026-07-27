@@ -13,6 +13,20 @@
  * those events through its existing Anim.* functions, so all the juice
  * (lunge, shake, floating numbers, status vfx, deaths) keeps working exactly
  * as before — it's just triggered by the server instead of trusted to it.
+ *
+ * ── COMBAT RULES v2 (creature-destruction win condition) ────────────────
+ * There is no more player HP win condition. A side loses the instant it has
+ * zero creatures left anywhere — not deployed, not in hand, not in deck.
+ * `sides[i].hp/maxHp` still exist on the side object purely for UI/back-
+ * compat (some support abilities still top it up cosmetically) but nothing
+ * in the engine ever checks it to decide a match's outcome anymore.
+ *
+ * Death is permanent — a dead creature never returns to the deck — with one
+ * exception: killing an enemy creature banks you a revive charge (1 for a
+ * PESTS-classification kill, 2 for a BOSS or OVERLORD kill). Banked charges
+ * are spent automatically, oldest-death-first, against your own side's dead
+ * creatures (see `killCard`/`settleRevives`) — reviving a creature returns
+ * it to hand at 50% max HP with all lingering statuses cleared.
  */
 
 const crypto = require('crypto');
@@ -108,22 +122,29 @@ function openPack(packId) {
   return { cards: generatePackCards(def), cost: def.cost, currency: def.currency };
 }
 
-/* ── EFFECT REGISTRY (verbatim rules, DOM calls stripped to events) ── */
-// each logic(card, ctx) mutates card.currentHp / ctx.skipTurn / ctx.cancelAttack
-// and may push a {type:'vfx', ...} event onto ctx.events for the client to animate.
+/* ── EFFECT REGISTRY (verbatim rules, DOM calls stripped to events) ──
+ * Each logic(card, ctx, effectInstance) mutates card.currentHp / ctx.skipTurn
+ * / ctx.cancelAttack and may push a {type:'vfx', ...} event onto ctx.events.
+ *
+ * `effectInstance.dmg` — when present — overrides the effect's baseline tick
+ * damage. This is how weapon/defense "amplification" works: a weapon with
+ * `ampEffects: { burn: 25 }` stamps `dmg:25` onto every burn stack it
+ * inflicts (see applyEffectToCard), so that specific stack ticks for 25
+ * instead of the effect's normal 10 — permanently, for the life of that
+ * stack, even if the weapon later breaks or is swapped out. */
 const Effects = {
-  bleed:        { trigger:'onTurnStart', dmg:10,  logic(c,x){dot(c,x,10,'bleed');} },
-  poison:       { trigger:'onTurnStart', dmg:25,  logic(c,x){dot(c,x,25,'poison');} },
-  strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x){dot(c,x,50,'strongPoison');} },
-  mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x){dot(c,x,75,'mythicPoison');} },
+  bleed:        { trigger:'onTurnStart', dmg:10,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'bleed');} },
+  poison:       { trigger:'onTurnStart', dmg:25,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 25, 'poison');} },
+  strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 50, 'strongPoison');} },
+  mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 75, 'mythicPoison');} },
   curse:        { trigger:'onTurnStart', logic(){} },
   confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.5) x.cancelAttack = true; } },
   sleep:        { trigger:'onTurnStart', logic(c,x){ rollSkip(c,x,'sleep'); } },
   paralyze:     { trigger:'onTurnStart', logic(c,x){ rollSkip(c,x,'paralyze'); } },
-  burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x){dot(c,x,10,'burn');} },
-  shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x){dot(c,x,25,'shock');} },
+  burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'burn');} },
+  shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 25, 'shock');} },
   soak:         { trigger:'onTurnStart', logic(){} },
-  cryo:         { trigger:'onTurnStart', logic(c,x){ dot(c,x,10,'cryo',false); rollSkip(c,x,'cryo',true); } },
+  cryo:         { trigger:'onTurnStart', logic(c,x,ed){ dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'cryo'); rollSkip(c,x,'cryo',true); } },
   rocks:        { trigger:'onSwap',      logic(){} },
 };
 function dot(card, ctx, dmg, type) {
@@ -140,76 +161,82 @@ function rollSkip(card, ctx, type, alreadyHit) {
 }
 function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e.type === type); }
 
-/* ── REVIVE PASSIVE ──────────────────────────────────────────────────
- * topEffect.revive = {
- *   guaranteed: 2,      // this many revives always succeed, no roll, consumed first
- *   chance: 0.3,        // once `guaranteed` is used up (or if it's omitted), each death
- *                       // instead rolls this % chance to revive, indefinitely
- *   healPercent: 0.5,   // fraction of maxHp restored on a successful revive (default 0.5)
- * }
- * A card can have guaranteed-only, chance-only, or both (guaranteed revives first,
- * falling back to the % chance after they run out) — covers all three modes asked for. */
-function tryRevive(card, events, side, slotKey) {
-  const revive = card.topEffect && card.topEffect.type === 'passive' && card.topEffect.revive;
-  if (!revive) return false;
-  let revived = false;
-  if (card.reviveGuaranteedLeft > 0) {
-    card.reviveGuaranteedLeft--;
-    revived = true;
-  } else if (revive.chance && Math.random() < revive.chance) {
-    revived = true;
-  }
-  if (!revived) return false;
-  const pct = revive.healPercent != null ? revive.healPercent : 0.5;
-  card.currentHp = Math.max(1, Math.round(card.maxHp * pct));
-  card.activeEffects = []; // shed lingering DOTs/statuses on revive
-  events.push({ t:'revive', side, slot:slotKey, card:card.instanceId, name:card.name, hp:card.currentHp, maxHp:card.maxHp });
-  return true;
-}
-
 /* ── SYNERGY PASSIVE ──────────────────────────────────────────────────
  * topEffect.synergy = {
+ *   // legacy 2-card form — the only form allowed to use shareAttack:
  *   partnerId: 'other_card_base_id',
- *   bonusHp: 20,        // optional — added to max/current HP if partner is in the same deck
- *   bonusDamage: 10,    // optional — added to every attack this card lands
- *   shareAttack: true,  // optional — if the partner is in the same deck, this card's
- *                       // ENTIRE topEffect is replaced with an attack copy of the
- *                       // partner's bottomAttack. Without the partner, whatever
- *                       // topEffect this card was declared with (usually a plain
- *                       // non-attack passive/ability) is what it's stuck with — so
- *                       // that top slot is only useful when the pair is together.
+ *   bonusHp: 20, bonusDamage: 10, shareAttack: true,
+ *
+ *   // multi-card form — stat buffs ONLY, no attack sharing. Lists any
+ *   // number of partner base ids; bonusHp/bonusDamage are PER PARTNER
+ *   // actually present in the deck, so a 3-card ring where every card
+ *   // lists the other two scales up to 2x the listed bonus when the
+ *   // whole trio is together, and still gives a partial bonus if only
+ *   // one of the two partners made the deck.
+ *   partnerIds: ['ally_a', 'ally_b', 'ally_c'],
+ *   bonusHp: 10, bonusDamage: 5,
  * }
  * Applied once, at deck-build time, over every card instance on a side (deck+hand
- * combined) — so it reflects deck *composition*, not what's currently drawn/deployed.
- * Give the block to just one card for a one-directional share, or to both (each
- * pointing at the other) so they mutually swap top slots for each other's bottom
- * attack. */
+ * combined) — so it reflects deck *composition*, not what's currently drawn/deployed. */
 function applySynergies(cardInstances) {
   cardInstances.forEach(card => {
     if (!card || card.cardType) return; // skip weapon/defense equipment
     const syn = card.topEffect && card.topEffect.type === 'passive' && card.topEffect.synergy;
-    if (!syn || !syn.partnerId) return;
-    const partner = cardInstances.find(c => c && !c.cardType && c.baseId === syn.partnerId && c !== card);
-    if (!partner) return;
-    if (syn.bonusHp) { card.maxHp += syn.bonusHp; card.currentHp += syn.bonusHp; }
-    if (syn.bonusDamage) { card.synergyDamageBonus = (card.synergyDamageBonus || 0) + syn.bonusDamage; }
-    if (syn.shareAttack) {
-      const ba = partner.bottomAttack;
-      card.topEffect = {
-        type: 'attack', name: `${ba.name} (shared)`, value: ba.damage, element: ba.element,
-        effects: ba.effects || [], heal: ba.heal, healTarget: ba.healTarget, multiAttack: ba.multiAttack,
-        description: `Shared from ${partner.name}: ${ba.name}.`,
-      };
+    if (!syn) return;
+
+    // Legacy single-partner form — the only one that may share an attack.
+    if (syn.partnerId) {
+      const partner = cardInstances.find(c => c && !c.cardType && c.baseId === syn.partnerId && c !== card);
+      if (partner) {
+        if (syn.bonusHp) { card.maxHp += syn.bonusHp; card.currentHp += syn.bonusHp; }
+        if (syn.bonusDamage) { card.synergyDamageBonus = (card.synergyDamageBonus || 0) + syn.bonusDamage; }
+        if (syn.shareAttack) {
+          const ba = partner.bottomAttack;
+          card.topEffect = {
+            type: 'attack', name: `${ba.name} (shared)`, value: ba.damage, element: ba.element,
+            effects: ba.effects || [], heal: ba.heal, healTarget: ba.healTarget, multiAttack: ba.multiAttack,
+            description: `Shared from ${partner.name}: ${ba.name}.`,
+          };
+        }
+        card.synergyPartnerInstanceId = partner.instanceId; // informational, for UI display
+      }
     }
-    card.synergyPartnerInstanceId = partner.instanceId; // informational, for UI display
+
+    // Multi-card group form — stat buffs only, scales with # of partners present.
+    if (Array.isArray(syn.partnerIds) && syn.partnerIds.length) {
+      const matched = [];
+      syn.partnerIds.forEach(pid => {
+        const p = cardInstances.find(c => c && !c.cardType && c.baseId === pid && c !== card && !matched.includes(c));
+        if (p) matched.push(p);
+      });
+      if (matched.length) {
+        if (syn.bonusHp) {
+          const add = syn.bonusHp * matched.length;
+          card.maxHp += add; card.currentHp += add;
+        }
+        if (syn.bonusDamage) {
+          card.synergyDamageBonus = (card.synergyDamageBonus || 0) + syn.bonusDamage * matched.length;
+        }
+        card.synergyGroupPartnerInstanceIds = matched.map(p => p.instanceId);
+      }
+    }
   });
 }
 
-function applyEffectToCard(target, effectDef) {
+/** Applies a status effect to `target`. `dmgOverride` — when given — is how
+ * weapon/defense "amplification" (ampEffects) stamps a boosted tick-damage
+ * onto the specific stack being applied right now (see performHit). If the
+ * target already has a stack of this type, duration extends and the stack
+ * keeps the stronger of its existing/incoming dmg override. */
+function applyEffectToCard(target, effectDef, dmgOverride) {
   const eDef = Effects[effectDef.type]; if (!eDef) return;
   const ex = target.activeEffects.find(e => e.type === effectDef.type);
-  if (ex) { if (effectDef.duration < 9999) ex.duration = Math.min(9999, ex.duration + effectDef.duration); }
-  else target.activeEffects.push({ type: effectDef.type, duration: effectDef.duration });
+  if (ex) {
+    if (effectDef.duration < 9999) ex.duration = Math.min(9999, ex.duration + effectDef.duration);
+    if (dmgOverride != null) ex.dmg = Math.max(ex.dmg != null ? ex.dmg : 0, dmgOverride);
+  } else {
+    target.activeEffects.push({ type: effectDef.type, duration: effectDef.duration, dmg: dmgOverride != null ? dmgOverride : undefined });
+  }
 }
 
 /** `side` (0|1) is whichever side owns `entity` — stamped onto every event so
@@ -223,7 +250,7 @@ function processEffects(entity, trigger, ctx, side) {
       const ed = card.activeEffects[i]; const eDef = Effects[ed.type];
       if (!eDef || eDef.trigger !== trigger) continue;
       ctx.side = side; ctx.slot = slotKey;
-      eDef.logic(card, ctx);
+      eDef.logic(card, ctx, ed);
       if (trigger === 'onTurnStart' && ed.duration < 9999) {
         ed.duration--; if (ed.duration <= 0) card.activeEffects.splice(i, 1);
       }
@@ -231,14 +258,63 @@ function processEffects(entity, trigger, ctx, side) {
   });
 }
 
-function checkCardDeath(entity, events, side) {
-  [['activeCard','slot1'], ['activeCard2','slot2']].forEach(([key, slotKey]) => {
-    const c = entity[key];
-    if (c && c.currentHp <= 0) {
-      if (tryRevive(c, events, side, slotKey)) return;
-      events.push({ t:'death', side, slot: slotKey, card:c.instanceId, name:c.name });
-      entity[key] = null;
+/** Kills whatever creature is sitting in `match.sides[side][slotKey]`.
+ * Handles ALL of: permanent removal from the active slot, pushing it onto
+ * that side's death queue (oldest-first), and — if `killerSide` is given
+ * and differs from `side` (i.e. an opponent's action caused this death) —
+ * banking that opponent a revive charge based on the dead card's
+ * classification (1 for PESTS, 2 for BOSS/OVERLORD, 0 for anything else).
+ * Banked charges are then spent immediately against whichever side(s) have
+ * both a charge and a queued death. */
+function killCard(match, side, slotKey, events, killerSide) {
+  const entity = match.sides[side];
+  const card = cardInSlot(entity, slotKey);
+  if (!card) return;
+  events.push({ t:'death', side, slot: slotKey, card:card.instanceId, name:card.name });
+  if (entity.activeCard === card) entity.activeCard = null;
+  else if (entity.activeCard2 === card) entity.activeCard2 = null;
+  entity.deathQueue.push(card);
+
+  if (killerSide != null && killerSide !== side) {
+    const killerEntity = match.sides[killerSide];
+    let gain = 0;
+    if (card.classification === 'boss' || card.classification === 'overlord') gain = 2;
+    else if (card.classification === 'pests') gain = 1;
+    if (gain > 0) {
+      killerEntity.reviveBank = (killerEntity.reviveBank || 0) + gain;
+      events.push({ t:'revive_charge', side:killerSide, amount:gain, classification:card.classification, killedCard:card.instanceId });
     }
+    settleRevives(match, killerSide, events);
+  }
+  settleRevives(match, side, events);
+}
+
+/** Spends every available revive charge on `side` against its own death
+ * queue, earliest death first (FIFO — never "latest"). Revived creatures
+ * return to hand at 50% max HP with all lingering statuses cleared. */
+function settleRevives(match, side, events) {
+  const entity = match.sides[side];
+  while ((entity.reviveBank || 0) > 0 && entity.deathQueue.length > 0) {
+    entity.reviveBank--;
+    const card = entity.deathQueue.shift(); // earliest death first, never latest
+    card.currentHp = Math.max(1, Math.round(card.maxHp * 0.5));
+    card.activeEffects = [];
+    entity.hand.push(card);
+    events.push({ t:'revive', side, card:card.instanceId, name:card.name, hp:card.currentHp, maxHp:card.maxHp });
+  }
+}
+
+/** Checks both of `side`'s active slots for a creature at <=0 HP (e.g. after
+ * onTurnStart DOT ticks, or a rocks-trap hit on deploy) and kills it. Deaths
+ * found here are credited to the opposing side for revive-bank purposes,
+ * since HP loss outside of a direct attack always originates from an effect
+ * or trap the opponent applied. */
+function checkCardDeath(match, side, events) {
+  const entity = match.sides[side];
+  const otherSide = side === 0 ? 1 : 0;
+  ['slot1','slot2'].forEach(slotKey => {
+    const c = cardInSlot(entity, slotKey);
+    if (c && c.currentHp <= 0) killCard(match, side, slotKey, events, otherSide);
   });
 }
 
@@ -250,6 +326,9 @@ function createCard(baseId) {
       instanceId: crypto.randomUUID(), baseId, name: base.name, cardType: base.cardType,
       flatBonus: base.flatBonus, maxDurability: base.maxDurability,
       currentDurability: base.maxDurability, image: base.image,
+      // Optional customization — see performHit for how these are used:
+      ampEffects: base.ampEffects ? { ...base.ampEffects } : null,
+      addEffects: base.addEffects ? base.addEffects.map(e => ({ ...e })) : null,
     };
   }
   const card = {
@@ -261,11 +340,6 @@ function createCard(baseId) {
   };
   if (base.topEffect.type === 'passive' && base.topEffect.effects.length > 0) {
     base.topEffect.effects.forEach(e => card.activeEffects.push({ type: e.type, duration: e.duration }));
-  }
-  if (base.topEffect.type === 'passive' && base.topEffect.revive) {
-    card.reviveGuaranteedLeft = base.topEffect.revive.guaranteed || 0;
-  } else {
-    card.reviveGuaranteedLeft = 0;
   }
   return card;
 }
@@ -306,12 +380,19 @@ function applyDeployAbility(sides, side, card, events) {
 }
 
 const DECK_SIZE = 16;
+/** Creatures (wizard/mob/dragon cards — anything without a cardType) are
+ * capped at 12 per deck; the remaining slots (down to DECK_SIZE) must be
+ * weapon/defense equipment. */
+const MAX_CREATURES = 12;
 
 /** A deck-legality check reused by generateDeck's fallback path and by
  * isDeckLegal below, so the random "your deck was invalid" deck the server
  * hands out never itself breaks the rule it's enforcing. */
 function deckClassificationOk(defs) {
-  const classes = defs.map(d => d.classification).filter(Boolean);
+  const creatureDefs = defs.filter(d => !d.cardType);
+  if (creatureDefs.length < 1) return false;
+  if (creatureDefs.length > MAX_CREATURES) return false;
+  const classes = creatureDefs.map(d => d.classification).filter(Boolean);
   const bossOrOverlordCount = classes.filter(c => c === 'boss' || c === 'overlord').length;
   if (bossOrOverlordCount > 1) return false;
   if (classes.includes('overlord') && classes.some(c => c === 'pests' || c === 'boss')) return false;
@@ -319,36 +400,48 @@ function deckClassificationOk(defs) {
 }
 
 function generateDeck(n) {
-  const normals = CardDB.filter(c => !c.cardType && c.classification === 'normal');
+  const normals = CardDB.filter(c => !c.cardType && c.classification === 'pests');
   const bosses = CardDB.filter(c => !c.cardType && c.classification === 'boss');
   const overlords = CardDB.filter(c => !c.cardType && c.classification === 'overlord');
   const equipment = CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense');
   const pick = pool => pool[Math.floor(Math.random() * pool.length)];
 
   const defs = [];
+  let creatureCount = 0;
+  const addCreature = def => { defs.push(def); creatureCount++; };
+
   // Rare chance of an Overlord deck — if so, everything else must be Normal/equipment.
   if (overlords.length && Math.random() < 0.08) {
-    defs.push(pick(overlords));
-    const fillPool = equipment.length ? equipment : (normals.length ? normals : overlords);
-    while (defs.length < n) defs.push(pick(fillPool));
-    return defs.map(d => createCard(d.id)).filter(Boolean);
+    addCreature(pick(overlords));
+    while (defs.length < n) {
+      const canAddCreature = creatureCount < MAX_CREATURES && normals.length;
+      if (equipment.length && (!canAddCreature || Math.random() < 0.6)) defs.push(pick(equipment));
+      else if (canAddCreature) addCreature(pick(normals));
+      else if (equipment.length) defs.push(pick(equipment));
+      else break;
+    }
+    return defs.slice(0, n).map(d => createCard(d.id)).filter(Boolean);
   }
-  // Otherwise, at most one Boss, rest Normal/equipment.
-  if (bosses.length && Math.random() < 0.35) defs.push(pick(bosses));
+  // Otherwise, at most one Boss, rest Normal/equipment — creatures capped at MAX_CREATURES.
+  if (bosses.length && Math.random() < 0.35) addCreature(pick(bosses));
   while (defs.length < n) {
-    const useEquip = equipment.length > 0 && Math.random() < 0.3;
-    const pool = useEquip ? equipment : (normals.length ? normals : equipment);
-    defs.push(pick(pool));
+    const canAddCreature = creatureCount < MAX_CREATURES && normals.length;
+    const useEquip = equipment.length > 0 && (!canAddCreature || Math.random() < 0.3);
+    if (useEquip) defs.push(pick(equipment));
+    else if (canAddCreature) addCreature(pick(normals));
+    else if (equipment.length) defs.push(pick(equipment));
+    else break;
   }
   return defs.slice(0, n).map(d => createCard(d.id)).filter(Boolean);
 }
 
 /** Builds a validated deck of live card instances from a list of owned card ids. */
 /** A deck is legal if it's exactly DECK_SIZE cards, every id exists in the
- * canonical library, at most one BOSS-or-OVERLORD card is present, and — if
- * that one card is an OVERLORD — no PESTS or BOSS cards ride along with it.
- * Checked fresh every time a match is built, not just once when the deck was
- * saved, so a stale/tampered deck never quietly slips through. */
+ * canonical library, no more than MAX_CREATURES of them are creatures, at
+ * most one BOSS-or-OVERLORD creature is present, and — if that one card is
+ * an OVERLORD — no PESTS or BOSS creatures ride along with it. Checked
+ * fresh every time a match is built, not just once when the deck was saved,
+ * so a stale/tampered deck never quietly slips through. */
 function isDeckLegal(ids) {
   if (!Array.isArray(ids) || ids.length !== DECK_SIZE) return false;
   if (!ids.every(id => !!CardById[id])) return false;
@@ -364,10 +457,20 @@ function buildDeckFromIds(ids) {
 function freshSide(deck) {
   const d = [...deck];
   applySynergies(d); // deck+hand together — synergy is about composition, not what's drawn yet
+  // Some cards grant a starting revive charge just for being in the deck
+  // (topEffect.bonusReviveCharge) — banked immediately, spent the moment
+  // there's a queued death to use it on.
+  let reviveBank = 0;
+  d.forEach(card => {
+    if (card && !card.cardType && card.topEffect && card.topEffect.type === 'passive' && card.topEffect.bonusReviveCharge) {
+      reviveBank += card.topEffect.bonusReviveCharge;
+    }
+  });
   return {
-    hp: 100, maxHp: 100,
+    hp: 100, maxHp: 100, // cosmetic only — see module doc; never decides the match anymore
     activeCard: null, activeCard2: null, weaponCard: null, defenseCard: null,
     deck: d, hand: d.splice(0, 4),
+    reviveBank, deathQueue: [], // deathQueue is oldest-first; revives always pop index 0
   };
 }
 
@@ -375,6 +478,15 @@ function freshSide(deck) {
 // slotKey: 'slot1' | 'slot2'
 function cardInSlot(entity, slotKey) { return slotKey === 'slot1' ? entity.activeCard : entity.activeCard2; }
 function slotOfCard(entity, card) { return entity.activeCard === card ? 'slot1' : 'slot2'; }
+
+/** Total creatures a side has left anywhere — deployed, in hand, or still in
+ * deck. This, and only this, decides the match now: hit zero and you lose. */
+function aliveCreatureCount(side) {
+  const deckC = side.deck.filter(c => !c.cardType).length;
+  const handC = side.hand.filter(c => !c.cardType).length;
+  const activeC = (side.activeCard ? 1 : 0) + (side.activeCard2 ? 1 : 0);
+  return deckC + handC + activeC;
+}
 
 /**
  * Resolves which attack definition `chosenAttackIndex` refers to.
@@ -411,9 +523,19 @@ function performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side) {
 }
 
 /** Resolves a single swing of an attack (damage or heal), including weapon/defense
- * durability, elemental passive reduction, curse recoil, and revive-on-death checks.
+ * durability, elemental passive reduction, curse recoil, and revive-bank kill checks.
  * Returns { stop:true } when the attacker or (non-revived) target died — signalling
- * a multi-attack sequence should not continue. */
+ * a multi-attack sequence should not continue.
+ *
+ * Weapon/defense customization:
+ *  - weapon.ampEffects / defense.ampEffects: { effectType: overrideDmg } — while this
+ *    piece of equipment is the one landing/absorbing the hit, any matching status
+ *    effect it applies ticks for the overridden damage instead of that effect's
+ *    normal baseline (e.g. a weapon can make its burn deal 25/turn instead of 10).
+ *  - weapon.addEffects / defense.addEffects: [{type, duration}, ...] — extra status
+ *    effects applied on every hit this equipment participates in, independent of
+ *    whatever the attack itself already applies. A weapon's addEffects land on the
+ *    target being hit; a defense's addEffects land back on the attacker (thorns). */
 function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events) {
   if (hasEffect(ac, 'confusion') && Math.random() < .5) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
   if (hasEffect(ac, 'shock') && Math.random() < .5)     { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
@@ -423,30 +545,32 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
 
   const targetCard = targetSlotKey ? cardInSlot(defEntity, targetSlotKey) : null;
 
-  let wBonus = 0;
+  let wBonus = 0, weaponRef = null;
   if (atkEntity.weaponCard) {
-    wBonus = atkEntity.weaponCard.flatBonus; atkEntity.weaponCard.currentDurability--;
-    events.push({ t:'weapon_use', side, bonus:wBonus, breaks: atkEntity.weaponCard.currentDurability<=0 });
-    if (atkEntity.weaponCard.currentDurability <= 0) atkEntity.weaponCard = null;
+    weaponRef = atkEntity.weaponCard;
+    wBonus = weaponRef.flatBonus; weaponRef.currentDurability--;
+    events.push({ t:'weapon_use', side, bonus:wBonus, breaks: weaponRef.currentDurability<=0 });
+    if (weaponRef.currentDurability <= 0) atkEntity.weaponCard = null;
   }
-  let dReduce = 0;
+  let dReduce = 0, defenseRef = null;
   if (defEntity.defenseCard) {
-    dReduce = defEntity.defenseCard.flatBonus; defEntity.defenseCard.currentDurability--;
-    events.push({ t:'defense_use', side:defSide, bonus:dReduce, breaks: defEntity.defenseCard.currentDurability<=0 });
-    if (defEntity.defenseCard.currentDurability <= 0) defEntity.defenseCard = null;
+    defenseRef = defEntity.defenseCard;
+    dReduce = defenseRef.flatBonus; defenseRef.currentDurability--;
+    events.push({ t:'defense_use', side:defSide, bonus:dReduce, breaks: defenseRef.currentDurability<=0 });
+    if (defenseRef.currentDurability <= 0) defEntity.defenseCard = null;
   }
 
   let dmg = atkDef.damage + wBonus + (ac.synergyDamageBonus || 0);
   if (hasEffect(ac, 'burn')) { dmg = Math.floor(dmg * .5); events.push({t:'burn_penalty', side, slot:atkSlotKey}); }
 
-  const tgtSlotKey = targetCard ? slotOfCard(defEntity, targetCard) : null;
-
   if (!targetCard) {
-    dmg = Math.max(0, dmg - dReduce);
-    defEntity.hp -= dmg;
-    events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:null, tgtCard:null, direct:true, dmg, name:atkDef.name, element:atkDef.element });
+    // No player HP anymore — a "direct hit" into an empty slot is a no-op,
+    // kept only so the client's existing miss/whiff animation still fires.
+    events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:null, tgtCard:null, direct:true, dmg:0, name:atkDef.name, element:atkDef.element });
     return { stop:false };
   }
+
+  const tgtSlotKey = slotOfCard(defEntity, targetCard);
 
   if (hasEffect(targetCard, 'soak')) { dmg = Math.floor(dmg * .5); events.push({t:'soak_reduce', side:defSide, slot:tgtSlotKey}); }
   const pr = targetCard.topEffect && targetCard.topEffect.type === 'passive' ? targetCard.topEffect.passiveReduction : null;
@@ -460,25 +584,29 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   dmg = Math.max(0, dmg - dReduce);
   targetCard.currentHp -= dmg;
   events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:tgtSlotKey, tgtCard:targetCard.instanceId, direct:false, dmg, name:atkDef.name, element:atkDef.element });
-  (atkDef.effects || []).forEach(eff => applyEffectToCard(targetCard, eff));
+
+  const weaponAmp = weaponRef && weaponRef.ampEffects;
+  (atkDef.effects || []).forEach(eff => applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined));
+  if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
+    weaponRef.addEffects.forEach(eff => applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined));
+    events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:targetCard.instanceId });
+  }
+  if (defenseRef && defenseRef.addEffects && defenseRef.addEffects.length) {
+    const defAmp = defenseRef.ampEffects;
+    defenseRef.addEffects.forEach(eff => applyEffectToCard(ac, eff, defAmp && defAmp[eff.type] != null ? defAmp[eff.type] : undefined));
+    events.push({ t:'defense_effect', side:defSide, slot:tgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
+  }
 
   if (hasEffect(targetCard, 'curse')) {
     const r = Math.floor(dmg * .25); ac.currentHp -= r;
     events.push({ t:'curse_recoil', side, slot:atkSlotKey, card:ac.instanceId, dmg:r });
     if (ac.currentHp <= 0) {
-      if (!tryRevive(ac, events, side, atkSlotKey)) {
-        events.push({ t:'death', side, slot:atkSlotKey, card:ac.instanceId, name:ac.name });
-        if (atkEntity.activeCard === ac) atkEntity.activeCard = null; else atkEntity.activeCard2 = null;
-        return { stop:true };
-      }
+      killCard(match, side, atkSlotKey, events, defSide);
+      return { stop:true };
     }
   }
   if (targetCard.currentHp <= 0) {
-    if (tryRevive(targetCard, events, defSide, tgtSlotKey)) return { stop:false };
-    const ex = Math.abs(targetCard.currentHp);
-    events.push({ t:'death', side:defSide, slot:tgtSlotKey, card:targetCard.instanceId, name:targetCard.name });
-    if (defEntity.activeCard === targetCard) defEntity.activeCard = null; else defEntity.activeCard2 = null;
-    if (ex > 0) { defEntity.hp -= ex; events.push({ t:'excess', side:defSide, dmg:ex }); }
+    killCard(match, defSide, tgtSlotKey, events, side);
     return { stop:true };
   }
   return { stop:false };
@@ -548,9 +676,17 @@ function triggerRocks(defendingSideEntity, incomingCard, events, side, slot) {
   events.push({ t:'rocks', side, slot, card:incomingCard.instanceId, dmg:50 });
 }
 
+/** Win condition: total creature destruction, no player HP involved. A side
+ * loses the instant it has zero creatures left anywhere (deployed + hand +
+ * deck). Returns 0 or 1 (the winning side), 'draw' for a simultaneous
+ * double-wipe (e.g. mutual curse-recoil kills on each side's last creature),
+ * or null if the match continues. */
 function isMatchOver(match) {
-  if (match.sides[0].hp <= 0) return 1; // side 1 (index) wins
-  if (match.sides[1].hp <= 0) return 0;
+  const c0 = aliveCreatureCount(match.sides[0]);
+  const c1 = aliveCreatureCount(match.sides[1]);
+  if (c0 <= 0 && c1 <= 0) return 'draw';
+  if (c0 <= 0) return 1;
+  if (c1 <= 0) return 0;
   return null;
 }
 
@@ -559,7 +695,7 @@ module.exports = {
   Effects, hasEffect, applyEffectToCard, processEffects, checkCardDeath,
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
   executeAttack, triggerRocks, isMatchOver, applyDeployAbility,
-  tryRevive, applySynergies, attackDefFor,
+  killCard, settleRevives, applySynergies, attackDefFor, aliveCreatureCount,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
-  DECK_SIZE, deckClassificationOk,
+  DECK_SIZE, MAX_CREATURES, deckClassificationOk,
 };
