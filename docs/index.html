@@ -294,6 +294,12 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .avatar-player{ background:#0a1a2e;color:#93c5fd;border-color:#1e40af;}
 .hp-display{display:flex;flex-direction:column;gap:2px;}
 .hp-label{font-size:0.56rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--txt-dim);}
+.revive-badge{
+  display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 6px;border-radius:9px;
+  font-size:0.56rem;font-weight:800;letter-spacing:0.02em;text-transform:none;
+  background:rgba(167,139,250,0.16);color:#c4b5fd;border:1px solid rgba(167,139,250,0.4);
+  vertical-align:middle;
+}
 .hp-bar-wrap{
   width:190px;height:18px;
   background:#111120;border-radius:9px;border:1px solid var(--border);
@@ -1604,7 +1610,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 .bazaar-tile:hover{transform:translateY(-3px);border-color:rgba(139,92,246,.4);box-shadow:0 8px 20px rgba(0,0,0,.4);}
 .bazaar-tile-art{width:98px;height:68px;overflow:hidden;position:relative;background:#0a0a16;}
-.bazaar-tile-art .card{transform:scale(.34);transform-origin:top left;}
+.bazaar-tile-art .card{transform:scale(.681);transform-origin:top left;}
 .bazaar-tile-ribbon{
   position:absolute;top:3px;left:3px;z-index:2;font-family:'Rajdhani',sans-serif;font-size:.5rem;font-weight:800;
   letter-spacing:.04em;padding:1px 5px;border-radius:20px;color:#fff;
@@ -1633,8 +1639,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);z-index:2;
 }
 .bazaar-listing-modal-close:hover{color:var(--txt);}
-.bazaar-detail-top{display:flex;gap:16px;margin-bottom:14px;}
-.bazaar-detail-card{width:144px;flex:0 0 144px;}
+.bazaar-detail-top{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;}
+.bazaar-detail-card{width:144px;height:214px;flex:0 0 144px;overflow:hidden;border-radius:8px;}
 .bazaar-detail-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-top:2px;}
 .bazaar-detail-name{font-family:'Cinzel',serif;font-weight:800;font-size:1rem;color:var(--txt);}
 .bazaar-detail-seller{font-size:.7rem;color:var(--txt-muted);}
@@ -1734,7 +1740,13 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 @media (max-width:640px){
   .dm-layout{flex-direction:column;height:70vh;}
   .dm-conv-list{width:100%;flex:0 0 auto;flex-direction:row;overflow-x:auto;height:auto;max-height:90px;}
-  .bazaar-detail-top{flex-direction:column;}
+  /* Card stays BESIDE the info column on mobile too — it's scaled down
+   * (not stacked) so it fills its box completely instead of leaving the
+   * dead space a naive width-only shrink would cause. */
+  .bazaar-detail-card{width:104px;height:154px;flex:0 0 104px;}
+  .bazaar-detail-card .card{transform:scale(.722);transform-origin:top left;}
+  .bazaar-listing-modal{padding:16px;}
+  .bazaar-detail-top{gap:10px;}
 }
 </style>
 </head>
@@ -2231,14 +2243,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
   <div id="table-wrap">
 
-    <!-- Enemy avatar + HP -->
+    <!-- Enemy avatar + creatures remaining -->
     <div class="avatar-row">
       <div class="avatar-circle avatar-enemy" id="enemy-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label" id="enemy-hp-label">Enemy HP</div>
+        <div class="hp-label" id="enemy-hp-label">Enemy Creatures <span class="revive-badge" id="enemy-revive-badge" style="display:none"></span></div>
         <div class="hp-bar-wrap hp-bar-enemy">
           <div class="hp-bar-fill" id="enemy-hp-fill" style="width:100%"></div>
-          <div class="hp-bar-text" id="enemy-hp-text">100 / 100</div>
+          <div class="hp-bar-text" id="enemy-hp-text">12 / 12</div>
         </div>
       </div>
     </div>
@@ -2274,14 +2286,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
     </div><!-- /arena-table -->
 
-    <!-- Player avatar + HP -->
+    <!-- Player avatar + creatures remaining -->
     <div class="avatar-row">
       <div class="avatar-circle avatar-player" id="player-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label">Your HP</div>
+        <div class="hp-label">Your Creatures <span class="revive-badge" id="player-revive-badge" style="display:none"></span></div>
         <div class="hp-bar-wrap hp-bar-player">
           <div class="hp-bar-fill" id="player-hp-fill" style="width:100%"></div>
-          <div class="hp-bar-text" id="player-hp-text">100 / 100</div>
+          <div class="hp-bar-text" id="player-hp-text">12 / 12</div>
         </div>
       </div>
     </div>
@@ -3233,21 +3245,27 @@ const Anim={
   }
 };
 
-/* ── EFFECT REGISTRY ─────────────────────────────────── */
+/* ── EFFECT DISPLAY METADATA ──────────────────────────────
+ * Purely cosmetic lookup (label + badge color) used when rendering a card's
+ * status effects, attack effect chips, and the "no active effects" bar.
+ * Combat itself is entirely server-authoritative (see server/game-engine.js) —
+ * there used to be a full duplicate rules engine here (onTurnStart/onAttack
+ * logic, damage-per-tick, skip-turn rolls, etc.) but every match has run
+ * through the server for a while now, so it was dead code and got removed. */
 const Effects = {
-  bleed:       {name:"Bleed",       type:"bleed",       color:"#dc2626",trigger:"onTurnStart",logic(c,x){const dmg=10;c.currentHp-=dmg;log(`${c.name} bleeds 10!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'bleed',false,dmg),(x.vfxDelay||0)+120);}},
-  poison:      {name:"Poison",      type:"poison",      color:"#7c3aed",trigger:"onTurnStart",logic(c,x){const dmg=25;c.currentHp-=dmg;log(`${c.name} poisoned 25!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'poison',false,dmg),(x.vfxDelay||0)+120);}},
-  strongPoison:{name:"Str.Poison",  type:"strongPoison",color:"#5b21b6",trigger:"onTurnStart",logic(c,x){const dmg=50;c.currentHp-=dmg;log(`${c.name} strong poison 50!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'strongPoison',false,dmg),(x.vfxDelay||0)+120);}},
-  mythicPoison:{name:"M.Poison",    type:"mythicPoison",color:"#3b0764",trigger:"onTurnStart",logic(c,x){const dmg=75;c.currentHp-=dmg;log(`${c.name} mythic poison 75!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'mythicPoison',false,dmg),(x.vfxDelay||0)+120);}},
-  curse:       {name:"Curse",       type:"curse",       color:"#92400e",trigger:"onTurnStart",logic(c,x){}},
-  confusion:   {name:"Confusion",   type:"confusion",   color:"#d97706",trigger:"onAttack",   logic(c,x){if(Math.random()<.5){log(`${c.name} confused, misses!`);x.cancelAttack=true;}}},
-  sleep:       {name:"Sleep",       type:"sleep",       color:"#1d4ed8",trigger:"onTurnStart",logic(c,x){if(Math.random()<.5){log(`${c.name} asleep, skips!`);x.skipTurn=true;if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'sleep',true),(x.vfxDelay||0)+120);}else{if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'sleep',false),(x.vfxDelay||0)+120);}}},
-  paralyze:    {name:"Paralyze",    type:"paralyze",    color:"#1e40af",trigger:"onTurnStart",logic(c,x){if(Math.random()<.5){log(`${c.name} paralyzed!`);x.skipTurn=true;if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'paralyze',true),(x.vfxDelay||0)+120);}else{if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'paralyze',false),(x.vfxDelay||0)+120);}}},
-  burn:        {name:"Burn",        type:"burn",        color:"#ea580c",trigger:"onTurnStart",logic(c,x){const dmg=10;c.currentHp-=dmg;log(`${c.name} burned 10!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'burn',false,dmg),(x.vfxDelay||0)+120);}},
-  shock:       {name:"Shock",       type:"shock",       color:"#ca8a04",trigger:"onTurnStart",logic(c,x){const dmg=25;c.currentHp-=dmg;log(`${c.name} shocked 25!`);if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'shock',false,dmg),(x.vfxDelay||0)+120);}},
-  soak:        {name:"Soak",        type:"soak",        color:"#0369a1",trigger:"onTurnStart",logic(c,x){}},
-  cryo:        {name:"Cryo",        type:"cryo",        color:"#0e7490",trigger:"onTurnStart",logic(c,x){const dmg=10;c.currentHp-=dmg;log(`${c.name} cryo 10!`);if(Math.random()<.5){log(`${c.name} frozen!`);x.skipTurn=true;if(x.slotId){setTimeout(()=>Anim.statusVfx(x.slotId,'cryo',true,dmg),(x.vfxDelay||0)+120);}}else{if(x.slotId)setTimeout(()=>Anim.statusVfx(x.slotId,'cryo',false,dmg),(x.vfxDelay||0)+120);}}},
-  rocks:       {name:"Rocks",       type:"rocks",       color:"#78716c",trigger:"onSwap",      logic(c,x){}}
+  bleed:        {name:"Bleed",       color:"#dc2626"},
+  poison:       {name:"Poison",      color:"#7c3aed"},
+  strongPoison: {name:"Str.Poison",  color:"#5b21b6"},
+  mythicPoison: {name:"M.Poison",    color:"#3b0764"},
+  curse:        {name:"Curse",       color:"#92400e"},
+  confusion:    {name:"Confusion",   color:"#d97706"},
+  sleep:        {name:"Sleep",       color:"#1d4ed8"},
+  paralyze:     {name:"Paralyze",    color:"#1e40af"},
+  burn:         {name:"Burn",        color:"#ea580c"},
+  shock:        {name:"Shock",       color:"#ca8a04"},
+  soak:         {name:"Soak",        color:"#0369a1"},
+  cryo:         {name:"Cryo",        color:"#0e7490"},
+  rocks:        {name:"Rocks",       color:"#78716c"},
 };
 
 /* ── ELEMENT REGISTRY ─────────────────────────────────── */
@@ -3272,22 +3290,6 @@ const Elements={
  * time refuses to let you queue at all. */
 let CardDB=[];
 let CardLibraryHash=null;
-
-/* ── CARD FACTORY ─────────────────────────────────────── */
-function createCard(baseId){
-  const base=CardDB.find(c=>c.id===baseId);if(!base)return null;
-  if(base.cardType==='weapon'||base.cardType==='defense'){
-    return{instanceId:Math.random().toString(36).substr(2,9),name:base.name,
-      cardType:base.cardType,flatBonus:base.flatBonus,maxDurability:base.maxDurability,
-      currentDurability:base.maxDurability,image:base.image};
-  }
-  const card={instanceId:Math.random().toString(36).substr(2,9),name:base.name,hp:base.hp,types:[...base.types],
-    classification:base.classification,image:base.image,topEffect:JSON.parse(JSON.stringify(base.topEffect)),
-    bottomAttack:JSON.parse(JSON.stringify(base.bottomAttack)),maxHp:base.hp,currentHp:base.hp,activeEffects:[]};
-  if(base.topEffect.type==='passive'&&base.topEffect.effects.length>0)
-    base.topEffect.effects.forEach(e=>card.activeEffects.push({type:e.type,duration:e.duration}));
-  return card;
-}
 
 /* ── GAME STATE ───────────────────────────────────────── */
 const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingTarget:null,actedThisTurn:new Set(),
@@ -3496,6 +3498,10 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   const rowCls=isWpn?'wpn':'def';
   const typeLabel=isWpn?'WEAPON':'DEFENSE';
   const bonusLabel=isWpn?'DMG +':'DEF ';
+  const effName=t=>Effects[t]?.name||t;
+  const ampBits=card.ampEffects?Object.entries(card.ampEffects).map(([t,d])=>`${effName(t)} amplified to ${d}/turn`):[];
+  const addBits=(card.addEffects||[]).map(e=>`+${effName(e.type)} (${e.duration>=9999?'permanent':e.duration+' turns'}) on every hit`);
+  const customSfx=[...ampBits,...addBits].join(' · ');
   return`<div class="card ${ic} ${extraClass}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
@@ -3510,6 +3516,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
         <span class="eff-val" style="color:${accent}">${card.flatBonus}</span>
       </div>
       <div class="eff-sfx">Durability: ${card.currentDurability} / ${card.maxDurability} attacks</div>
+      ${customSfx?`<div class="eff-sfx">${customSfx}</div>`:''}
     </div>
   </div>`;
 }
@@ -3560,10 +3567,22 @@ function renderCard(card,interactable,index=-1,extraClass=''){
 
 /* ── UI UPDATE ────────────────────────────────────────── */
 function updateUI(){
-  // HP bars
-  const setHp=(fi,ti,v,m)=>{document.getElementById(fi).style.width=`${Math.max(0,v/m*100)}%`;document.getElementById(ti).innerText=`${Math.max(0,v)} / ${m}`;};
-  setHp('player-hp-fill','player-hp-text',State.player.hp,State.player.maxHp);
-  setHp('enemy-hp-fill', 'enemy-hp-text', State.enemy.hp, State.enemy.maxHp);
+  // Creatures-remaining bars (win condition is total creature destruction now,
+  // not HP — the bar drains only when a creature actually dies, never on a hit).
+  const setCreatures=(fi,ti,left,seenMax)=>{
+    const denom=Math.max(seenMax||0,left||0,1);
+    document.getElementById(fi).style.width=`${Math.max(0,(left||0)/denom*100)}%`;
+    document.getElementById(ti).innerText=`${Math.max(0,left||0)} / ${seenMax||left||0}`;
+  };
+  setCreatures('player-hp-fill','player-hp-text',State.player.creaturesLeft,State.player._maxSeenCreatures);
+  setCreatures('enemy-hp-fill', 'enemy-hp-text', State.enemy.creaturesLeft, State.enemy._maxSeenCreatures);
+  const setReviveBadge=(id,bank)=>{
+    const el=document.getElementById(id); if(!el)return;
+    if(bank>0){ el.style.display='inline-flex'; el.innerHTML=`&#9860; ${bank} revive${bank===1?'':'s'} banked`; }
+    else{ el.style.display='none'; }
+  };
+  setReviveBadge('player-revive-badge',State.player.reviveBank||0);
+  setReviveBadge('enemy-revive-badge',State.enemy.reviveBank||0);
 
   // Battlefield
   const canAct=State.turn==='PLAYER'&&State.phase==='MAIN';
@@ -3812,12 +3831,12 @@ function loadPlayer(){
   finally{ _playerLoaded=true; }
 }
 function seedStarterCollection(){
-  // All-equipment-plus-normal-creatures starter set contains no Boss/Overlord
-  // (or special Pests-tier) cards at all, so it's legal by construction — a
-  // new player can hit "Save Deck" immediately using their whole starter
-  // collection as their first deck.
+  // All-equipment-plus-PESTS-creatures starter set contains no Boss/Overlord
+  // cards at all, so it's legal by construction — a new player can hit "Save
+  // Deck" immediately using their whole starter collection as their first deck.
+  // Capped at MAX_CREATURES creatures, same rule a real deck must follow.
   const equipment=CardDB.filter(c=>c.cardType==='weapon'||c.cardType==='defense').map(c=>c.id);
-  const normals=CardDB.filter(c=>!c.cardType&&c.classification==='normal').map(c=>c.id);
+  const normals=CardDB.filter(c=>!c.cardType&&c.classification==='pests').map(c=>c.id).slice(0,MAX_CREATURES);
   Player.collection=[...equipment,...normals].slice(0,DECK_SIZE);
   savePlayer();
 }
@@ -5145,14 +5164,20 @@ function closeMarket(){ showMenu(); }
 
 /* ── DECK BUILDER ─────────────────────────────────────── */
 const DECK_SIZE=16; // must match Engine.DECK_SIZE on the server
+const MAX_CREATURES=12; // must match Engine.MAX_CREATURES on the server — creature-type cap per deck
 
 /** Mirrors the server's game-engine.js deckClassificationOk() rule:
- * at most one BOSS-or-OVERLORD card total, and if that card is an
- * OVERLORD, no PESTS or BOSS cards may ride along with it. */
+ * at most MAX_CREATURES creature-type cards total, at most one
+ * BOSS-or-OVERLORD card, and if that card is an OVERLORD, no PESTS or
+ * BOSS cards may ride along with it. */
 function deckComposition(ids){
   return ids.map(id=>CardDB.find(c=>c.id===id)?.classification).filter(Boolean);
 }
+function deckCreatureCount(ids){
+  return ids.filter(id=>{const d=CardDB.find(c=>c.id===id); return d && !d.cardType;}).length;
+}
 function isDeckCompositionLegal(ids){
+  if(deckCreatureCount(ids)>MAX_CREATURES) return false;
   const classes=deckComposition(ids);
   const bossOrOverlordCount=classes.filter(c=>c==='boss'||c==='overlord').length;
   if(bossOrOverlordCount>1) return false;
@@ -5160,9 +5185,15 @@ function isDeckCompositionLegal(ids){
   return true;
 }
 /** Checks whether `id` can be added to the working deck right now, given the
- * boss/overlord rule. Returns {ok:true} or {ok:false, reason}. */
+ * creature cap and boss/overlord rule. Returns {ok:true} or {ok:false, reason}. */
 function canAddCardToDeck(id){
   const def=CardDB.find(c=>c.id===id);
+  if(!def) return {ok:false, reason:'Unknown card.'};
+  if(!def.cardType){ // creature (wizard/mob/dragon) — subject to the 12-creature cap
+    if(deckCreatureCount(_dbDeck)>=MAX_CREATURES){
+      return {ok:false, reason:`Deck already has ${MAX_CREATURES} creatures (the max) — remove one first.`};
+    }
+  }
   const cls=def?.classification;
   if(!cls) return {ok:true}; // weapons/defense cards have no classification restriction
   const existing=deckComposition(_dbDeck);
@@ -5181,7 +5212,7 @@ function canAddCardToDeck(id){
 
 let _dbDeck=[]; // working copy
 let _dbPage=0;  // 0 or 1 — which 8-slot page of the SAME 16-card deck is shown; visual only
-const DB_CLASS_OPTIONS=['normal','pests','boss','overlord'];
+const DB_CLASS_OPTIONS=['pests','boss','overlord'];
 let _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
 
 function dbTypeOptions(){
@@ -5295,9 +5326,9 @@ function renderDBCollection(){
 function renderDBDeckSlots(){
   const grid=document.getElementById('db-deck-slot-grid');
   if(!grid)return;
-  const counterText=`${_dbDeck.length}/${DECK_SIZE}`;
+  const counterText=`${_dbDeck.length}/${DECK_SIZE} (${deckCreatureCount(_dbDeck)}/${MAX_CREATURES} creatures)`;
   const counter=document.getElementById('db-deck-count'); if(counter)counter.textContent=counterText;
-  const topbarMeta=document.getElementById('menu-deck-count'); if(topbarMeta)topbarMeta.textContent=`${_dbDeck.length} / ${DECK_SIZE} cards in deck`;
+  const topbarMeta=document.getElementById('menu-deck-count'); if(topbarMeta)topbarMeta.textContent=`${_dbDeck.length} / ${DECK_SIZE} cards · ${deckCreatureCount(_dbDeck)} / ${MAX_CREATURES} creatures`;
   document.querySelectorAll('#db-page-tabs .db-page-tab').forEach((el,idx)=>el.classList.toggle('active',idx===_dbPage));
   grid.innerHTML='';
   const start=_dbPage*8;
@@ -5352,7 +5383,9 @@ function saveDeck(){
     return;
   }
   if(!isDeckCompositionLegal(_dbDeck)){
-    showToast('⚠ Deck breaks the Boss/Overlord rule — remove a card and try again.');
+    showToast(deckCreatureCount(_dbDeck)>MAX_CREATURES
+      ? `⚠ Deck has too many creatures (max ${MAX_CREATURES}) — remove one and try again.`
+      : '⚠ Deck breaks the Boss/Overlord rule — remove a card and try again.');
     return;
   }
   if(Net.connected&&Net.authed){
@@ -7604,6 +7637,7 @@ function beginMultiplayerMatch(msg){
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
   State.selectedSlot=null; State.pendingTarget=null;
+  State.player._maxSeenCreatures=0; State.enemy._maxSeenCreatures=0;
   document.getElementById('game-over').style.display='none';
   document.getElementById('coinflip-overlay').classList.remove('open');
   _handVisible=false;
@@ -7612,7 +7646,7 @@ function beginMultiplayerMatch(msg){
     document.getElementById('enemy-avatar-circle').innerHTML=renderIcon(State.opponentIcon||'star',26);
     document.getElementById('player-avatar-circle').innerHTML=renderIcon(Player.icon||'star',26);
     const enemyLabel=document.getElementById('enemy-hp-label');
-    if(enemyLabel) enemyLabel.textContent=`${State.opponentName||'Enemy'}'s HP`;
+    if(enemyLabel) enemyLabel.innerHTML=`${State.opponentName||'Enemy'}'s Creatures <span class="revive-badge" id="enemy-revive-badge" style="display:none"></span>`;
     showScreen('game');
     initHandTray();
     setTimeout(showHandTray,400);
@@ -7630,16 +7664,24 @@ function applyServerState(msg){
 
   const you=msg.state.you, opp=msg.state.opponent;
   State.player.hp=you.hp; State.player.maxHp=you.maxHp;
+  State.player.creaturesLeft=you.creaturesLeft; State.player.reviveBank=you.reviveBank||0;
   State.player.activeCard=you.activeCard; State.player.activeCard2=you.activeCard2;
   State.player.weaponCard=you.weaponCard; State.player.defenseCard=you.defenseCard;
   State.player.hand=you.hand||[];
   State.player.deck=new Array(you.deckCount||0);
 
   State.enemy.hp=opp.hp; State.enemy.maxHp=opp.maxHp;
+  State.enemy.creaturesLeft=opp.creaturesLeft; State.enemy.reviveBank=opp.reviveBank||0;
   State.enemy.activeCard=opp.activeCard; State.enemy.activeCard2=opp.activeCard2;
   State.enemy.weaponCard=opp.weaponCard; State.enemy.defenseCard=opp.defenseCard;
   State.enemy.hand=new Array(opp.handCount||0);
   State.enemy.deck=[];
+  // The bar's "full" reference is whichever creature count we've seen highest
+  // for that side this match (i.e. its count right at match start, since it
+  // only ever goes down) — tracked lazily so we don't need a separate
+  // "match started" message just to capture it.
+  State.player._maxSeenCreatures=Math.max(State.player._maxSeenCreatures||0, State.player.creaturesLeft||0);
+  State.enemy._maxSeenCreatures=Math.max(State.enemy._maxSeenCreatures||0, State.enemy.creaturesLeft||0);
 
   State.phase=msg.phase;
   // during SETUP both sides deploy simultaneously — the server's `turn` field is only
@@ -7694,10 +7736,16 @@ function playSingleEvent(e){
       case 'hit': {
         const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
         const atkCard=findCardBySideSlot(e.atkSide,e.atkSlot);
-        const tgtSlotId=e.direct?null:sideSlotToId(e.defSide,e.defSlot);
-        const tgtCard=e.direct?null:findCardBySideSlot(e.defSide,e.defSlot);
-        const isPlayerAttacking=(e.atkSide===State.mySide);
-        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,isPlayerAttacking);
+        if(e.direct){
+          // No player HP anymore — a direct hit into an empty slot is a pure
+          // no-op (no target to actually damage), so just a quick whiff cue
+          // instead of animating a fake "-0" flying at the creatures-left bar.
+          if(atkSlotId) Anim.statusFloat(atkSlotId,'NO TARGET','#94a3b8');
+          break;
+        }
+        const tgtSlotId=sideSlotToId(e.defSide,e.defSlot);
+        const tgtCard=findCardBySideSlot(e.defSide,e.defSlot);
+        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,e.atkSide===State.mySide);
         break;
       }
       case 'dot': {
