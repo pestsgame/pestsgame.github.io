@@ -1327,6 +1327,137 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
 }
 #profile-overlay.open{display:flex;}
+/* ══════════════════════════════════════
+   TOURNAMENTS
+══════════════════════════════════════ */
+.shop-row-header-label.violet-label{color:rgba(196,181,253,.85);}
+.shop-row-header-line.violet-line{background:linear-gradient(90deg,rgba(196,181,253,.15),transparent);}
+.tourney-cards{display:flex;flex-direction:column;gap:10px;padding:0 24px 6px;}
+.tourney-card{
+  display:flex;flex-direction:column;gap:10px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  padding:14px 16px;transition:border-color .15s;
+}
+.tourney-card:hover{border-color:rgba(139,92,246,.3);}
+.tourney-card.tourney-card-official{border-color:rgba(251,191,36,.22);background:linear-gradient(135deg,rgba(251,191,36,.05),rgba(255,255,255,.03));}
+.tourney-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.tourney-card-name{font-family:'Cinzel',serif;font-weight:800;font-size:.85rem;color:#fff;line-height:1.3;}
+.tourney-card-sub{font-size:.62rem;color:var(--txt-dim);margin-top:3px;display:flex;align-items:center;gap:4px;}
+.tourney-card-status{font-size:.54rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;}
+.tourney-status-scheduled{background:rgba(139,92,246,.18);color:#c4b5fd;}
+.tourney-status-locked,.tourney-status-running{background:rgba(34,197,94,.18);color:#86efac;}
+.tourney-status-completed{background:rgba(148,163,184,.18);color:#cbd5e1;}
+.tourney-status-cancelled{background:rgba(248,113,113,.18);color:#fca5a5;}
+.tourney-card-stats{display:flex;flex-wrap:wrap;gap:14px;font-size:.64rem;color:var(--txt-muted);}
+.tourney-card-stat{display:flex;align-items:center;gap:4px;white-space:nowrap;}
+.tourney-card-stat img{width:12px;height:12px;}
+.tourney-card-stat svg{flex-shrink:0;opacity:.75;}
+.tourney-prize-pill{display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);border-radius:20px;padding:3px 10px;font-size:.62rem;font-weight:700;color:#fde68a;}
+.tourney-prize-pill img{width:11px;height:11px;}
+.tourney-card-actions{display:flex;gap:8px;margin-top:2px;}
+.tourney-card-actions .bbtn{flex:1;font-size:.64rem;padding:8px 10px;letter-spacing:.03em;}
+.bbtn-tourney-registered{background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.35);color:#86efac;cursor:default;animation:none !important;}
+.bbtn-tourney-leave{background:transparent;border:1px solid rgba(248,113,113,.3);color:#fca5a5;}
+.bbtn-tourney-view{background:linear-gradient(135deg,#4c1d95,#7c3aed);border:1px solid #7c3aed;}
+.tourney-host-tag{font-size:.58rem;color:#c4b5fd;display:flex;align-items:center;gap:3px;}
+.tourney-empty{text-align:center;color:var(--txt-dim);font-size:.75rem;padding:30px 24px;}
+
+/* ── create-tournament modal ── */
+#tourney-create-overlay{
+  display:none;position:fixed;inset:0;z-index:1155;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#tourney-create-overlay.open{display:flex;}
+#tourney-create-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
+.tourney-field-row{display:flex;gap:12px;}
+.tourney-field-row>div{flex:1;min-width:0;}
+.tourney-datetime-input{
+  width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:8px;
+  padding:9px 12px;color:var(--txt);font-size:.78rem;font-family:inherit;color-scheme:dark;
+}
+.tourney-datetime-input:focus{outline:none;border-color:#7c3aed;}
+.tourney-stepper{display:flex;align-items:center;gap:10px;}
+.tourney-stepper button{
+  width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  color:var(--txt);font-size:1rem;cursor:pointer;flex-shrink:0;line-height:1;
+}
+.tourney-stepper button:hover{border-color:#7c3aed;}
+.tourney-stepper-value{flex:1;text-align:center;font-family:'Cinzel',serif;font-weight:800;font-size:1rem;color:#fff;}
+.tourney-range-row{display:flex;align-items:center;gap:12px;}
+.tourney-range{flex:1;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:rgba(255,255,255,.12);outline:none;}
+.tourney-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#a78bfa;border:2px solid #fff;cursor:pointer;}
+.tourney-range::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#a78bfa;border:2px solid #fff;cursor:pointer;}
+.tourney-range-value{font-family:'Cinzel',serif;font-weight:800;font-size:.85rem;color:#c4b5fd;min-width:44px;text-align:right;}
+.tourney-hint{font-size:.6rem;color:var(--txt-dim);margin-top:5px;line-height:1.5;}
+.tourney-prize-preview{
+  background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.22);border-radius:10px;
+  padding:10px 14px;font-size:.68rem;color:#fde68a;display:flex;align-items:center;gap:8px;
+}
+
+/* ── bracket viewer ── */
+#tourney-bracket-overlay{
+  display:none;position:fixed;inset:0;z-index:1160;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.9);backdrop-filter:blur(7px);
+}
+#tourney-bracket-overlay.open{display:flex;}
+#tourney-bracket-overlay.open .tourney-bracket-modal{transform:scale(1) translateY(0);opacity:1;}
+.tourney-bracket-modal{
+  width:min(940px,95vw);max-height:90vh;
+  background:var(--panel);border:1px solid rgba(139,92,246,.25);border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:scale(.96) translateY(10px);opacity:0;transition:transform .2s ease,opacity .2s ease;
+}
+.tourney-bracket-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;}
+.tourney-bracket-head-title{font-family:'Cinzel',serif;font-weight:800;font-size:.95rem;color:#fff;}
+.tourney-bracket-head-sub{font-size:.62rem;color:var(--txt-dim);margin-top:2px;}
+.tourney-bracket-close{background:transparent;border:none;color:var(--txt-muted);cursor:pointer;padding:6px;border-radius:8px;}
+.tourney-bracket-close:hover{color:#fff;background:rgba(255,255,255,.06);}
+.tourney-bracket-scroll{overflow:auto;padding:22px;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;flex:1;}
+.tourney-champion-banner{
+  display:none;align-items:center;gap:10px;margin:0 20px 16px;padding:10px 16px;border-radius:10px;
+  background:linear-gradient(135deg,rgba(251,191,36,.16),rgba(251,191,36,.05));border:1px solid rgba(251,191,36,.35);
+  font-size:.72rem;color:#fde68a;
+}
+.tourney-champion-banner.show{display:flex;}
+
+/* ── in-battle tournament ribbon ── */
+.tourney-match-ribbon{
+  display:none;align-items:center;gap:6px;justify-content:center;
+  padding:5px 14px;border-radius:20px;margin:0 auto 8px;width:fit-content;
+  background:linear-gradient(135deg,rgba(139,92,246,.22),rgba(124,58,237,.1));border:1px solid rgba(167,139,250,.4);
+  font-family:'Cinzel',serif;font-size:.62rem;font-weight:800;letter-spacing:.05em;color:#c4b5fd;
+}
+.tourney-match-ribbon.show{display:flex;}
+.game-over-tourney-note{
+  display:flex;align-items:center;gap:6px;margin:-6px 0 18px;
+  font-family:'Cinzel',serif;font-size:.72rem;font-weight:700;color:#c4b5fd;letter-spacing:.03em;
+}
+
+/* ── champion celebration ── */
+#tourney-champion-overlay{
+  display:none;position:fixed;inset:0;z-index:1250;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.92);backdrop-filter:blur(8px);
+}
+#tourney-champion-overlay.open{display:flex;}
+.tourney-champion-modal{
+  width:min(420px,90vw);text-align:center;padding:34px 30px;
+  background:linear-gradient(160deg,rgba(251,191,36,.1),var(--panel) 60%);
+  border:1px solid rgba(251,191,36,.4);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.6);
+  transform:scale(.9);opacity:0;transition:transform .25s ease,opacity .25s ease;
+}
+#tourney-champion-overlay.open .tourney-champion-modal{transform:scale(1);opacity:1;}
+.tourney-champion-title{font-family:'Cinzel',serif;font-weight:900;font-size:1.3rem;color:#fde68a;margin:14px 0 6px;}
+.tourney-champion-sub{font-size:.78rem;color:var(--txt-muted);margin-bottom:18px;}
+.tourney-champion-prize{
+  display:inline-flex;align-items:center;gap:6px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.35);
+  border-radius:20px;padding:8px 18px;font-size:.95rem;font-weight:800;color:#fde68a;margin-bottom:20px;
+}
+.tourney-champion-prize img{width:18px;height:18px;}
+
 #guild-create-overlay{
   display:none;position:fixed;inset:0;z-index:1150;
   align-items:center;justify-content:center;
@@ -1893,6 +2024,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
         <span id="bazaar-tab-badge" class="social-tab-badge" style="display:none;"></span>
       </button>
+      <button class="menu-tab" onclick="switchMenuTab('tourney')" data-tab="tourney">
+        <span class="menu-tab-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3.5 3.5 0 0 0 3.5 3.5M17 4h3v2a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 12v3.5M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3s2.5 1 2.5 3"/></svg></span>
+        <div class="menu-tab-text">
+          <span class="menu-tab-label">Tourney</span>
+          <span class="menu-tab-sub">Compete · Win Big</span>
+        </div>
+        <span id="tourney-tab-badge" class="social-tab-badge" style="display:none;"></span>
+      </button>
     </div><!-- /menu-sidebar -->
 
     <!-- Right content panels -->
@@ -2218,6 +2357,57 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
       </div>
 
+      <!-- TOURNEY PANEL -->
+      <div class="menu-panel" id="menu-panel-tourney">
+        <div class="panel-topbar">
+          <div class="panel-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3.5 3.5 0 0 0 3.5 3.5M17 4h3v2a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 12v3.5M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3s2.5 1 2.5 3"/></svg>Tourney</div>
+          <div class="panel-meta" id="tourney-panel-meta"></div>
+        </div>
+        <div class="bazaar-subtabs">
+          <button class="bazaar-subtab active" data-subtab="official" onclick="switchTourneySubtab('official')">Official</button>
+          <button class="bazaar-subtab" data-subtab="unofficial" onclick="switchTourneySubtab('unofficial')">Unofficial</button>
+          <button class="bazaar-subtab" data-subtab="mine" onclick="switchTourneySubtab('mine')">My Tournaments</button>
+        </div>
+        <div class="bazaar-body">
+
+          <div id="tourney-loading-overlay" class="panel-loading-overlay">
+            <div style="display:flex;gap:8px;">
+              <div class="pack-loading-dot" style="animation-delay:0s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.15s;"></div>
+              <div class="pack-loading-dot" style="animation-delay:.3s;"></div>
+            </div>
+            <div class="panel-loading-status">Loading tournaments...</div>
+          </div>
+
+          <div id="tourney-content" style="display:none;">
+
+            <!-- OFFICIAL -->
+            <div class="bazaar-view active" id="tourney-view-official">
+              <div class="shop-row-header"><span class="shop-row-header-label gold-label">Daily Tournament</span><span class="shop-row-header-line gold-line"></span></div>
+              <div class="tourney-cards" id="tourney-daily-cards"></div>
+              <div class="shop-row-header"><span class="shop-row-header-label gem-label">Weekly Championship</span><span class="shop-row-header-line gem-line"></span></div>
+              <div class="tourney-cards" id="tourney-weekly-cards"></div>
+            </div>
+
+            <!-- UNOFFICIAL -->
+            <div class="bazaar-view" id="tourney-view-unofficial">
+              <div style="padding:16px 24px 4px;">
+                <button class="bbtn bbtn-battle" style="width:100%;" onclick="openTourneyCreateModal()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px;"><path d="M12 5v14M5 12h14"/></svg>Host a Tournament</button>
+              </div>
+              <div class="tourney-cards" id="tourney-unofficial-list"></div>
+              <div class="tourney-empty" id="tourney-unofficial-empty" style="display:none;">No open player-hosted tournaments right now — be the first!</div>
+            </div>
+
+            <!-- MINE -->
+            <div class="bazaar-view" id="tourney-view-mine">
+              <div class="tourney-cards" id="tourney-mine-list" style="padding-top:16px;"></div>
+              <div class="tourney-empty" id="tourney-mine-empty" style="display:none;">You haven't joined a tournament yet — check the Official or Unofficial tabs.</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
     </div><!-- /menu-content -->
   </div><!-- /menu-layout -->
 
@@ -2237,6 +2427,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 <!-- ══════ MAIN BOARD ══════ -->
 <div id="main">
+
+  <div class="tourney-match-ribbon" id="tourney-match-ribbon"></div>
 
   <div id="turn-banner">
     <div style="display:flex;align-items:center;gap:14px;">
@@ -2311,6 +2503,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   <!-- Game Over overlay -->
   <div id="game-over">
     <h1 id="game-over-text">VICTORY</h1>
+    <div class="game-over-tourney-note" id="game-over-tourney-note" style="display:none;"></div>
     <div style="display:flex;gap:12px;">
       <button class="bbtn bbtn-endturn" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu();startMultiplayerGame()">↺ Play Again</button>
       <button class="bbtn bbtn-restart" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu()">← Main Menu</button>
@@ -2545,6 +2738,83 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         <button class="pf-btn pf-btn-save" id="gc-submit-btn" onclick="submitGuildCreate()">Found Guild</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══════ CREATE TOURNAMENT ══════ -->
+<div id="tourney-create-overlay" onclick="handleTourneyCreateBackdrop(event)">
+  <div class="profile-modal" onclick="event.stopPropagation()">
+    <div class="profile-modal-top">
+      <div class="profile-modal-hero banner-gold">
+        <div class="close-x" onclick="closeTourneyCreateModal()">✕</div>
+      </div>
+    </div>
+    <div class="profile-modal-body">
+      <div>
+        <label class="pf-field-label">Tournament Name</label>
+        <input type="text" id="tc-name-input" class="pf-name-input" maxlength="40" placeholder="Name your tournament..." oninput="updateTourneyCreatePreview()">
+      </div>
+      <div class="tourney-field-row">
+        <div>
+          <label class="pf-field-label">Max Players</label>
+          <div class="tourney-stepper">
+            <button type="button" onclick="adjustTourneyMaxPlayers(-1)">−</button>
+            <div class="tourney-stepper-value" id="tc-maxplayers-value">8</div>
+            <button type="button" onclick="adjustTourneyMaxPlayers(1)">+</button>
+          </div>
+        </div>
+        <div>
+          <label class="pf-field-label">Starts At</label>
+          <input type="datetime-local" id="tc-start-input" class="tourney-datetime-input" oninput="updateTourneyCreatePreview()">
+        </div>
+      </div>
+      <div>
+        <label class="pf-field-label">Prize Pool % <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">— rest is burned, never returned to you</span></label>
+        <div class="tourney-range-row">
+          <input type="range" id="tc-prizepct-input" class="tourney-range" min="50" max="100" value="80" oninput="updateTourneyCreatePreview()">
+          <div class="tourney-range-value" id="tc-prizepct-value">80%</div>
+        </div>
+      </div>
+      <div>
+        <label class="pf-field-label">Entry Fee</label>
+        <div class="db-chip-group" id="tc-currency-chips"></div>
+        <input type="number" id="tc-amount-input" class="pf-name-input" min="0" placeholder="Amount" style="margin-top:8px;" oninput="updateTourneyCreatePreview()">
+      </div>
+      <div class="tourney-prize-preview" id="tc-prize-preview"></div>
+      <div class="tourney-hint">Everyone (including you) pays the entry fee to join, same as any other player. If fewer than 2 people actually show up when it starts, entry fees are refunded automatically — no-shows forfeit theirs.</div>
+      <div class="profile-modal-actions">
+        <button class="pf-btn pf-btn-cancel" onclick="closeTourneyCreateModal()">Cancel</button>
+        <button class="pf-btn pf-btn-save" id="tc-submit-btn" onclick="submitTourneyCreate()">Host Tournament</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ BRACKET VIEWER ══════ -->
+<div id="tourney-bracket-overlay" onclick="handleTourneyBracketBackdrop(event)">
+  <div class="tourney-bracket-modal" onclick="event.stopPropagation()">
+    <div class="tourney-bracket-head">
+      <div>
+        <div class="tourney-bracket-head-title" id="tb-title">Tournament</div>
+        <div class="tourney-bracket-head-sub" id="tb-sub"></div>
+      </div>
+      <button class="tourney-bracket-close" onclick="closeTourneyBracket()" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="tourney-champion-banner" id="tb-champion-banner"></div>
+    <div class="tourney-bracket-scroll" id="tb-scroll"></div>
+  </div>
+</div>
+
+<!-- ══════ CHAMPION CELEBRATION ══════ -->
+<div id="tourney-champion-overlay">
+  <div class="tourney-champion-modal">
+    <div id="tc-champion-medal"></div>
+    <div class="tourney-champion-title">Champion!</div>
+    <div class="tourney-champion-sub" id="tc-champion-sub"></div>
+    <div class="tourney-champion-prize" id="tc-champion-prize"></div>
+    <button class="pf-btn pf-btn-save" onclick="closeTourneyChampionModal()" style="width:100%;">Nice!</button>
   </div>
 </div>
 
@@ -3970,6 +4240,23 @@ function renderGuildTabIcon(size=14){
 function renderBazaarTabIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 7h13M13 3l4 4-4 4"/><path d="M20 17H7M11 21l-4-4 4-4"/></svg>`;
 }
+/** Trophy glyph used anywhere the Tourney feature needs an icon (sidebar
+ * tab, panel header, event cards) — no emoji, ever. */
+function renderTourneyTabIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3.5 3.5 0 0 0 3.5 3.5M17 4h3v2a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 12v3.5M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3s2.5 1 2.5 3"/></svg>`;
+}
+/** Small calendar glyph used for tournament start-time displays. */
+function renderCalendarIcon(size=12){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>`;
+}
+/** Two-heads "players" glyph used for registered/max player counts. */
+function renderUsersIcon(size=12){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3.6 2.5-6.2 5.5-6.2s5.5 2.6 5.5 6.2"/><circle cx="17" cy="8.6" r="2.4"/><path d="M15.3 13.8c2.6.5 4.5 2.8 4.8 6"/></svg>`;
+}
+/** Small crown glyph for the champion slot in a bracket / celebration modal. */
+function renderCrownIcon(size=16){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18h16M4 18L5.6 9.6 9 12l3-6 3 6 3.4-2.4L20 18"/></svg>`;
+}
 function renderRefreshIcon(size=13){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5.5 9a7 7 0 0112.3-2.7M18.5 15a7 7 0 01-12.3 2.7"/></svg>`;
 }
@@ -4490,6 +4777,22 @@ let GuildOptions={
  * you can't be in a guild AND have a pending invite/application at once. */
 let GuildState={guild:null, invite:null, application:null};
 let GuildBrowseResults=[];
+
+// Replaced with the server's exact config on auth_ok — see tournamentOptions.
+let TourneyOptions={
+  bracketSize:16, officialPrizePercent:80, dailyEntryGold:15, weeklyEntryGems:5,
+  unofficialMinPlayers:2, unofficialMaxPlayers:16, unofficialPrizePercentMin:50, unofficialPrizePercentMax:100,
+  unofficialEntryMaxGold:5000, unofficialEntryMaxGems:500,
+  unofficialMinLeadMs:5*60*1000, unofficialMaxLeadMs:14*24*60*60*1000,
+  nameMin:3, nameMax:40,
+};
+let TourneyState={
+  officialDaily:[], officialWeekly:[], unofficial:[], mine:[],
+  subtab:'official', loadedOnce:false, bracket:null,
+};
+let _tourneyLoadedOnce=false;
+let _tourneyCountdownTimer=null;
+let _tcCurrency='gold'; // create-modal entry-fee currency selection
 
 function updateGuildBadge(){
   const badge=document.getElementById('guild-tab-badge');
@@ -5324,6 +5627,7 @@ function switchMenuTab(tab){
   if(tab==='social'){ if(!_socialLoadedOnce) showSocialLoading(); Net.send({type:'friends_list'}); }
   if(tab==='guild'){ if(!_guildLoadedOnce) showGuildLoading(); Net.send({type:'guild_state'}); }
   if(tab==='bazaar'){ initBazaarTab(); }
+  if(tab==='tourney'){ initTourneyTab(); }
 }
 
 function enterArena(){
@@ -7416,6 +7720,23 @@ const Net={
           if(typeof msg.guildOptions.chatRetentionDays==='number')GuildOptions.chatRetentionDays=msg.guildOptions.chatRetentionDays;
           document.getElementById('guild-chat-input').maxLength=GuildOptions.chatMessageMax;
         }
+        if(msg.tournamentOptions){
+          const t=msg.tournamentOptions;
+          if(typeof t.bracketSize==='number')TourneyOptions.bracketSize=t.bracketSize;
+          if(typeof t.officialPrizePercent==='number')TourneyOptions.officialPrizePercent=t.officialPrizePercent;
+          if(typeof t.dailyEntryGold==='number')TourneyOptions.dailyEntryGold=t.dailyEntryGold;
+          if(typeof t.weeklyEntryGems==='number')TourneyOptions.weeklyEntryGems=t.weeklyEntryGems;
+          if(typeof t.unofficialMinPlayers==='number')TourneyOptions.unofficialMinPlayers=t.unofficialMinPlayers;
+          if(typeof t.unofficialMaxPlayers==='number')TourneyOptions.unofficialMaxPlayers=t.unofficialMaxPlayers;
+          if(typeof t.unofficialPrizePercentMin==='number')TourneyOptions.unofficialPrizePercentMin=t.unofficialPrizePercentMin;
+          if(typeof t.unofficialPrizePercentMax==='number')TourneyOptions.unofficialPrizePercentMax=t.unofficialPrizePercentMax;
+          if(typeof t.unofficialEntryMaxGold==='number')TourneyOptions.unofficialEntryMaxGold=t.unofficialEntryMaxGold;
+          if(typeof t.unofficialEntryMaxGems==='number')TourneyOptions.unofficialEntryMaxGems=t.unofficialEntryMaxGems;
+          if(typeof t.unofficialMinLeadMs==='number')TourneyOptions.unofficialMinLeadMs=t.unofficialMinLeadMs;
+          if(typeof t.unofficialMaxLeadMs==='number')TourneyOptions.unofficialMaxLeadMs=t.unofficialMaxLeadMs;
+          if(typeof t.nameMin==='number')TourneyOptions.nameMin=t.nameMin;
+          if(typeof t.nameMax==='number')TourneyOptions.nameMax=t.nameMax;
+        }
         // Presence starts here — the moment the player is actually "on,"
         // never before (not during load, not before auth completes).
         startPresenceHeartbeat();
@@ -7590,6 +7911,71 @@ const Net={
         Net.send({type:'dm_conversations'});
         break;
 
+      /* ── TOURNAMENTS ── */
+      case 'tournament_list':
+        TourneyState.officialDaily=msg.officialDaily||[];
+        TourneyState.officialWeekly=msg.officialWeekly||[];
+        TourneyState.unofficial=msg.unofficial||[];
+        TourneyState.mine=msg.mine||[];
+        TourneyState.loadedOnce=true;
+        renderTourneyLists();
+        updateTourneyBadge();
+        document.getElementById('tourney-loading-overlay').style.display='none';
+        document.getElementById('tourney-content').style.display='block';
+        break;
+      case 'tournament_created':
+        closeTourneyCreateModal();
+        showToast('Tournament created!', 2400, renderTourneyTabIcon(13));
+        switchTourneySubtab('mine');
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_joined':
+        applyServerProfile(msg.profile);
+        showToast("Registered! Be online when it starts, or you'll be disqualified.", 3600, renderCheckIcon(13));
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_left':
+        applyServerProfile(msg.profile);
+        showToast('Left the tournament — entry fee refunded.');
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_cancelled':
+        showToast('Tournament cancelled — everyone refunded.');
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_refunded':
+        applyServerProfile(msg.profile);
+        showToast(msg.reason==='cancelled' ? 'A tournament you joined was cancelled — refunded.' : 'Not enough players checked in — refunded.', 3600);
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_disqualified':
+        showToast("⚠ You didn't check in for a tournament in time and were disqualified.", 4200);
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_bracket_assigned':
+        showToast('Your bracket is ready — good luck!', 2800, renderTourneyTabIcon(13));
+        Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_bracket_update':
+        if(TourneyState.bracket && TourneyState.bracket.id===msg.bracket.id){
+          TourneyState.bracket=msg.bracket;
+          renderTourneyBracketView();
+        }
+        if(document.getElementById('menu-panel-tourney')?.classList.contains('active')) Net.send({type:'tournament_list'});
+        break;
+      case 'tournament_bracket':
+        TourneyState.bracket=msg.bracket;
+        renderTourneyBracketView();
+        document.getElementById('tourney-bracket-overlay').classList.add('open');
+        break;
+      case 'tournament_won':
+        applyServerProfile(msg.profile);
+        setTimeout(()=>showTourneyChampionModal(msg.bracket, msg.prize), 1600);
+        break;
+      case 'tournament_rematch':
+        showToast('Draw! Starting a rematch...', 2600);
+        break;
+
       case 'error':
         hidePackLoading();
         hideProfileLoading();
@@ -7715,6 +8101,47 @@ const Net={
           showToast("That offer wasn't sent to you.");
         } else if(msg.reason==='buyer_cannot_afford'){
           showToast('The buyer can no longer afford that offer — it was declined.');
+        } else if(msg.reason==='tournament_not_found'){
+          showToast('⚠ That tournament no longer exists.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_locked'){
+          showToast('⚠ Registration for that tournament has closed.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='already_registered'){
+          showToast("⚠ You're already registered for that tournament.");
+        } else if(msg.reason==='not_registered'){
+          showToast("⚠ You're not registered for that tournament.");
+        } else if(msg.reason==='tournament_full'){
+          showToast('⚠ That tournament is full.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_insufficient_funds'){
+          showToast("⚠ You can't afford that tournament's entry fee.");
+        } else if(msg.reason==='invalid_name'){
+          showToast(`⚠ Tournament name must be ${TourneyOptions.nameMin}-${TourneyOptions.nameMax} characters.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_max_players'){
+          showToast(`⚠ Max players must be ${TourneyOptions.unofficialMinPlayers}-${TourneyOptions.unofficialMaxPlayers}.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_prize_percent'){
+          showToast(`⚠ Prize pool % must be ${TourneyOptions.unofficialPrizePercentMin}-${TourneyOptions.unofficialPrizePercentMax}.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_entry_currency'){
+          showToast('⚠ Pick an entry fee currency.');
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_entry_amount'){
+          showToast('⚠ Enter a valid entry fee amount.');
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_start_time'){
+          showToast('⚠ Pick a start time at least 5 minutes from now (and within 2 weeks).', 4200);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='too_many_hosted_tournaments'){
+          showToast("⚠ You're already hosting the max number of upcoming tournaments.", 3800);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='not_host'){
+          showToast('⚠ Only the host can do that.');
+        } else if(msg.reason==='tournament_already_started'){
+          showToast('⚠ That tournament has already started.');
+          Net.send({type:'tournament_list'});
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
         }
@@ -7740,6 +8167,293 @@ function applyServerProfile(p){
   savePlayer();
   refreshMenuUI();
 }
+
+/* ══════════════════════════════════════
+   TOURNAMENTS (client)
+   Server is fully authoritative — this is all rendering + thin wrappers
+   around Net.send. See server.js's TOURNAMENTS section for the actual
+   scheduling/bracket/payout logic; the client never computes any of that
+   itself, it just draws whatever bracket/event JSON the server sends.
+══════════════════════════════════════ */
+function initTourneyTab(){
+  if(!_tourneyLoadedOnce){
+    document.getElementById('tourney-loading-overlay').style.display='flex';
+    document.getElementById('tourney-content').style.display='none';
+    _tourneyLoadedOnce=true;
+  }
+  Net.send({type:'tournament_list'});
+  if(!_tourneyCountdownTimer) _tourneyCountdownTimer=setInterval(updateTourneyCountdownTexts,1000);
+}
+function switchTourneySubtab(tab){
+  TourneyState.subtab=tab;
+  document.querySelectorAll('#menu-panel-tourney .bazaar-subtab').forEach(btn=>btn.classList.toggle('active',btn.dataset.subtab===tab));
+  document.querySelectorAll('#menu-panel-tourney .bazaar-view').forEach(v=>v.classList.remove('active'));
+  const view=document.getElementById('tourney-view-'+tab);
+  if(view) view.classList.add('active');
+}
+function updateTourneyBadge(){
+  const badge=document.getElementById('tourney-tab-badge');
+  if(!badge) return;
+  const n=TourneyState.mine.filter(e=>e.status==='running' && e.myBracketId).length;
+  if(n>0){ badge.style.display='block'; badge.textContent=n>9?'9+':String(n); } else badge.style.display='none';
+}
+function findTourneyEventById(eventId){
+  return [...TourneyState.officialDaily,...TourneyState.officialWeekly,...TourneyState.unofficial,...TourneyState.mine].find(e=>e.id===eventId);
+}
+
+/** "3d 4h" / "2h 15m" / "42s" / status word — recomputed every second by
+ * a single shared interval rather than one timer per card. */
+function formatTourneyCountdown(startAtIso,status){
+  if(status==='locked') return 'Starting…';
+  if(status==='running') return 'In progress';
+  if(status==='completed') return 'Finished';
+  if(status==='cancelled') return 'Cancelled';
+  const ms=new Date(startAtIso).getTime()-Date.now();
+  if(ms<=0) return 'Starting…';
+  const s=Math.floor(ms/1000);
+  const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  if(d>0) return `${d}d ${h}h`;
+  if(h>0) return `${h}h ${m}m`;
+  if(m>0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+function updateTourneyCountdownTexts(){
+  document.querySelectorAll('#menu-panel-tourney .tourney-countdown').forEach(el=>{
+    el.textContent=formatTourneyCountdown(el.dataset.start,el.dataset.status);
+  });
+}
+function tourneyStatusPill(status){
+  const map={
+    scheduled:['Open','tourney-status-scheduled'], locked:['Starting…','tourney-status-locked'],
+    running:['In Progress','tourney-status-running'], completed:['Completed','tourney-status-completed'],
+    cancelled:['Cancelled','tourney-status-cancelled'],
+  };
+  const [label,cls]=map[status]||[status,'tourney-status-scheduled'];
+  return `<span class="tourney-card-status ${cls}">${label}</span>`;
+}
+function renderTourneyCard(event){
+  const isOfficial=event.kind!=='unofficial';
+  const prizeEst=Math.floor(event.registeredCount*event.entryAmount*event.prizePoolPercent/100);
+  const canAfford=event.entryCurrency==='gold'?Player.gold>=event.entryAmount:Player.gems>=event.entryAmount;
+  const full=!isOfficial && event.registeredCount>=event.bracketSizeCap;
+
+  let actionsHtml='';
+  if(event.status==='scheduled'){
+    if(event.youRegistered){
+      actionsHtml=`<div class="tourney-card-actions">
+        <button class="bbtn bbtn-tourney-registered" disabled>${renderCheckIcon(12)} Registered</button>
+        <button class="bbtn bbtn-tourney-leave" onclick="leaveTourneyConfirm('${event.id}')">Leave</button>
+      </div>`;
+    } else if(full){
+      actionsHtml=`<div class="tourney-card-actions"><button class="bbtn" disabled style="opacity:.4;">Full</button></div>`;
+    } else {
+      actionsHtml=`<div class="tourney-card-actions">
+        <button class="bbtn bbtn-battle" ${canAfford?'':'disabled style="opacity:.4;"'} onclick="joinTournament('${event.id}')">Join — ${currencyIcon(event.entryCurrency)} ${event.entryAmount.toLocaleString()}</button>
+      </div>`;
+    }
+    if(!isOfficial && event.hostId===Net.userId){
+      actionsHtml+=`<div class="tourney-card-actions"><button class="bbtn bbtn-tourney-leave" onclick="cancelTourneyConfirm('${event.id}')">Cancel Tournament</button></div>`;
+    }
+  } else if((event.status==='locked'||event.status==='running'||event.status==='completed') && event.myBracketId){
+    actionsHtml=`<div class="tourney-card-actions"><button class="bbtn bbtn-tourney-view" onclick="openTourneyBracket('${event.myBracketId}')">View Bracket</button></div>`;
+  }
+
+  return `<div class="tourney-card ${isOfficial?'tourney-card-official':''}">
+    <div class="tourney-card-top">
+      <div>
+        <div class="tourney-card-name">${escapeHtml(event.name)}</div>
+        ${!isOfficial?`<div class="tourney-host-tag">${renderUsersIcon(10)} Hosted by ${escapeHtml(event.hostName||'Player')}</div>`:''}
+      </div>
+      ${tourneyStatusPill(event.status)}
+    </div>
+    <div class="tourney-card-stats">
+      <span class="tourney-card-stat">${renderCalendarIcon(12)} <span class="tourney-countdown" data-start="${event.startAt}" data-status="${event.status}">${formatTourneyCountdown(event.startAt,event.status)}</span></span>
+      <span class="tourney-card-stat">${renderUsersIcon(12)} ${event.registeredCount}${isOfficial?' registered':' / '+event.bracketSizeCap}</span>
+      <span class="tourney-prize-pill">${currencyIcon(event.entryCurrency)} ${prizeEst.toLocaleString()} to winner (${event.prizePoolPercent}%)</span>
+    </div>
+    ${actionsHtml}
+  </div>`;
+}
+function renderTourneyLists(){
+  const dailyEl=document.getElementById('tourney-daily-cards');
+  const weeklyEl=document.getElementById('tourney-weekly-cards');
+  dailyEl.innerHTML=TourneyState.officialDaily.length?TourneyState.officialDaily.map(renderTourneyCard).join(''):`<div class="tourney-empty">No daily tournament scheduled right now — check back soon.</div>`;
+  weeklyEl.innerHTML=TourneyState.officialWeekly.length?TourneyState.officialWeekly.map(renderTourneyCard).join(''):`<div class="tourney-empty">No weekly tournament scheduled right now — check back soon.</div>`;
+
+  const uList=document.getElementById('tourney-unofficial-list'), uEmpty=document.getElementById('tourney-unofficial-empty');
+  if(TourneyState.unofficial.length){ uList.innerHTML=TourneyState.unofficial.map(renderTourneyCard).join(''); uEmpty.style.display='none'; }
+  else { uList.innerHTML=''; uEmpty.style.display='block'; }
+
+  const mList=document.getElementById('tourney-mine-list'), mEmpty=document.getElementById('tourney-mine-empty');
+  if(TourneyState.mine.length){ mList.innerHTML=TourneyState.mine.map(renderTourneyCard).join(''); mEmpty.style.display='none'; }
+  else { mList.innerHTML=''; mEmpty.style.display='block'; }
+}
+
+/* ── actions ── */
+function joinTournament(eventId){ Net.send({type:'tournament_join',eventId}); }
+function leaveTourneyConfirm(eventId){
+  const event=findTourneyEventById(eventId);
+  showGConfirm('Leave Tournament?', `You'll be unregistered from "${event?event.name:'this tournament'}" and your entry fee will be refunded.`, 'Leave', ()=>{
+    Net.send({type:'tournament_leave',eventId});
+  });
+}
+function cancelTourneyConfirm(eventId){
+  const event=findTourneyEventById(eventId);
+  showGConfirm('Cancel Tournament?', `"${event?event.name:'This tournament'}" will be cancelled and every registered player refunded. This can't be undone.`, 'Cancel Tournament', ()=>{
+    Net.send({type:'tournament_cancel',eventId});
+  });
+}
+
+/* ── create-tournament modal ── */
+function openTourneyCreateModal(){
+  document.getElementById('tc-name-input').value='';
+  document.getElementById('tc-maxplayers-value').textContent='8';
+  document.getElementById('tc-prizepct-input').value=Math.max(TourneyOptions.unofficialPrizePercentMin,Math.min(TourneyOptions.unofficialPrizePercentMax,80));
+  document.getElementById('tc-prizepct-input').min=TourneyOptions.unofficialPrizePercentMin;
+  document.getElementById('tc-prizepct-input').max=TourneyOptions.unofficialPrizePercentMax;
+  document.getElementById('tc-amount-input').value='';
+  _tcCurrency='gold';
+  renderTourneyCurrencyChips();
+  const dt=new Date(Date.now()+60*60*1000); dt.setSeconds(0,0);
+  const local=new Date(dt.getTime()-dt.getTimezoneOffset()*60000);
+  document.getElementById('tc-start-input').value=local.toISOString().slice(0,16);
+  document.getElementById('tc-submit-btn').disabled=false;
+  updateTourneyCreatePreview();
+  const ov=document.getElementById('tourney-create-overlay');
+  ov.classList.add('open');
+}
+function closeTourneyCreateModal(){ document.getElementById('tourney-create-overlay').classList.remove('open'); }
+function handleTourneyCreateBackdrop(e){ if(e.target===document.getElementById('tourney-create-overlay')) closeTourneyCreateModal(); }
+function adjustTourneyMaxPlayers(delta){
+  const el=document.getElementById('tc-maxplayers-value');
+  let v=(parseInt(el.textContent,10)||8)+delta;
+  v=Math.max(TourneyOptions.unofficialMinPlayers,Math.min(TourneyOptions.unofficialMaxPlayers,v));
+  el.textContent=v;
+  updateTourneyCreatePreview();
+}
+function renderTourneyCurrencyChips(){
+  document.getElementById('tc-currency-chips').innerHTML=['gold','gems'].map(cur=>
+    `<span class="db-chip${_tcCurrency===cur?' active':''}" onclick="selectTourneyCurrency('${cur}')">${currencyIcon(cur)} ${cur==='gold'?'Gold':'Gems'}</span>`
+  ).join('');
+}
+function selectTourneyCurrency(cur){ _tcCurrency=cur; renderTourneyCurrencyChips(); updateTourneyCreatePreview(); }
+function updateTourneyCreatePreview(){
+  const maxPlayers=parseInt(document.getElementById('tc-maxplayers-value').textContent,10)||8;
+  const prizePct=parseInt(document.getElementById('tc-prizepct-input').value,10)||80;
+  document.getElementById('tc-prizepct-value').textContent=prizePct+'%';
+  const amount=Math.max(0,parseInt(document.getElementById('tc-amount-input').value,10)||0);
+  const pool=maxPlayers*amount, winnerTakes=Math.floor(pool*prizePct/100);
+  document.getElementById('tc-prize-preview').innerHTML=`${renderTourneyTabIcon(13)} If it fills up (${maxPlayers} players): pool of ${currencyIcon(_tcCurrency)} ${pool.toLocaleString()}, winner takes ${currencyIcon(_tcCurrency)} ${winnerTakes.toLocaleString()}`;
+}
+function submitTourneyCreate(){
+  const name=document.getElementById('tc-name-input').value.trim();
+  if(name.length<TourneyOptions.nameMin){ showToast(`⚠ Name must be at least ${TourneyOptions.nameMin} characters.`); return; }
+  const maxPlayers=parseInt(document.getElementById('tc-maxplayers-value').textContent,10)||8;
+  const prizePoolPercent=parseInt(document.getElementById('tc-prizepct-input').value,10)||80;
+  const entryAmount=Math.max(0,parseInt(document.getElementById('tc-amount-input').value,10)||0);
+  const startLocal=document.getElementById('tc-start-input').value;
+  if(!startLocal){ showToast('⚠ Pick a start time.'); return; }
+  const startAt=new Date(startLocal).toISOString();
+  document.getElementById('tc-submit-btn').disabled=true;
+  Net.send({type:'tournament_create',name,maxPlayers,prizePoolPercent,startAt,entryCurrency:_tcCurrency,entryAmount});
+}
+
+/* ── bracket viewer (hand-drawn SVG — one column per round, classic
+   elbow connectors joining each pair of matches into the next slot) ── */
+const TB_CARD_W=172, TB_CARD_H=48, TB_COL_GAP=56, TB_ROW_GAP=18;
+function tourneyRoundLabel(roundIdx,totalRounds){
+  const fromEnd=totalRounds-roundIdx;
+  if(fromEnd===1) return 'Final';
+  if(fromEnd===2) return 'Semifinal';
+  if(fromEnd===3) return 'Quarterfinal';
+  return `Round of ${Math.pow(2,fromEnd)}`;
+}
+function tbMatchCardSvg(m,x,y){
+  const w=TB_CARD_W,h=TB_CARD_H,rowH=h/2;
+  const live=m.a && m.b && !m.winnerId && m.matchId;
+  const rowsHtml=[m.a,m.b].map((p,idx)=>{
+    const isWinner=!!(m.winnerId && p && p.userId===m.winnerId);
+    const isLoser=!!(m.winnerId && p && p.userId===m.loserId);
+    const isYou=!!(p && p.userId===Net.userId);
+    // m.isBye is the reliable signal (set once, at bracket creation, only for
+    // a genuine round-0 bye) — checking "is the other slot filled" instead
+    // wrongly labels a still-undecided later-round slot as BYE too.
+    const label=p?escapeHtml(p.username):(m.isBye?'BYE':'—');
+    const textColor=isWinner?'#fde68a':isLoser?'rgba(255,255,255,.38)':'#e5e7eb';
+    const fontWeight=isWinner?800:isYou?700:500;
+    const ry=y+idx*rowH;
+    return `<rect x="${x}" y="${ry}" width="${w}" height="${rowH}" fill="${isYou?'rgba(139,92,246,.14)':'transparent'}"/>
+      ${isWinner?`<rect x="${x}" y="${ry}" width="3" height="${rowH}" fill="#fbbf24"/>`:''}
+      <text x="${x+12}" y="${ry+rowH/2+4}" font-size="11" font-weight="${fontWeight}" fill="${textColor}">${label||'&#8212;'}</text>
+      ${isYou&&!isWinner&&!isLoser?`<text x="${x+w-10}" y="${ry+rowH/2+4}" font-size="9" text-anchor="end" fill="#a78bfa">YOU</text>`:''}`;
+  }).join('');
+  return `<g>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="rgba(255,255,255,.03)" stroke="${live?'rgba(167,139,250,.65)':'rgba(255,255,255,.1)'}" stroke-width="${live?1.6:1}"/>
+    <line x1="${x}" y1="${y+h/2}" x2="${x+w}" y2="${y+h/2}" stroke="rgba(255,255,255,.08)"/>
+    ${rowsHtml}
+    ${live?`<circle cx="${x+w-10}" cy="${y+h/2}" r="3" fill="#a78bfa"><animate attributeName="opacity" values="1;.25;1" dur="1.2s" repeatCount="indefinite"/></circle>`:''}
+  </g>`;
+}
+function renderTourneyBracketView(){
+  const bracket=TourneyState.bracket;
+  const scrollEl=document.getElementById('tb-scroll');
+  if(!bracket){ scrollEl.innerHTML=''; return; }
+  document.getElementById('tb-title').textContent=bracket.eventName;
+  document.getElementById('tb-sub').innerHTML=`${bracket.participants.length} players · ${currencyIcon(bracket.prizeCurrency)} ${bracket.prizePool.toLocaleString()} pool`;
+
+  const bannerEl=document.getElementById('tb-champion-banner');
+  if(bracket.status==='completed' && bracket.winnerId){
+    const champ=bracket.participants.find(p=>p.userId===bracket.winnerId);
+    bannerEl.className='tourney-champion-banner show';
+    bannerEl.innerHTML=`${renderCrownIcon(18)} <b>${escapeHtml(champ?champ.username:'Champion')}</b> won ${currencyIcon(bracket.prizeCurrency)} ${bracket.winnerPayout.toLocaleString()}!`;
+  } else { bannerEl.className='tourney-champion-banner'; bannerEl.innerHTML=''; }
+
+  const roundCount=bracket.rounds.length;
+  const centers=[];
+  centers[0]=bracket.rounds[0].map((_,i)=>i*(TB_CARD_H+TB_ROW_GAP)+TB_CARD_H/2);
+  for(let r=1;r<roundCount;r++) centers[r]=bracket.rounds[r].map((_,i)=>(centers[r-1][2*i]+centers[r-1][2*i+1])/2);
+  const totalHeight=(centers[0].length?Math.max(...centers[0])+TB_CARD_H/2:TB_CARD_H/2)+40;
+  const totalWidth=roundCount*(TB_CARD_W+TB_COL_GAP)+TB_COL_GAP/2;
+
+  let svg=`<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">`;
+  for(let r=0;r<roundCount;r++){
+    const x=TB_COL_GAP/2+r*(TB_CARD_W+TB_COL_GAP);
+    svg+=`<text x="${x+TB_CARD_W/2}" y="18" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1" fill="#a78bfa" font-family="Cinzel, serif">${escapeHtml(tourneyRoundLabel(r,roundCount).toUpperCase())}</text>`;
+  }
+  for(let r=1;r<roundCount;r++){
+    const xPrevRight=TB_COL_GAP/2+(r-1)*(TB_CARD_W+TB_COL_GAP)+TB_CARD_W;
+    const xMid=xPrevRight+TB_COL_GAP/2;
+    const xThisLeft=TB_COL_GAP/2+r*(TB_CARD_W+TB_COL_GAP);
+    for(let i=0;i<bracket.rounds[r].length;i++){
+      const yTop=centers[r-1][2*i]+40, yBot=centers[r-1][2*i+1]+40, yTarget=centers[r][i]+40;
+      svg+=`<line x1="${xPrevRight}" y1="${yTop}" x2="${xMid}" y2="${yTop}" stroke="rgba(139,92,246,.35)" stroke-width="1.5"/>`;
+      svg+=`<line x1="${xPrevRight}" y1="${yBot}" x2="${xMid}" y2="${yBot}" stroke="rgba(139,92,246,.35)" stroke-width="1.5"/>`;
+      svg+=`<line x1="${xMid}" y1="${yTop}" x2="${xMid}" y2="${yBot}" stroke="rgba(139,92,246,.35)" stroke-width="1.5"/>`;
+      svg+=`<line x1="${xMid}" y1="${yTarget}" x2="${xThisLeft}" y2="${yTarget}" stroke="rgba(139,92,246,.35)" stroke-width="1.5"/>`;
+    }
+  }
+  for(let r=0;r<roundCount;r++){
+    for(let i=0;i<bracket.rounds[r].length;i++){
+      const x=TB_COL_GAP/2+r*(TB_CARD_W+TB_COL_GAP);
+      const y=centers[r][i]+40-TB_CARD_H/2;
+      svg+=tbMatchCardSvg(bracket.rounds[r][i],x,y);
+    }
+  }
+  svg+='</svg>';
+  scrollEl.innerHTML=svg;
+}
+function openTourneyBracket(bracketId){ Net.send({type:'tournament_bracket',bracketId}); }
+function closeTourneyBracket(){ document.getElementById('tourney-bracket-overlay').classList.remove('open'); TourneyState.bracket=null; }
+function handleTourneyBracketBackdrop(e){ if(e.target===document.getElementById('tourney-bracket-overlay')) closeTourneyBracket(); }
+
+/* ── champion celebration ── */
+function showTourneyChampionModal(bracket,prize){
+  document.getElementById('tc-champion-medal').innerHTML=`<div style="color:#fbbf24;filter:drop-shadow(0 4px 14px rgba(251,191,36,.5));">${renderTourneyTabIcon(48)}</div>`;
+  document.getElementById('tc-champion-sub').textContent=`You won ${bracket.eventName}!`;
+  document.getElementById('tc-champion-prize').innerHTML=`${currencyIcon(prize.currency)} +${prize.amount.toLocaleString()}`;
+  document.getElementById('tourney-champion-overlay').classList.add('open');
+}
+function closeTourneyChampionModal(){ document.getElementById('tourney-champion-overlay').classList.remove('open'); }
 
 /* ── MATCHMAKING ENTRY POINTS (wired to the new menu button) ── */
 let _connectingInterval=null;
@@ -7834,12 +8548,21 @@ function beginMultiplayerMatch(msg){
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
   State.opponentRank=msg.opponentRank||null;
+  State.tournament=msg.tournament||null;
   State.selectedSlot=null; State.pendingTarget=null; State.pendingRevive=null;
   State.player._maxSeenCreatures=0; State.enemy._maxSeenCreatures=0;
   document.getElementById('game-over').style.display='none';
   document.getElementById('coinflip-overlay').classList.remove('open');
   _handVisible=false;
   document.getElementById('hand-tray').classList.remove('visible');
+  const ribbon=document.getElementById('tourney-match-ribbon');
+  if(State.tournament){
+    ribbon.innerHTML=`${renderTourneyTabIcon(12)} ${escapeHtml(State.tournament.eventName)} — ${escapeHtml(State.tournament.roundLabel)}`;
+    ribbon.classList.add('show');
+  } else {
+    ribbon.classList.remove('show');
+    ribbon.innerHTML='';
+  }
   const enterGame=()=>{
     document.getElementById('enemy-avatar-circle').innerHTML=renderIcon(State.opponentIcon||'star',26);
     document.getElementById('player-avatar-circle').innerHTML=renderIcon(Player.icon||'star',26);
@@ -8021,6 +8744,24 @@ function handleMatchOver(msg){
   el.innerText=won?'VICTORY':'DEFEAT';
   el.style.color=won?'#10b981':'#ef4444';
   if(won&&msg.reward&&msg.reward.gold) showToast(`Victory! +${msg.reward.gold} Gold`);
+  const noteEl=document.getElementById('game-over-tourney-note');
+  if(msg.tournament){
+    const t=msg.tournament;
+    noteEl.style.display='flex';
+    if(t.tournamentComplete){
+      noteEl.innerHTML=t.championId===Net.userId
+        ? `${renderTourneyTabIcon(13)} Tournament won!`
+        : `${renderTourneyTabIcon(13)} Runner-up — so close!`;
+    } else if(won){
+      noteEl.innerHTML=`${renderTourneyTabIcon(13)} Advancing to the ${escapeHtml(t.nextRoundLabel||'next round')}!`;
+    } else {
+      noteEl.innerHTML=`${renderTourneyTabIcon(13)} Eliminated from ${escapeHtml(t.eventName||'the tournament')}.`;
+    }
+  } else {
+    noteEl.style.display='none';
+    noteEl.innerHTML='';
+  }
+  document.getElementById('tourney-match-ribbon').classList.remove('show');
 }
 
 /* ── PACK OPENING RESULT (server rolled the cards & debited currency) ── */
