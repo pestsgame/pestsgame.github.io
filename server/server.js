@@ -221,7 +221,7 @@ const TOURNAMENT_WEEKLY_HOUR_UTC = Number(process.env.TOURNAMENT_WEEKLY_HOUR_UTC
 const TOURNAMENT_MIN_PLAYERS_TO_RUN = 2;             // fewer checked-in than this and the whole event just refunds + cancels — there's no bracket to run
 const TOURNAMENT_UNOFFICIAL_MIN_PLAYERS = 2;
 const TOURNAMENT_UNOFFICIAL_MAX_PLAYERS = TOURNAMENT_BRACKET_SIZE;
-const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN = 50;  // floor exists purely to stop a "0% prize" griefing lobby — nobody profits from the unclaimed remainder, it's just burned
+const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN = 50;  // floor exists so a host can't pocket almost the whole pool and leave players playing for scraps — the rest above the winner's cut goes to the host, not burned
 const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX = 100;
 const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD = 5000;
 const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS = 500;
@@ -2137,6 +2137,7 @@ function rowToBracket(row) {
   return {
     id: row.id, eventId: row.event_id, eventName: row.event_name, eventKind: row.event_kind,
     prizeCurrency: row.prize_currency, prizePool: row.prize_pool, winnerPayout: row.winner_payout,
+    hostId: row.host_id || null, hostPayout: row.host_payout || 0,
     status: row.status, winnerId: row.winner_id,
     participants: row.participants || [], rounds: row.rounds || [],
     createdAt: row.created_at, completedAt: row.completed_at,
@@ -2146,6 +2147,7 @@ function bracketToRow(b) {
   return {
     id: b.id, event_id: b.eventId, event_name: b.eventName, event_kind: b.eventKind,
     prize_currency: b.prizeCurrency, prize_pool: b.prizePool, winner_payout: b.winnerPayout,
+    host_id: b.hostId || null, host_payout: b.hostPayout || 0,
     status: b.status, winner_id: b.winnerId || null,
     participants: b.participants, rounds: b.rounds,
     completed_at: b.completedAt || null,
@@ -2292,6 +2294,7 @@ function bracketPayload(bracket) {
   return {
     id: bracket.id, eventId: bracket.eventId, eventName: bracket.eventName, eventKind: bracket.eventKind,
     prizeCurrency: bracket.prizeCurrency, prizePool: bracket.prizePool, winnerPayout: bracket.winnerPayout,
+    hostId: bracket.hostId || null, hostPayout: bracket.hostPayout || 0,
     status: bracket.status, winnerId: bracket.winnerId,
     participants: bracket.participants, rounds: bracket.rounds,
   };
@@ -2582,6 +2585,11 @@ async function finishBracketMatch(bracket, roundIdx, matchIdx, winnerId, loserId
     if (!bracket.winnerId) bracket.winnerId = winnerId;
     bracket.completedAt = new Date().toISOString();
     if (bracket.winnerPayout > 0) await adjustWallet(bracket.winnerId, bracket.prizeCurrency === 'gold' ? bracket.winnerPayout : 0, bracket.prizeCurrency === 'gems' ? bracket.winnerPayout : 0);
+    // Pay the host their cut of an unofficial tournament's pool (everything the winner didn't take).
+    if (bracket.hostId && bracket.hostPayout > 0) {
+      await adjustWallet(bracket.hostId, bracket.prizeCurrency === 'gold' ? bracket.hostPayout : 0, bracket.prizeCurrency === 'gems' ? bracket.hostPayout : 0);
+      notifyUser(bracket.hostId, { type: 'tournament_host_payout', bracket: bracketPayload(bracket), prize: { currency: bracket.prizeCurrency, amount: bracket.hostPayout }, profile: await fetchProfile(bracket.hostId) });
+    }
     await saveBracket(bracket);
     await pushBracketUpdate(bracket);
     notifyUser(bracket.winnerId, { type: 'tournament_won', bracket: bracketPayload(bracket), prize: { currency: bracket.prizeCurrency, amount: bracket.winnerPayout }, profile: await fetchProfile(bracket.winnerId) });
@@ -2678,9 +2686,18 @@ async function lockAndShardEvent(event) {
 
   for (const shard of shardParticipants(shuffled, event.bracketSizeCap)) {
     const prizePool = shard.length * event.entryAmount;
+    const winnerPayout = Math.floor(prizePool * event.prizePoolPercent / 100);
+    // Official tournaments burn the remainder as a currency sink (see
+    // TOURNAMENT_OFFICIAL_PRIZE_PERCENT). Unofficial (player-hosted) events
+    // instead route the remainder to the host — they picked the prize % and
+    // put the tournament together, so anything not paid to the winner is
+    // their compensation for hosting, not a waste.
+    const isUnofficial = event.kind === 'unofficial' && event.hostId;
+    const hostPayout = isUnofficial ? (prizePool - winnerPayout) : 0;
     const bracket = {
       id: crypto.randomUUID(), eventId: event.id, eventName: event.name, eventKind: event.kind,
-      prizeCurrency: event.entryCurrency, prizePool, winnerPayout: Math.floor(prizePool * event.prizePoolPercent / 100),
+      prizeCurrency: event.entryCurrency, prizePool, winnerPayout,
+      hostId: isUnofficial ? event.hostId : null, hostPayout,
       status: 'in_progress', winnerId: null,
       participants: shard, rounds: buildInitialRounds(shard),
       createdAt: new Date().toISOString(), completedAt: null,
