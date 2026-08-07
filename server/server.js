@@ -1669,6 +1669,7 @@ class Match {
       Engine.processEffects(entity, 'onTurnStart', ctx, side);
       Engine.checkCardDeath(this, side, ctx.events);
     }
+    Engine.decayHandEffects(entity, ctx.events, side);
     this.actedThisTurn = [new Set(), new Set()];
     const over = Engine.isMatchOver(this);
     if (over !== null) { this.broadcastState(ctx.events); if (over === 'draw') this.finishDraw(); else this.finish(over); return; }
@@ -1700,18 +1701,29 @@ class Match {
       events.push({ t:'deploy', side, slotType:'defense', card });
     } else if (!entity.activeCard) {
       entity.activeCard = card; entity.hand.splice(idx, 1);
-      Engine.applyDeployAbility(this.sides, side, card, events);
+      if (Engine.applyRocksOnSwap(this, side, 'slot1', events) && entity.activeCard === card) {
+        Engine.applyDeployAbility(this.sides, side, card, events);
+      }
       events.push({ t:'deploy', side, slotType:'slot1', card, swapped:false });
     } else if (!entity.activeCard2) {
       entity.activeCard2 = card; entity.hand.splice(idx, 1);
-      Engine.applyDeployAbility(this.sides, side, card, events);
+      if (Engine.applyRocksOnSwap(this, side, 'slot2', events) && entity.activeCard2 === card) {
+        Engine.applyDeployAbility(this.sides, side, card, events);
+      }
       events.push({ t:'deploy', side, slotType:'slot2', card, swapped:false });
     } else {
-      // swap into slot1 — triggers rocks trap from the opposing active card, exactly like the client
+      // swap into slot1 — the outgoing card takes its own 'rocks' hit on the
+      // way out (if it's carrying that effect), then the incoming card takes
+      // its own 'rocks' hit on the way in — same effect, two independent
+      // triggers, exactly like swapping past any other hazard would.
       events.push({ t:'deploy', side, slotType:'slot1', card, swapped:true });
-      Engine.triggerRocks(this.sides[this.otherSide(side)], card, events, side, 'slot1');
-      const old = entity.activeCard;
-      entity.activeCard = card; entity.hand.splice(idx, 1); entity.hand.push(old);
+      const old = entity.activeCard; // capture before the rocks check, since killCard would null this slot
+      const oldSurvived = Engine.applyRocksOnSwap(this, side, 'slot1', events);
+      entity.activeCard = card; entity.hand.splice(idx, 1);
+      if (oldSurvived) entity.hand.push(old);
+      if (Engine.applyRocksOnSwap(this, side, 'slot1', events) && entity.activeCard === card) {
+        Engine.applyDeployAbility(this.sides, side, card, events);
+      }
       Engine.checkCardDeath(this, side, events);
     }
     this.broadcastState(events);
