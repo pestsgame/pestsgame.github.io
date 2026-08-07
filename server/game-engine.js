@@ -145,7 +145,7 @@ const Effects = {
   shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 25, 'shock');} },
   soak:         { trigger:'onTurnStart', logic(){} },
   cryo:         { trigger:'onTurnStart', logic(c,x,ed){ dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'cryo'); rollSkip(c,x,'cryo',true); } },
-  rocks:        { trigger:'onSwap',      logic(){} },
+  rocks:        { trigger:'onSwap',      logic(){} }, // no per-turn logic — see applyRocksOnSwap; this fires on swap, not on turn start
 };
 function dot(card, ctx, dmg, type) {
   card.currentHp -= dmg;
@@ -223,13 +223,30 @@ function applySynergies(cardInstances) {
   });
 }
 
+/** True if `target`'s own passive grants immunity to `effectType`. A passive
+ * can list one or more immunities alongside its other fields (flat/percent
+ * damage reduction, synergy, etc.) — e.g. `{type:'passive', passiveReduction:
+ * {flat:10}, immuneEffects:['burn']}` reduces incoming damage by 10 AND
+ * shrugs off burn entirely. Immunity is checked at the moment an effect
+ * would be applied, so it blocks new stacks and duration extensions alike;
+ * it does nothing to a stack the card was already carrying before the
+ * passive existed (there's no such case in practice — a card's passive
+ * never changes mid-match). */
+function isImmuneTo(target, effectType) {
+  const te = target && target.topEffect;
+  return !!(te && te.type === 'passive' && Array.isArray(te.immuneEffects) && te.immuneEffects.includes(effectType));
+}
+
 /** Applies a status effect to `target`. `dmgOverride` — when given — is how
  * weapon/defense "amplification" (ampEffects) stamps a boosted tick-damage
  * onto the specific stack being applied right now (see performHit). If the
  * target already has a stack of this type, duration extends and the stack
- * keeps the stronger of its existing/incoming dmg override. */
+ * keeps the stronger of its existing/incoming dmg override.
+ * Returns true if the effect was applied, false if the target's passive
+ * immunity blocked it entirely (nothing is mutated in that case). */
 function applyEffectToCard(target, effectDef, dmgOverride) {
-  const eDef = Effects[effectDef.type]; if (!eDef) return;
+  const eDef = Effects[effectDef.type]; if (!eDef) return false;
+  if (isImmuneTo(target, effectDef.type)) return false;
   const ex = target.activeEffects.find(e => e.type === effectDef.type);
   if (ex) {
     if (effectDef.duration < 9999) ex.duration = Math.min(9999, ex.duration + effectDef.duration);
@@ -237,6 +254,7 @@ function applyEffectToCard(target, effectDef, dmgOverride) {
   } else {
     target.activeEffects.push({ type: effectDef.type, duration: effectDef.duration, dmg: dmgOverride != null ? dmgOverride : undefined });
   }
+  return true;
 }
 
 /** `side` (0|1) is whichever side owns `entity` — stamped onto every event so
@@ -305,12 +323,34 @@ function executeRevive(match, side, slotKey, deadInstanceId) {
 }
 
 /** Checks both of `side`'s active slots for a creature at <=0 HP (e.g. after
- * onTurnStart DOT ticks, or a rocks-trap hit on deploy) and kills it. */
+ * onTurnStart DOT ticks, or a rocks hit on swap) and kills it. */
 function checkCardDeath(match, side, events) {
   const entity = match.sides[side];
   ['slot1','slot2'].forEach(slotKey => {
     const c = cardInSlot(entity, slotKey);
     if (c && c.currentHp <= 0) killCard(match, side, slotKey, events);
+  });
+}
+
+/** Effect durations keep ticking down even on a benched (in-hand) card —
+ * swapping a card out doesn't pause its clock. Only an ACTIVE card runs an
+ * effect's actual per-turn logic (damage ticks, skip-turn rolls, etc. — see
+ * processEffects); a benched card just counts duration down toward zero and
+ * has expired effects removed, same as it would while deployed. This is
+ * what lets e.g. a 'rocks' stack on a card sitting in your hand still run
+ * out naturally instead of freezing the moment you bench it. */
+function decayHandEffects(entity, events, side) {
+  entity.hand.forEach(card => {
+    if (!card || card.cardType) return; // equipment doesn't carry status effects
+    for (let i = card.activeEffects.length - 1; i >= 0; i--) {
+      const ed = card.activeEffects[i];
+      if (ed.duration >= 9999) continue; // permanent (e.g. an innate passive-granted effect)
+      ed.duration--;
+      if (ed.duration <= 0) {
+        card.activeEffects.splice(i, 1);
+        events.push({ t:'effect_expire', side, card: card.instanceId, effect: ed.type });
+      }
+    }
   });
 }
 
@@ -349,7 +389,10 @@ function applyDeployAbility(sides, side, card, events) {
     const opp = sides[otherSide];
     const target = opp.activeCard || opp.activeCard2;
     if (target) {
-      card.topEffect.effects.forEach(eff => applyEffectToCard(target, eff));
+      card.topEffect.effects.forEach(eff => {
+        const applied = applyEffectToCard(target, eff);
+        if (!applied) events.push({ t:'immune', side: otherSide, card: target.instanceId, effect: eff.type });
+      });
       events.push({ t:'ability', card: card.instanceId, target: target.instanceId });
     }
   }
@@ -573,14 +616,23 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:tgtSlotKey, tgtCard:targetCard.instanceId, direct:false, dmg, name:atkDef.name, element:atkDef.element });
 
   const weaponAmp = weaponRef && weaponRef.ampEffects;
-  (atkDef.effects || []).forEach(eff => applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined));
+  (atkDef.effects || []).forEach(eff => {
+    const applied = applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined);
+    if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
+  });
   if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
-    weaponRef.addEffects.forEach(eff => applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined));
+    weaponRef.addEffects.forEach(eff => {
+      const applied = applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined);
+      if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
+    });
     events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:targetCard.instanceId });
   }
   if (defenseRef && defenseRef.addEffects && defenseRef.addEffects.length) {
     const defAmp = defenseRef.ampEffects;
-    defenseRef.addEffects.forEach(eff => applyEffectToCard(ac, eff, defAmp && defAmp[eff.type] != null ? defAmp[eff.type] : undefined));
+    defenseRef.addEffects.forEach(eff => {
+      const applied = applyEffectToCard(ac, eff, defAmp && defAmp[eff.type] != null ? defAmp[eff.type] : undefined);
+      if (!applied) events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
+    });
     events.push({ t:'defense_effect', side:defSide, slot:tgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
   }
 
@@ -653,14 +705,24 @@ function finishAttack(match, side, atkSlotKey, events) {
   return { ok:true, events };
 }
 
-/** rocks trap — triggered when a card is deployed/swapped into the active slot facing a 'rocks' holder.
- * `side`/`slot` describe the *incoming* card (the side that just deployed). */
-function triggerRocks(defendingSideEntity, incomingCard, events, side, slot) {
-  const holder = defendingSideEntity.activeCard;
-  if (!holder) return;
-  const re = holder.activeEffects.find(e => e.type === 'rocks'); if (!re) return;
-  incomingCard.currentHp -= 50;
-  events.push({ t:'rocks', side, slot, card:incomingCard.instanceId, dmg:50 });
+/** 'rocks' deals 50 damage to a card carrying the effect every time it swaps
+ * into OR out of an active slot — not a trap on the opposing card like it
+ * used to be, but a hazard on the card itself. The effect isn't consumed by
+ * triggering: it keeps ticking down via the normal per-turn decay (see
+ * processEffects/decayHandEffects) and can fire again on every subsequent
+ * swap for as long as it's still active, in or out of hand.
+ * `slotKey` is whichever active slot the card is (about to be, or just was)
+ * sitting in. Returns false if the card died from this hit (caller should
+ * treat the slot as cleared already — killCard has handled that), true
+ * otherwise (including when there was no 'rocks' effect to trigger at all). */
+function applyRocksOnSwap(match, side, slotKey, events) {
+  const entity = match.sides[side];
+  const card = cardInSlot(entity, slotKey);
+  if (!card || card.cardType || !hasEffect(card, 'rocks')) return true;
+  card.currentHp -= 50;
+  events.push({ t:'rocks', side, slot: slotKey, card: card.instanceId, name: card.name, dmg: 50 });
+  if (card.currentHp <= 0) { killCard(match, side, slotKey, events); return false; }
+  return true;
 }
 
 /** Win condition: total creature destruction, no player HP involved. A side
@@ -707,9 +769,9 @@ function getRank(points) {
 
 module.exports = {
   CardDB, CardById, CARD_LIBRARY_HASH, CARD_LIBRARY_RAW, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
-  Effects, hasEffect, applyEffectToCard, processEffects, checkCardDeath,
+  Effects, hasEffect, applyEffectToCard, isImmuneTo, processEffects, checkCardDeath, decayHandEffects,
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
-  executeAttack, triggerRocks, isMatchOver, applyDeployAbility,
+  executeAttack, applyRocksOnSwap, isMatchOver, applyDeployAbility,
   killCard, executeRevive, applySynergies, attackDefFor, aliveCreatureCount,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
   DECK_SIZE, MAX_CREATURES, deckClassificationOk,
