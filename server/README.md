@@ -19,9 +19,7 @@ client/server game:
 
 ## Pointing the client at this server
 
-`index.html` now has a full multiplayer mode wired in (a "⚔ Multiplayer Duel"
-button next to practice mode). It connects to whatever WebSocket URL it
-finds, in this order:
+`index.html` connects to whatever WebSocket URL it finds, in this order:
 
 1. `window.ARENA_WS_URL` — set this in a `<script>` tag before the game's
    script runs if you're embedding/deploying it, e.g.
@@ -30,11 +28,12 @@ finds, in this order:
    local testing.
 3. Falls back to `ws://localhost:8787`.
 
-Practice-vs-AI mode never touches the network and keeps working with zero
-config, online or offline. The moment the player reaches the main menu the
-client tries to connect and authenticate as a guest (or via a logged-in
-Supabase session if you wire that in) so gold/gems/collection/deck are
-already synced before they ever queue for a match.
+The client is multiplayer-only: the moment the player reaches the main menu
+and hits "Find Match," it connects and authenticates as a guest (or via a
+logged-in Supabase session if you wire that in) so gold/gems/collection/deck
+are already synced before the match starts. There's no offline/practice mode
+and no client-side combat resolution — `index.html` only renders whatever
+the server sends it.
 
 ## Setup
 
@@ -45,11 +44,16 @@ npm start               # listens on :8787 (PORT env var to change)
 ```
 
 Run `supabase-schema.sql` once in the Supabase SQL editor to create
-`profiles`, `player_cards`, `player_decks`, and `match_history`.
+`profiles`, `player_cards`, `player_decks`, `match_history`, the global
+chat table, the `friendships`/`presence` tables the Social tab uses, the
+`guilds`/`guild_members`/guild chat tables, and the
+`marketplace_listings`/`marketplace_bids`/`direct_messages` tables the
+Bazaar tab uses.
 
 If you leave the Supabase env vars blank, the server still runs — matches
-work over WebSockets — but wallets are in-memory only and reset on restart.
-That's useful for local dev, but don't ship it that way.
+work over WebSockets — but wallets, friends, and presence are in-memory
+only and reset on restart. That's useful for local dev, but don't ship it
+that way.
 
 `GET /health` returns `{ ok, matches, queue }` for a load balancer / uptime
 check.
@@ -71,6 +75,23 @@ Everything is JSON over one WebSocket connection. Client → server messages:
 | `get_profile` | — | refresh wallet/collection snapshot |
 | `save_deck` | `{ cardIds: [...] }` | persist a deck (server drops any id you don't own, caps at 10) |
 | `buy_pack` | `{ packId }` | open a pack; server debits gold/gems and rolls cards |
+| `heartbeat` | — | tells the server "I'm online right now." Only sent once the client has actually finished auth and entered the app — never before, and never automatically just from having a socket open. Repeats every ~2 min. |
+| `friends_list` | — | fetch your friends + incoming/outgoing requests |
+| `friend_request` | `{ username }` or `{ userId }` | send a friend request |
+| `friend_respond` | `{ userId, accept }` | accept or decline an incoming request from `userId` |
+| `friend_remove` | `{ userId }` | unfriend, or cancel your own outgoing request, or decline an incoming one |
+| `duel_request` | `{ userId }` | challenge an online friend to a 1v1 |
+| `duel_respond` | `{ userId, accept }` | accept/decline an incoming duel invite from `userId` — accepting starts a match immediately, same as a normal matched game |
+| `market_browse` | `{ listingType?, currency? }` | fetch active Bazaar listings (optionally filtered) |
+| `market_my_listings` | — | fetch your own listings, any status |
+| `market_list_card` | `{ cardId, listingType:'price'\|'auction', currency:'gold'\|'gems', durationDays (1-14), price? (price listings), startingBid? / buyoutPrice? (auctions) }` | list an owned card — the card is escrowed off your collection immediately |
+| `market_cancel_listing` | `{ listingId }` | cancel your own active listing (refunds any auction bidder), returns the card |
+| `market_buy_listing` | `{ listingId }` | buy a 'price' listing, or instant-buyout an auction that has a `buyoutPrice` |
+| `market_place_bid` | `{ listingId, amount }` | bid on an auction (escrows bid+tax immediately; refunds whoever it outbids) |
+| `dm_conversations` | — | list your DM conversations with last message + unread count |
+| `dm_history` | `{ userId }` | full message history with one other player (marks their messages read) |
+| `dm_send` | `{ toId, text, listingId?, offerAmount?, offerCurrency? }` | send a DM, optionally carrying a price offer tied to a 'price' listing — negotiation only, auctions use bids instead. Messages sent with a `listingId` are auto-deleted ~1hr after that listing settles (see `cleanupExpiredListingDMs`), so a thread doesn't accumulate old negotiation clutter every time you buy from the same seller again |
+| `dm_accept_offer` | `{ messageId }` | accept a pending offer sent *to you*, executing the sale immediately at that price |
 
 Server → client messages:
 
@@ -78,14 +99,32 @@ Server → client messages:
 |---|---|
 | `auth_ok` | `{ userId, profile }` |
 | `queue_status` | `{ inQueue }` |
-| `match_found` | `{ matchId, youAre: 0|1, opponentName }` |
+| `match_found` | `{ matchId, youAre: 0|1, opponentName, opponentIcon }` |
 | `state` | `{ matchId, phase, turn, you, state, events }` — full snapshot from your perspective (your hand's contents, opponent's hand *count* only) plus an `events` array to replay animations (`hit`, `dot`, `status`, `death`, `weapon_use`, `defense_use`, `curse_recoil`, `rocks`, `coinflip`, `ability`, `miss`, `excess`, `turn_skip`) |
 | `opponent_ready` / `opponent_disconnected` / `opponent_reconnected` | setup/connection status |
 | `match_over` | `{ result: 'win'|'loss', reward: {gold, gems}, profile }` |
 | `profile` | `{ profile }` |
+| `player_profile` | `{ profile, friendship }` — response to `view_profile`; `friendship` is `'none'|'outgoing'|'incoming'|'friends'|null` (null when viewing yourself or a bot) |
 | `deck_saved` | `{ cardIds }` |
 | `pack_result` | `{ packId, cards, currency, newBalance }` |
+| `friends_list` | `{ friends: [{userId,username,icon,online}], incoming: [...], outgoing: [...] }` |
+| `friend_request_received` | `{ userId, username, icon }` — pushed to the target of a new request, if they're connected |
+| `presence_update` | `{ userId, online }` — pushed to every online friend whenever someone's presence flips |
+| `duel_request_received` | `{ userId, username, icon }` |
+| `duel_request_sent` | `{ userId }` |
+| `duel_declined` | `{ userId }` |
 | `error` | `{ reason }` |
+| `market_listings` / `market_my_listings` | `{ listings: [...] }` — browse results / your own listings, each with `sellerName`, `currentBidderName`, `expiresAt`, etc. |
+| `market_listing_created` / `market_listing_cancelled` | `{ listing, profile }` — confirms your own action, with a fresh wallet/collection snapshot |
+| `market_purchase_complete` | `{ listingId, cardId, profile }` — pushed to the buyer (direct buy, auction buyout, or an accepted offer) |
+| `market_bid_placed` | `{ listing }` — confirms your own bid |
+| `market_new_bid` | `{ listing }` — pushed to the seller whenever someone bids on their auction |
+| `market_outbid` | `{ listingId, reason:'outbid'\|'bought_out'\|'cancelled' }` — pushed to whoever just got refunded |
+| `market_auction_won` / `market_item_sold` | pushed to the winning bidder / the seller once an auction settles |
+| `market_listing_expired` | pushed to the seller when an unsold listing expires and the card is returned |
+| `dm_conversations` | `{ conversations: [{userId,username,icon,lastMessage,unread}] }` |
+| `dm_history` | `{ userId, username, icon, messages }` |
+| `dm_message` | `{ message }` — pushed to both sides of a new DM (with `fromUsername`/`fromIcon` for the recipient) |
 
 ## Anti-cheat notes for the client rewrite
 
@@ -98,9 +137,35 @@ Server → client messages:
 - Reconnect: keep sending the same `guestId` (or the same logged-in user)
   and the server will slot you back into your live match within a 20s grace
   window instead of forfeiting you immediately.
+- **Card stats live in exactly one place: `cards.json`.** The server loads
+  it, hashes it (SHA-256 of the raw file), and serves it back verbatim at
+  `GET /cards.json`. The client fetches that file at boot instead of
+  hardcoding its own copy, and sends the hash it computed back on `auth`.
+  If it doesn't match `CARD_LIBRARY_HASH` exactly, auth is refused before a
+  `userId` is even assigned — so a modified/forked client can't buff a
+  card's stats and matchmake with it. To change a card's numbers, edit
+  `cards.json` and redeploy both sides; there's nothing to keep in sync by
+  hand anymore.
+
 
 ## Known simplifications (call these out if picking this up later)
 
+- **Bazaar tax rate locks in at bid/purchase time**, not at settlement. If a
+  buyer and seller share a guild when a bid/offer/purchase happens, that 5%
+  rate is what actually gets charged even if one of them leaves the guild
+  before an auction ends — recomputing it later would mean charging a bidder
+  more than the total they already had escrowed.
+- **Auction bids escrow the full bid + tax immediately** and refund whoever
+  they outbid; there's no "authorize now, charge later" step, so a bidder's
+  balance always reflects money that's actually spoken for.
+- The bot AI (`Match.botTurn` et al.) only ever picks `atkIndex` 0 or 1 (which
+  works fine even for `shareAttack` cards, since sharing is baked into the top
+  slot itself at deck-build time — no special index needed). It just doesn't
+  specifically play around revive, multi-attack, or heal passives; it plays
+  cards and attacks as before.
+- `index.html` has no client-side combat engine at all — it's a pure renderer
+  of server state, so all the new mechanics above (synergy, revive,
+  multi-attack, heal) work in it automatically with zero client changes.
 - Matchmaking is FIFO, no skill rating.
 - Turn timer auto-ends a stalled turn after 45s; setup phase auto-readies
   after 60s.
