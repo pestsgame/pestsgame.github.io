@@ -141,6 +141,14 @@ const guestListings = new Map();             // listingId -> listing object (cam
 const guestBids = new Map();                 // listingId -> Array<{id,bidderId,amount,createdAt}>, oldest first
 const guestDMs = new Map();                  // pairKey(a,b) -> Array<message>, oldest first
 
+/** Tournament registries — only used when Supabase isn't configured.
+ * Mirrors tournament_events/tournament_registrations/tournament_brackets
+ * closely enough that the data-layer functions below branch on
+ * HAS_SUPABASE the same way every other feature does. */
+const guestTournamentEvents = new Map();         // eventId -> event object (camelCase, see rowToTournamentEvent shape)
+const guestTournamentRegistrations = new Map();  // eventId -> Map(userId -> registration object)
+const guestTournamentBrackets = new Map();       // bracketId -> bracket object (camelCase, see rowToBracket shape)
+
 let nextGuestId = 1;
 
 /* ── PROFILE CUSTOMIZATION (validated allow-lists) ────────────────── */
@@ -188,6 +196,43 @@ const DM_HISTORY_LIMIT = 200;
 const DM_CONVERSATIONS_LIMIT = 50;
 const DM_LISTING_MESSAGE_RETENTION_MS = 60 * 60 * 1000; // messages tied to a listing are purged 1hr after it's settled
 const DM_CLEANUP_SWEEP_MS = 10 * 60 * 1000;              // how often that purge runs
+
+/* ── TOURNAMENTS ──────────────────────────────────────────────────────
+ * Two flavors of "event" (the thing you register into ahead of time):
+ *   - official_daily / official_weekly: the server keeps exactly one
+ *     upcoming slot of each open for registration at all times (see
+ *     ensureUpcomingOfficialEvents). Cheap, fixed entry fee, always caps
+ *     each actual bracket at TOURNAMENT_BRACKET_SIZE players — an event
+ *     that draws more entrants than that just produces more brackets, all
+ *     running in parallel, each with its own independent prize pool.
+ *   - unofficial: a player sets everything (name/cap/cut/time/fee) and
+ *     registration itself is capped at their chosen player count, so an
+ *     unofficial event is always exactly one bracket.
+ * Both kinds share the exact same lock/shard/bracket/payout machinery —
+ * see lockAndShardEvent() — they only differ in where their settings came
+ * from (fixed constants vs. a validated player submission). */
+const TOURNAMENT_BRACKET_SIZE = 16;                 // official bracket cap; also the max an unofficial host can choose
+const TOURNAMENT_OFFICIAL_PRIZE_PERCENT = 80;        // official: winner takes 80% of the pool, 20% is a currency sink (same idea as bazaar tax)
+const TOURNAMENT_DAILY_ENTRY_GOLD = Number(process.env.TOURNAMENT_DAILY_ENTRY_GOLD) || 15;   // within the "10-25 coins" range, cheap enough to be a daily habit
+const TOURNAMENT_WEEKLY_ENTRY_GEMS = Number(process.env.TOURNAMENT_WEEKLY_ENTRY_GEMS) || 5;
+const TOURNAMENT_DAILY_HOUR_UTC = Number(process.env.TOURNAMENT_DAILY_HOUR_UTC ?? 20);       // 20:00 UTC daily
+const TOURNAMENT_WEEKLY_DAY_UTC = Number(process.env.TOURNAMENT_WEEKLY_DAY_UTC ?? 0);        // 0 = Sunday
+const TOURNAMENT_WEEKLY_HOUR_UTC = Number(process.env.TOURNAMENT_WEEKLY_HOUR_UTC ?? 20);
+const TOURNAMENT_MIN_PLAYERS_TO_RUN = 2;             // fewer checked-in than this and the whole event just refunds + cancels — there's no bracket to run
+const TOURNAMENT_UNOFFICIAL_MIN_PLAYERS = 2;
+const TOURNAMENT_UNOFFICIAL_MAX_PLAYERS = TOURNAMENT_BRACKET_SIZE;
+const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN = 50;  // floor exists purely to stop a "0% prize" griefing lobby — nobody profits from the unclaimed remainder, it's just burned
+const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX = 100;
+const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD = 5000;
+const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS = 500;
+const TOURNAMENT_UNOFFICIAL_MIN_LEAD_MS = 5 * 60 * 1000;         // must be scheduled at least 5 minutes out
+const TOURNAMENT_UNOFFICIAL_MAX_LEAD_MS = 14 * 24 * 60 * 60 * 1000; // and no more than 2 weeks out
+const TOURNAMENT_NAME_MIN = 3;
+const TOURNAMENT_NAME_MAX = 40;
+const TOURNAMENT_MAX_HOSTED_ACTIVE = 3;              // per-user cap on not-yet-started unofficial tournaments they're hosting, spam guard
+const TOURNAMENT_SWEEP_MS = 15_000;                  // how often we check for events whose start_at has arrived
+const TOURNAMENT_LIST_LIMIT = 40;
+const TOURNAMENT_MINE_LIMIT = 20;
 
 /** Picks out only the whitelisted, well-formed fields from a client's
  * `update_profile` message. Anything absent or invalid is simply omitted
@@ -1826,13 +1871,19 @@ class Match {
     try { reward = await applyMatchReward(winnerId, loserId); }
     catch (e) { console.error('[arena] reward write failed', e); }
 
+    let tournamentSummary = null;
+    if (this.tournamentMeta) {
+      try { tournamentSummary = await onTournamentMatchFinished(this, winnerId, loserId); }
+      catch (e) { console.error('[arena] tournament advance failed', e); }
+    }
+
     for (let side = 0; side < 2; side++) {
       const c = this.conn(side);
       if (!c) continue;
       const won = this.users[side] === winnerId;
       let profile = null;
       try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
-      c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile });
+      c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile, tournament: tournamentSummary });
     }
   }
 
@@ -1847,6 +1898,13 @@ class Match {
     broadcastAll({ type:'match_presence', userIds:this.users, inMatch:false });
     matches.delete(this.id);
     this.users.forEach(u => activeMatchByUser.delete(u));
+    if (this.tournamentMeta) {
+      // A draw can't leave a bracket slot undecided — start an immediate
+      // rematch instead of the normal no-reward draw teardown below.
+      for (let side = 0; side < 2; side++) this.conn(side)?.send({ type:'tournament_rematch', bracketId: this.tournamentMeta.bracketId });
+      try { await rematchTournamentMatch(this); } catch (e) { console.error('[arena] tournament rematch failed', e); }
+      return;
+    }
     for (let side = 0; side < 2; side++) {
       const c = this.conn(side);
       if (!c) continue;
@@ -2036,6 +2094,650 @@ async function startDuelMatch(uA, uB) {
     connA?.send({ type: 'error', reason: 'duel_match_failed' });
     connB?.send({ type: 'error', reason: 'duel_match_failed' });
   }
+}
+
+/* ── TOURNAMENTS ──────────────────────────────────────────────────────
+ * An "event" is what players register (and pay an entry fee) into ahead
+ * of time — either a recurring official Daily/Weekly slot the server
+ * maintains for itself (ensureUpcomingOfficialEvents) or a player-hosted
+ * lobby (createUnofficialTournament). At its scheduled start_at,
+ * tournamentSweep locks the event, keeps only the registrants who were
+ * actually online right that instant (that's the whole "automatically
+ * disqualified for not showing up" rule — see lockAndShardEvent), and
+ * splits the rest into one or more brackets: official events shard into
+ * groups of at most TOURNAMENT_BRACKET_SIZE, unofficial events are always
+ * exactly one bracket (registration itself is capped at the host's chosen
+ * player count). Both kinds share the exact same downstream machinery.
+ *
+ * A bracket match is just a normal Match (see the Match class above),
+ * tagged with `tournamentMeta` — turn timers, reconnect grace, and normal
+ * win/loss rewards all keep working unmodified. The only two places this
+ * file's match code needs to know tournaments exist are the two hooks in
+ * Match#finish()/#finishDraw() below.
+ */
+
+/* -- row <-> object mappers (camelCase objects are what the rest of this
+ * section and the client both work with) -------------------------------- */
+function rowToTournamentEvent(row) {
+  return {
+    id: row.id, kind: row.kind, name: row.name, hostId: row.host_id,
+    bracketSizeCap: row.bracket_size_cap, entryCurrency: row.entry_currency,
+    entryAmount: row.entry_amount, prizePoolPercent: row.prize_pool_percent,
+    startAt: row.start_at, status: row.status, createdAt: row.created_at,
+  };
+}
+function rowToRegistration(row) {
+  return {
+    eventId: row.event_id, userId: row.user_id, paidAmount: row.paid_amount,
+    paidCurrency: row.paid_currency, checkedIn: row.checked_in, refunded: row.refunded,
+    registeredAt: row.registered_at,
+  };
+}
+function rowToBracket(row) {
+  return {
+    id: row.id, eventId: row.event_id, eventName: row.event_name, eventKind: row.event_kind,
+    prizeCurrency: row.prize_currency, prizePool: row.prize_pool, winnerPayout: row.winner_payout,
+    status: row.status, winnerId: row.winner_id,
+    participants: row.participants || [], rounds: row.rounds || [],
+    createdAt: row.created_at, completedAt: row.completed_at,
+  };
+}
+function bracketToRow(b) {
+  return {
+    id: b.id, event_id: b.eventId, event_name: b.eventName, event_kind: b.eventKind,
+    prize_currency: b.prizeCurrency, prize_pool: b.prizePool, winner_payout: b.winnerPayout,
+    status: b.status, winner_id: b.winnerId || null,
+    participants: b.participants, rounds: b.rounds,
+    completed_at: b.completedAt || null,
+  };
+}
+
+/* -- event CRUD (dual-path, same convention as guilds/marketplace) ------ */
+async function createTournamentEventRow(fields) {
+  if (!HAS_SUPABASE) {
+    const id = crypto.randomUUID();
+    const event = { id, kind: fields.kind, name: fields.name, hostId: fields.hostId || null,
+      bracketSizeCap: fields.bracketSizeCap, entryCurrency: fields.entryCurrency, entryAmount: fields.entryAmount,
+      prizePoolPercent: fields.prizePoolPercent, startAt: fields.startAt, status: 'scheduled', createdAt: new Date().toISOString() };
+    guestTournamentEvents.set(id, event);
+    guestTournamentRegistrations.set(id, new Map());
+    return event;
+  }
+  const insert = {
+    kind: fields.kind, name: fields.name, host_id: fields.hostId || null,
+    bracket_size_cap: fields.bracketSizeCap, entry_currency: fields.entryCurrency, entry_amount: fields.entryAmount,
+    prize_pool_percent: fields.prizePoolPercent, start_at: fields.startAt,
+  };
+  const { data, error } = await supabase.from('tournament_events').insert(insert).select('*').single();
+  if (error) throw error;
+  return rowToTournamentEvent(data);
+}
+async function getTournamentEvent(eventId) {
+  if (!HAS_SUPABASE) return guestTournamentEvents.get(eventId) || null;
+  const { data, error } = await supabase.from('tournament_events').select('*').eq('id', eventId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToTournamentEvent(data) : null;
+}
+async function setTournamentEventStatus(eventId, status) {
+  if (!HAS_SUPABASE) { const e = guestTournamentEvents.get(eventId); if (e) e.status = status; return; }
+  await supabase.from('tournament_events').update({ status }).eq('id', eventId);
+}
+/** Latest (by start_at) event of a given kind, any status — used to decide whether a fresh official slot needs creating yet. */
+async function latestEventOfKind(kind) {
+  if (!HAS_SUPABASE) {
+    let best = null;
+    for (const e of guestTournamentEvents.values()) if (e.kind === kind && (!best || e.startAt > best.startAt)) best = e;
+    return best;
+  }
+  const { data, error } = await supabase.from('tournament_events').select('*').eq('kind', kind).order('start_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ? rowToTournamentEvent(data) : null;
+}
+async function eventsByStatus(statuses, { kinds = null, limit = 100 } = {}) {
+  if (!HAS_SUPABASE) {
+    let list = [...guestTournamentEvents.values()].filter(e => statuses.includes(e.status) && (!kinds || kinds.includes(e.kind)));
+    list.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    return list.slice(0, limit);
+  }
+  let q = supabase.from('tournament_events').select('*').in('status', statuses).order('start_at', { ascending: true }).limit(limit);
+  if (kinds) q = q.in('kind', kinds);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []).map(rowToTournamentEvent);
+}
+
+/* -- registration CRUD --------------------------------------------------- */
+async function getRegistration(eventId, userId) {
+  if (!HAS_SUPABASE) return guestTournamentRegistrations.get(eventId)?.get(userId) || null;
+  const { data, error } = await supabase.from('tournament_registrations').select('*').eq('event_id', eventId).eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToRegistration(data) : null;
+}
+async function listRegistrations(eventId) {
+  if (!HAS_SUPABASE) return [...(guestTournamentRegistrations.get(eventId)?.values() || [])];
+  const { data, error } = await supabase.from('tournament_registrations').select('*').eq('event_id', eventId);
+  if (error) throw error;
+  return (data || []).map(rowToRegistration);
+}
+async function countRegistrations(eventId) {
+  if (!HAS_SUPABASE) return guestTournamentRegistrations.get(eventId)?.size || 0;
+  const { count, error } = await supabase.from('tournament_registrations').select('*', { count: 'exact', head: true }).eq('event_id', eventId);
+  if (error) throw error;
+  return count || 0;
+}
+async function createRegistration(eventId, userId, amount, currency) {
+  const reg = { eventId, userId, paidAmount: amount, paidCurrency: currency, checkedIn: null, refunded: false, registeredAt: new Date().toISOString() };
+  if (!HAS_SUPABASE) {
+    if (!guestTournamentRegistrations.has(eventId)) guestTournamentRegistrations.set(eventId, new Map());
+    guestTournamentRegistrations.get(eventId).set(userId, reg);
+    return reg;
+  }
+  const { error } = await supabase.from('tournament_registrations').insert({ event_id: eventId, user_id: userId, paid_amount: amount, paid_currency: currency });
+  if (error) throw error;
+  return reg;
+}
+async function deleteRegistration(eventId, userId) {
+  if (!HAS_SUPABASE) { guestTournamentRegistrations.get(eventId)?.delete(userId); return; }
+  await supabase.from('tournament_registrations').delete().eq('event_id', eventId).eq('user_id', userId);
+}
+async function setRegistrationCheckedIn(eventId, userId, checkedIn) {
+  if (!HAS_SUPABASE) { const r = guestTournamentRegistrations.get(eventId)?.get(userId); if (r) r.checkedIn = checkedIn; return; }
+  await supabase.from('tournament_registrations').update({ checked_in: checkedIn }).eq('event_id', eventId).eq('user_id', userId);
+}
+async function markRegistrationRefunded(eventId, userId) {
+  if (!HAS_SUPABASE) { const r = guestTournamentRegistrations.get(eventId)?.get(userId); if (r) r.refunded = true; return; }
+  await supabase.from('tournament_registrations').update({ refunded: true }).eq('event_id', eventId).eq('user_id', userId);
+}
+/** Every event id (most recent first) this user has ever registered for — powers the "My Tournaments" list. */
+async function listUserRegisteredEventIds(userId, limit) {
+  if (!HAS_SUPABASE) {
+    const ids = [];
+    for (const [eventId, regs] of guestTournamentRegistrations.entries()) if (regs.has(userId)) ids.push(eventId);
+    return ids.slice(-limit).reverse();
+  }
+  const { data, error } = await supabase.from('tournament_registrations').select('event_id, registered_at').eq('user_id', userId).order('registered_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data || []).map(r => r.event_id);
+}
+
+/* -- bracket CRUD --------------------------------------------------------- */
+async function createBracketRow(bracket) {
+  if (!HAS_SUPABASE) { guestTournamentBrackets.set(bracket.id, bracket); return bracket; }
+  const { error } = await supabase.from('tournament_brackets').insert(bracketToRow(bracket));
+  if (error) throw error;
+  return bracket;
+}
+async function saveBracket(bracket) {
+  if (!HAS_SUPABASE) { guestTournamentBrackets.set(bracket.id, bracket); return; }
+  const { error } = await supabase.from('tournament_brackets').update(bracketToRow(bracket)).eq('id', bracket.id);
+  if (error) throw error;
+}
+async function getBracket(bracketId) {
+  if (!HAS_SUPABASE) return guestTournamentBrackets.get(bracketId) || null;
+  const { data, error } = await supabase.from('tournament_brackets').select('*').eq('id', bracketId).maybeSingle();
+  if (error) throw error;
+  return data ? rowToBracket(data) : null;
+}
+async function listBracketsForEvent(eventId) {
+  if (!HAS_SUPABASE) return [...guestTournamentBrackets.values()].filter(b => b.eventId === eventId);
+  const { data, error } = await supabase.from('tournament_brackets').select('*').eq('event_id', eventId);
+  if (error) throw error;
+  return (data || []).map(rowToBracket);
+}
+async function findParticipantBracket(eventId, userId) {
+  const brackets = await listBracketsForEvent(eventId);
+  return brackets.find(b => b.participants.some(p => p.userId === userId)) || null;
+}
+function bracketPayload(bracket) {
+  return {
+    id: bracket.id, eventId: bracket.eventId, eventName: bracket.eventName, eventKind: bracket.eventKind,
+    prizeCurrency: bracket.prizeCurrency, prizePool: bracket.prizePool, winnerPayout: bracket.winnerPayout,
+    status: bracket.status, winnerId: bracket.winnerId,
+    participants: bracket.participants, rounds: bracket.rounds,
+  };
+}
+async function pushBracketUpdate(bracket, type = 'tournament_bracket_update') {
+  const payload = { type, bracket: bracketPayload(bracket) };
+  for (const p of bracket.participants) notifyUser(p.userId, payload);
+}
+
+/* -- official schedule ---------------------------------------------------- */
+function officialEntryFor(kind) {
+  return kind === 'official_daily'
+    ? { currency: 'gold', amount: TOURNAMENT_DAILY_ENTRY_GOLD }
+    : { currency: 'gems', amount: TOURNAMENT_WEEKLY_ENTRY_GEMS };
+}
+function nextDailySlot(now) {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), TOURNAMENT_DAILY_HOUR_UTC, 0, 0, 0));
+  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+function nextWeeklySlot(now) {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), TOURNAMENT_WEEKLY_HOUR_UTC, 0, 0, 0));
+  const daysAhead = (TOURNAMENT_WEEKLY_DAY_UTC - d.getUTCDay() + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + daysAhead);
+  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 7);
+  return d;
+}
+function formatEventTime(date) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) + ' UTC';
+}
+function officialEventName(kind, date) {
+  return `${kind === 'official_daily' ? 'Daily Tournament' : 'Weekly Championship'} — ${formatEventTime(date)}`;
+}
+/** Keeps exactly one upcoming (status='scheduled') event of each official
+ * kind available to register for at all times. Cheap to call often — it's
+ * a no-op unless the currently-latest event of that kind isn't the slot
+ * that should exist right now (i.e. the previous one just locked). */
+async function ensureUpcomingOfficialEvents() {
+  const now = new Date();
+  for (const [kind, slotFn] of [['official_daily', nextDailySlot], ['official_weekly', nextWeeklySlot]]) {
+    const slot = slotFn(now);
+    const slotIso = slot.toISOString();
+    const latest = await latestEventOfKind(kind);
+    if (latest && latest.startAt === slotIso) continue;
+    const entry = officialEntryFor(kind);
+    await createTournamentEventRow({
+      kind, name: officialEventName(kind, slot), hostId: null,
+      bracketSizeCap: TOURNAMENT_BRACKET_SIZE, entryCurrency: entry.currency, entryAmount: entry.amount,
+      prizePoolPercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, startAt: slotIso,
+    });
+  }
+}
+
+/* -- player-facing actions ------------------------------------------------- */
+async function registerForTournament(userId, eventId) {
+  const event = await getTournamentEvent(eventId);
+  if (!event) return { error: 'tournament_not_found' };
+  if (event.status !== 'scheduled' || new Date(event.startAt).getTime() <= Date.now()) return { error: 'tournament_locked' };
+  if (await getRegistration(eventId, userId)) return { error: 'already_registered' };
+  if (event.kind === 'unofficial' && (await countRegistrations(eventId)) >= event.bracketSizeCap) return { error: 'tournament_full' };
+  const profile = await fetchProfile(userId);
+  const balance = event.entryCurrency === 'gold' ? profile.gold : profile.gems;
+  if (balance < event.entryAmount) return { error: 'tournament_insufficient_funds' };
+  if (event.entryAmount > 0) await adjustWallet(userId, event.entryCurrency === 'gold' ? -event.entryAmount : 0, event.entryCurrency === 'gems' ? -event.entryAmount : 0);
+  const registration = await createRegistration(eventId, userId, event.entryAmount, event.entryCurrency);
+  return { event, registration };
+}
+async function unregisterFromTournament(userId, eventId) {
+  const event = await getTournamentEvent(eventId);
+  if (!event) return { error: 'tournament_not_found' };
+  if (event.status !== 'scheduled') return { error: 'tournament_locked' };
+  const reg = await getRegistration(eventId, userId);
+  if (!reg) return { error: 'not_registered' };
+  if (reg.paidAmount > 0) await adjustWallet(userId, reg.paidCurrency === 'gold' ? reg.paidAmount : 0, reg.paidCurrency === 'gems' ? reg.paidAmount : 0);
+  await deleteRegistration(eventId, userId);
+  return { event };
+}
+function sanitizeTournamentName(name) {
+  const trimmed = String(name || '').trim().replace(/\s+/g, ' ');
+  if (trimmed.length < TOURNAMENT_NAME_MIN || trimmed.length > TOURNAMENT_NAME_MAX) return null;
+  return trimmed;
+}
+async function countActiveHostedEvents(userId) {
+  if (!HAS_SUPABASE) {
+    let n = 0;
+    for (const e of guestTournamentEvents.values()) if (e.hostId === userId && e.status === 'scheduled') n++;
+    return n;
+  }
+  const { count, error } = await supabase.from('tournament_events').select('*', { count: 'exact', head: true }).eq('host_id', userId).eq('status', 'scheduled');
+  if (error) throw error;
+  return count || 0;
+}
+async function createUnofficialTournament(userId, msg) {
+  const name = sanitizeTournamentName(msg.name);
+  if (!name) return { error: 'invalid_name' };
+  const maxPlayers = Math.round(Number(msg.maxPlayers));
+  if (!Number.isFinite(maxPlayers) || maxPlayers < TOURNAMENT_UNOFFICIAL_MIN_PLAYERS || maxPlayers > TOURNAMENT_UNOFFICIAL_MAX_PLAYERS) return { error: 'invalid_max_players' };
+  const prizePoolPercent = Math.round(Number(msg.prizePoolPercent));
+  if (!Number.isFinite(prizePoolPercent) || prizePoolPercent < TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN || prizePoolPercent > TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX) return { error: 'invalid_prize_percent' };
+  const entryCurrency = msg.entryCurrency === 'gems' ? 'gems' : msg.entryCurrency === 'gold' ? 'gold' : null;
+  if (!entryCurrency) return { error: 'invalid_entry_currency' };
+  const entryAmount = Math.round(Number(msg.entryAmount));
+  const entryMax = entryCurrency === 'gold' ? TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD : TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS;
+  if (!Number.isFinite(entryAmount) || entryAmount < 0 || entryAmount > entryMax) return { error: 'invalid_entry_amount' };
+  const startAtMs = new Date(msg.startAt).getTime();
+  const now = Date.now();
+  if (!Number.isFinite(startAtMs) || startAtMs < now + TOURNAMENT_UNOFFICIAL_MIN_LEAD_MS || startAtMs > now + TOURNAMENT_UNOFFICIAL_MAX_LEAD_MS) return { error: 'invalid_start_time' };
+  if ((await countActiveHostedEvents(userId)) >= TOURNAMENT_MAX_HOSTED_ACTIVE) return { error: 'too_many_hosted_tournaments' };
+  const event = await createTournamentEventRow({
+    kind: 'unofficial', name, hostId: userId, bracketSizeCap: maxPlayers,
+    entryCurrency, entryAmount, prizePoolPercent, startAt: new Date(startAtMs).toISOString(),
+  });
+  return { event };
+}
+async function cancelUnofficialTournament(userId, eventId) {
+  const event = await getTournamentEvent(eventId);
+  if (!event) return { error: 'tournament_not_found' };
+  if (event.hostId !== userId) return { error: 'not_host' };
+  if (event.status !== 'scheduled') return { error: 'tournament_already_started' };
+  for (const reg of await listRegistrations(eventId)) {
+    if (reg.paidAmount > 0) await adjustWallet(reg.userId, reg.paidCurrency === 'gold' ? reg.paidAmount : 0, reg.paidCurrency === 'gems' ? reg.paidAmount : 0);
+    await markRegistrationRefunded(eventId, reg.userId);
+    notifyUser(reg.userId, { type: 'tournament_refunded', eventId, reason: 'cancelled', profile: await fetchProfile(reg.userId) });
+  }
+  await setTournamentEventStatus(eventId, 'cancelled');
+  return { event };
+}
+
+/* -- single-elimination bracket, with byes for non-power-of-2 sizes.
+ * "Seed" here just means "slot position", assigned by a random shuffle
+ * (see shuffleParticipants) — not a skill ranking. It still uses the
+ * standard recursive tournament-seeding construction real sports brackets
+ * use (so slot 1 and slot 2 can only ever meet in the final, slots 1-4
+ * can't meet before the semifinal, etc.), but purely because that
+ * construction is what guarantees byes never collide — not for
+ * competitive fairness, which isn't a goal here. The load-bearing
+ * property for byes: because bracketSize is always the *smallest* power of
+ * two >= the real player count n, the number of byes (bracketSize-n) is
+ * always strictly less than bracketSize/2 — which makes it mathematically
+ * impossible for two byes to ever land in the same first-round pair (a
+ * bye-vs-bye pair would need two seed numbers x, y with x+y=bracketSize+1
+ * and both x,y>n, which requires n<=bracketSize/2 — the opposite of what's
+ * guaranteed). So a bye can never produce a dead "nobody vs nobody" match,
+ * every bye is always real-player-vs-empty-slot and auto-resolves clean. */
+function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
+function seedOrder(size) {
+  let order = [1, 2];
+  while (order.length < size) {
+    const len = order.length * 2 + 1;
+    const next = [];
+    for (const s of order) { next.push(s); next.push(len - s); }
+    order = next;
+  }
+  return order;
+}
+function roundLabel(roundIdx, totalRounds) {
+  const fromEnd = totalRounds - roundIdx;
+  if (fromEnd === 1) return 'Final';
+  if (fromEnd === 2) return 'Semifinal';
+  if (fromEnd === 3) return 'Quarterfinal';
+  return `Round of ${Math.pow(2, fromEnd)}`;
+}
+/** participants: array sorted best-seed-first (participants[0] is seed 1).
+ * Round 0 gets real players/byes dropped in from the seeding; every later
+ * round starts empty and fills in as winners advance. */
+function buildInitialRounds(participants) {
+  const n = participants.length;
+  const bracketSize = nextPow2(n);
+  const order = seedOrder(bracketSize);
+  const slots = order.map(seedNum => (seedNum <= n ? { ...participants[seedNum - 1] } : null));
+  const numRounds = Math.log2(bracketSize);
+  const rounds = [];
+  const round0 = [];
+  for (let i = 0; i < slots.length; i += 2) round0.push({ a: slots[i] || null, b: slots[i + 1] || null, winnerId: null, loserId: null, isBye: false, matchId: null });
+  rounds.push(round0);
+  let matchesInRound = round0.length;
+  for (let r = 1; r < numRounds; r++) {
+    matchesInRound = matchesInRound / 2;
+    const round = [];
+    for (let i = 0; i < matchesInRound; i++) round.push({ a: null, b: null, winnerId: null, loserId: null, isBye: false, matchId: null });
+    rounds.push(round);
+  }
+  return rounds;
+}
+function participantByUserId(match, userId) {
+  if (match.a && match.a.userId === userId) return match.a;
+  if (match.b && match.b.userId === userId) return match.b;
+  return null;
+}
+/** Records a decided result and, if there's a next round, advances the
+ * winner into it. Returns true if this was the bracket's last match. Pure
+ * and synchronous — never touches the DB or network. */
+function recordBracketResult(bracket, roundIdx, matchIdx, winnerId, loserId, isBye) {
+  const m = bracket.rounds[roundIdx][matchIdx];
+  const winner = participantByUserId(m, winnerId) || { userId: winnerId };
+  m.winnerId = winnerId; m.loserId = loserId; m.isBye = !!isBye; m.matchId = null;
+  const nextRound = bracket.rounds[roundIdx + 1];
+  if (!nextRound) return true;
+  const nextMatch = nextRound[Math.floor(matchIdx / 2)];
+  if (matchIdx % 2 === 0) nextMatch.a = winner; else nextMatch.b = winner;
+  return false;
+}
+/** Auto-resolves every real-player-vs-empty-bye match. Byes only ever
+ * exist in round 0 — that's the only round whose empty slots come
+ * directly from the seeding (a missing seed number), so it's the only
+ * round where "one side filled" reliably means "bye" rather than "this
+ * match just hasn't been decided by an earlier round yet". Scanning any
+ * later round for a lone-filled slot would incorrectly auto-advance a
+ * real player before their actual opponent is even decided — round 0 is
+ * the whole story, no cascading needed (see the big comment above for why
+ * a bye can never chain into producing another bye downstream). */
+function resolveByesAndAdvance(bracket) {
+  let finished = false;
+  const round0 = bracket.rounds[0];
+  for (let i = 0; i < round0.length; i++) {
+    const m = round0[i];
+    if (m.winnerId) continue;
+    if (m.a && !m.b) { if (recordBracketResult(bracket, 0, i, m.a.userId, null, true)) finished = true; }
+    else if (m.b && !m.a) { if (recordBracketResult(bracket, 0, i, m.b.userId, null, true)) finished = true; }
+  }
+  return finished;
+}
+
+/* -- match integration ----------------------------------------------------- */
+function isPlayerAvailable(userId) {
+  const c = connections.get(userId);
+  return !!c && c.ws && c.ws.readyState === c.ws.OPEN && !activeMatchByUser.has(userId);
+}
+/** Turns a bracket slot with both players filled into a real live Match
+ * (reusing the Match class real duels use, unmodified) — UNLESS one or
+ * both players have gone AWOL since their previous round, in which case
+ * it's an instant walkover: the same "didn't show up = disqualified" rule
+ * applied every round, not just at the very start of the event. */
+async function startTournamentBracketMatch(bracket, roundIdx, matchIdx) {
+  const m = bracket.rounds[roundIdx][matchIdx];
+  const uA = m.a.userId, uB = m.b.userId;
+  const aOnline = isPlayerAvailable(uA), bOnline = isPlayerAvailable(uB);
+  if (!aOnline || !bOnline) {
+    let winnerId, loserId;
+    if (!aOnline && !bOnline) { // both AWOL — deterministic walkover (lower slot number) so this can never be gamed, not a skill judgment
+      const aSeed = m.a.seed ?? 999, bSeed = m.b.seed ?? 999;
+      winnerId = aSeed <= bSeed ? uA : uB; loserId = winnerId === uA ? uB : uA;
+    } else if (!aOnline) { winnerId = uB; loserId = uA; }
+    else { winnerId = uA; loserId = uB; }
+    await finishBracketMatch(bracket, roundIdx, matchIdx, winnerId, loserId, false);
+    return;
+  }
+  try {
+    const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
+    const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
+    const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
+    const match = new Match(uA, uB, deckA, deckB);
+    match.usernames = [profileA.username, profileB.username];
+    match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
+    match.ranks = [profileA.rank, profileB.rank];
+    match.tournamentMeta = { bracketId: bracket.id, eventId: bracket.eventId, roundIdx, matchIdx };
+    m.matchId = match.id;
+    await saveBracket(bracket);
+    const roundInfo = { bracketId: bracket.id, eventName: bracket.eventName, roundIndex: roundIdx, totalRounds: bracket.rounds.length, roundLabel: roundLabel(roundIdx, bracket.rounds.length) };
+    connections.get(uA)?.send({ type: 'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank, tournament: roundInfo });
+    connections.get(uB)?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank, tournament: roundInfo });
+    match.broadcastState([]);
+  } catch (e) {
+    console.error('[arena] tournament match start failed', e);
+    // don't strand the bracket — matchId was never set, so the next sweep's startReadyMatches() pass retries this slot
+  }
+}
+/** Scans every round for a match that's ready to play (both slots filled,
+ * no winner, not already running) and starts it. Called right after a
+ * bracket is created and again every time a match finishes. */
+async function startReadyMatches(bracket) {
+  for (let r = 0; r < bracket.rounds.length; r++) {
+    for (let i = 0; i < bracket.rounds[r].length; i++) {
+      const m = bracket.rounds[r][i];
+      if (m.a && m.b && !m.winnerId && !m.matchId) await startTournamentBracketMatch(bracket, r, i);
+    }
+  }
+}
+/** Shared tail-end for "a bracket match just got decided" — whether that
+ * decision came from a real completed Match, a bye, or a walkover. Pays
+ * the champion the instant the final match resolves. */
+async function finishBracketMatch(bracket, roundIdx, matchIdx, winnerId, loserId, isBye) {
+  const finishedHere = recordBracketResult(bracket, roundIdx, matchIdx, winnerId, loserId, isBye);
+  if (finishedHere) bracket.winnerId = winnerId;
+  const finishedByCascade = resolveByesAndAdvance(bracket);
+  if ((finishedHere || finishedByCascade) && bracket.status !== 'completed') {
+    bracket.status = 'completed';
+    if (!bracket.winnerId) bracket.winnerId = winnerId;
+    bracket.completedAt = new Date().toISOString();
+    if (bracket.winnerPayout > 0) await adjustWallet(bracket.winnerId, bracket.prizeCurrency === 'gold' ? bracket.winnerPayout : 0, bracket.prizeCurrency === 'gems' ? bracket.winnerPayout : 0);
+    await saveBracket(bracket);
+    await pushBracketUpdate(bracket);
+    notifyUser(bracket.winnerId, { type: 'tournament_won', bracket: bracketPayload(bracket), prize: { currency: bracket.prizeCurrency, amount: bracket.winnerPayout }, profile: await fetchProfile(bracket.winnerId) });
+    await maybeCompleteEvent(bracket.eventId);
+    return;
+  }
+  await saveBracket(bracket);
+  await pushBracketUpdate(bracket);
+  await startReadyMatches(bracket);
+}
+async function maybeCompleteEvent(eventId) {
+  const event = await getTournamentEvent(eventId);
+  if (!event || event.status === 'completed' || event.status === 'cancelled') return;
+  const brackets = await listBracketsForEvent(eventId);
+  if (brackets.length > 0 && brackets.every(b => b.status === 'completed')) await setTournamentEventStatus(eventId, 'completed');
+}
+/** Called from Match#finish() whenever a tournament-tagged match concludes
+ * for real. Returns a small summary the caller merges into the match_over
+ * payload so the in-battle UI can say e.g. "Advancing to the Final!"
+ * without a separate round-trip. */
+async function onTournamentMatchFinished(match, winnerId, loserId) {
+  const { bracketId, roundIdx, matchIdx } = match.tournamentMeta;
+  const bracket = await getBracket(bracketId);
+  if (!bracket) return null;
+  const totalRounds = bracket.rounds.length;
+  await finishBracketMatch(bracket, roundIdx, matchIdx, winnerId, loserId, false);
+  const tournamentComplete = bracket.status === 'completed';
+  return {
+    bracketId: bracket.id, eventName: bracket.eventName, tournamentComplete,
+    championId: tournamentComplete ? bracket.winnerId : null,
+    nextRoundLabel: tournamentComplete ? null : roundLabel(roundIdx + 1, totalRounds),
+  };
+}
+/** A draw can't be allowed to leave a bracket slot undecided — instead of
+ * the normal no-reward draw teardown, immediately start a fresh Match for
+ * the same slot. Called from Match#finishDraw(). */
+async function rematchTournamentMatch(match) {
+  const { bracketId, roundIdx, matchIdx } = match.tournamentMeta;
+  const bracket = await getBracket(bracketId);
+  if (!bracket) return;
+  bracket.rounds[roundIdx][matchIdx].matchId = null;
+  await saveBracket(bracket);
+  await startTournamentBracketMatch(bracket, roundIdx, matchIdx);
+}
+
+/* -- locking + sharding at start time --------------------------------------- */
+/** Plain Fisher-Yates shuffle — brackets are seeded fully at random, not by
+ * rank. Single elimination needs exactly n-1 matches to produce a champion
+ * from n players no matter how those n are grouped or ordered, so there's
+ * no match-count cost to this; it's purely "who plays who" that's random. */
+function shuffleParticipants(list) {
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  return list;
+}
+/** Chops an already-shuffled list into groups of at most `bracketSizeCap`
+ * — the "as many brackets as needed" part for an official event that
+ * draws more than one bracket's worth of players. No attempt to balance
+ * who ends up in which group beyond the initial shuffle. */
+function shardParticipants(shuffled, bracketSizeCap) {
+  const shards = [];
+  for (let i = 0; i < shuffled.length; i += bracketSizeCap) shards.push(shuffled.slice(i, i + bracketSizeCap));
+  return shards.map(shard => shard.map((p, i) => ({ ...p, seed: i + 1 })));
+}
+let tournamentSweepBusy = false;
+async function lockAndShardEvent(event) {
+  const current = await getTournamentEvent(event.id); // re-check right before locking — cheap compare-and-set against a double-processed event
+  if (!current || current.status !== 'scheduled') return;
+  await setTournamentEventStatus(event.id, 'locked');
+
+  const regs = (await listRegistrations(event.id)).filter(r => !r.refunded);
+  const checkedIn = [], noShows = [];
+  for (const reg of regs) (isPlayerAvailable(reg.userId) ? checkedIn : noShows).push(reg);
+  await Promise.all(checkedIn.map(r => setRegistrationCheckedIn(event.id, r.userId, true)));
+  await Promise.all(noShows.map(r => setRegistrationCheckedIn(event.id, r.userId, false)));
+  // no-shows forfeit their entry fee — never refunded, same convention as any forfeited deposit
+  noShows.forEach(r => notifyUser(r.userId, { type: 'tournament_disqualified', eventId: event.id, reason: 'no_show' }));
+
+  if (checkedIn.length < TOURNAMENT_MIN_PLAYERS_TO_RUN) {
+    for (const reg of checkedIn) {
+      if (reg.paidAmount > 0) await adjustWallet(reg.userId, reg.paidCurrency === 'gold' ? reg.paidAmount : 0, reg.paidCurrency === 'gems' ? reg.paidAmount : 0);
+      await markRegistrationRefunded(event.id, reg.userId);
+      notifyUser(reg.userId, { type: 'tournament_refunded', eventId: event.id, reason: 'not_enough_players', profile: await fetchProfile(reg.userId) });
+    }
+    await setTournamentEventStatus(event.id, 'cancelled');
+    return;
+  }
+
+  const summaries = await fetchProfileSummaries(checkedIn.map(r => r.userId));
+  const shuffled = shuffleParticipants(checkedIn.map(r => ({
+    userId: r.userId,
+    username: summaries.get(r.userId)?.username || 'Player',
+    icon: summaries.get(r.userId)?.icon || 'star',
+  })));
+
+  for (const shard of shardParticipants(shuffled, event.bracketSizeCap)) {
+    const prizePool = shard.length * event.entryAmount;
+    const bracket = {
+      id: crypto.randomUUID(), eventId: event.id, eventName: event.name, eventKind: event.kind,
+      prizeCurrency: event.entryCurrency, prizePool, winnerPayout: Math.floor(prizePool * event.prizePoolPercent / 100),
+      status: 'in_progress', winnerId: null,
+      participants: shard, rounds: buildInitialRounds(shard),
+      createdAt: new Date().toISOString(), completedAt: null,
+    };
+    resolveByesAndAdvance(bracket);
+    await createBracketRow(bracket);
+    for (const p of shard) notifyUser(p.userId, { type: 'tournament_bracket_assigned', bracket: bracketPayload(bracket) });
+    await startReadyMatches(bracket);
+  }
+  await setTournamentEventStatus(event.id, 'running');
+}
+async function tournamentSweep() {
+  if (tournamentSweepBusy) return; // single-process guard — avoid two overlapping sweeps double-processing the same event
+  tournamentSweepBusy = true;
+  try {
+    await ensureUpcomingOfficialEvents();
+    const now = Date.now();
+    for (const event of await eventsByStatus(['scheduled'])) {
+      if (new Date(event.startAt).getTime() <= now) await lockAndShardEvent(event);
+    }
+  } catch (e) { console.error('[arena] tournament sweep failed', e); }
+  finally { tournamentSweepBusy = false; }
+}
+
+/* -- client-facing list/detail payloads ------------------------------------- */
+async function tournamentEventPayload(event, userId, summaries) {
+  const registeredCount = await countRegistrations(event.id);
+  const myReg = userId ? await getRegistration(event.id, userId) : null;
+  let myBracketId = null;
+  if (myReg && event.status !== 'scheduled') {
+    const bracket = await findParticipantBracket(event.id, userId);
+    myBracketId = bracket ? bracket.id : null;
+  }
+  return {
+    id: event.id, kind: event.kind, name: event.name,
+    hostId: event.hostId, hostName: event.hostId ? (summaries?.get(event.hostId)?.username || 'Player') : null,
+    bracketSizeCap: event.bracketSizeCap, entryCurrency: event.entryCurrency, entryAmount: event.entryAmount,
+    prizePoolPercent: event.prizePoolPercent, startAt: event.startAt, status: event.status,
+    registeredCount, youRegistered: !!myReg, youCheckedIn: myReg ? myReg.checkedIn : null, myBracketId,
+  };
+}
+async function buildTournamentListPayload(userId) {
+  const [officialDaily, officialWeekly, unofficialOpen, mineIds] = await Promise.all([
+    eventsByStatus(['scheduled', 'locked', 'running'], { kinds: ['official_daily'], limit: 2 }),
+    eventsByStatus(['scheduled', 'locked', 'running'], { kinds: ['official_weekly'], limit: 2 }),
+    eventsByStatus(['scheduled'], { kinds: ['unofficial'], limit: TOURNAMENT_LIST_LIMIT }),
+    listUserRegisteredEventIds(userId, TOURNAMENT_MINE_LIMIT),
+  ]);
+  const mineEvents = (await Promise.all(mineIds.map(id => getTournamentEvent(id)))).filter(Boolean);
+  const hostIds = [...new Set([...unofficialOpen, ...mineEvents].map(e => e.hostId).filter(Boolean))];
+  const summaries = hostIds.length ? await fetchProfileSummaries(hostIds) : new Map();
+  return {
+    officialDaily: await Promise.all(officialDaily.map(e => tournamentEventPayload(e, userId, summaries))),
+    officialWeekly: await Promise.all(officialWeekly.map(e => tournamentEventPayload(e, userId, summaries))),
+    unofficial: await Promise.all(unofficialOpen.map(e => tournamentEventPayload(e, userId, summaries))),
+    mine: await Promise.all(mineEvents.map(e => tournamentEventPayload(e, userId, summaries))),
+  };
 }
 
 /* ── TRADING ──────────────────────────────────────────────────────
@@ -2302,7 +3004,7 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
-        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, inMatchUserIds: [...activeMatchByUser.keys()] });
+        conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, tournamentOptions: { bracketSize: TOURNAMENT_BRACKET_SIZE, officialPrizePercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, dailyEntryGold: TOURNAMENT_DAILY_ENTRY_GOLD, weeklyEntryGems: TOURNAMENT_WEEKLY_ENTRY_GEMS, unofficialMinPlayers: TOURNAMENT_UNOFFICIAL_MIN_PLAYERS, unofficialMaxPlayers: TOURNAMENT_UNOFFICIAL_MAX_PLAYERS, unofficialPrizePercentMin: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN, unofficialPrizePercentMax: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX, unofficialEntryMaxGold: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD, unofficialEntryMaxGems: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS, unofficialMinLeadMs: TOURNAMENT_UNOFFICIAL_MIN_LEAD_MS, unofficialMaxLeadMs: TOURNAMENT_UNOFFICIAL_MAX_LEAD_MS, nameMin: TOURNAMENT_NAME_MIN, nameMax: TOURNAMENT_NAME_MAX }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
         conn.send({ type:'error', reason:'auth_failed' });
@@ -2932,6 +3634,53 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      /* ── TOURNAMENTS ──────────────────────────────────────────────── */
+      case 'tournament_list': {
+        try { conn.send({ type: 'tournament_list', ...(await buildTournamentListPayload(userId)) }); }
+        catch (e) { console.error('[arena] tournament_list failed', e); conn.send({ type: 'error', reason: 'tournament_list_failed' }); }
+        break;
+      }
+      case 'tournament_create': {
+        try {
+          const result = await createUnofficialTournament(userId, msg);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'tournament_created', event: await tournamentEventPayload(result.event, userId, new Map()) });
+        } catch (e) { console.error('[arena] tournament_create failed', e); conn.send({ type: 'error', reason: 'tournament_create_failed' }); }
+        break;
+      }
+      case 'tournament_join': {
+        try {
+          const result = await registerForTournament(userId, msg.eventId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'tournament_joined', event: await tournamentEventPayload(result.event, userId, new Map()), profile: await fetchProfile(userId) });
+        } catch (e) { console.error('[arena] tournament_join failed', e); conn.send({ type: 'error', reason: 'tournament_join_failed' }); }
+        break;
+      }
+      case 'tournament_leave': {
+        try {
+          const result = await unregisterFromTournament(userId, msg.eventId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'tournament_left', event: await tournamentEventPayload(result.event, userId, new Map()), profile: await fetchProfile(userId) });
+        } catch (e) { console.error('[arena] tournament_leave failed', e); conn.send({ type: 'error', reason: 'tournament_leave_failed' }); }
+        break;
+      }
+      case 'tournament_cancel': {
+        try {
+          const result = await cancelUnofficialTournament(userId, msg.eventId);
+          if (result.error) { conn.send({ type: 'error', reason: result.error }); break; }
+          conn.send({ type: 'tournament_cancelled', event: await tournamentEventPayload(result.event, userId, new Map()) });
+        } catch (e) { console.error('[arena] tournament_cancel failed', e); conn.send({ type: 'error', reason: 'tournament_cancel_failed' }); }
+        break;
+      }
+      case 'tournament_bracket': {
+        try {
+          const bracket = await getBracket(msg.bracketId);
+          if (!bracket) { conn.send({ type: 'error', reason: 'tournament_not_found' }); break; }
+          conn.send({ type: 'tournament_bracket', bracket: bracketPayload(bracket) });
+        } catch (e) { console.error('[arena] tournament_bracket failed', e); conn.send({ type: 'error', reason: 'tournament_bracket_failed' }); }
+        break;
+      }
+
       /* ── DIRECT MESSAGES (marketplace negotiation) ───────────────── */
       case 'dm_conversations': {
         try {
@@ -3056,6 +3805,16 @@ const dmCleanupSweep = setInterval(() => {
   cleanupExpiredListingDMs().catch(e => console.error('[arena] DM cleanup failed', e));
 }, DM_CLEANUP_SWEEP_MS);
 wss.on('close', () => clearInterval(dmCleanupSweep));
+
+/* keeps official Daily/Weekly tournament slots open for registration and
+ * locks+shards any event (official or player-hosted) whose start_at has
+ * arrived — see tournamentSweep(). Runs once immediately so the official
+ * slots exist right at boot rather than waiting for the first tick. */
+tournamentSweep().catch(e => console.error('[arena] initial tournament sweep failed', e));
+const tournamentSweepTimer = setInterval(() => {
+  tournamentSweep().catch(e => console.error('[arena] tournament sweep failed', e));
+}, TOURNAMENT_SWEEP_MS);
+wss.on('close', () => clearInterval(tournamentSweepTimer));
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
