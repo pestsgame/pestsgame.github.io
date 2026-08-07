@@ -46,9 +46,10 @@ npm start               # listens on :8787 (PORT env var to change)
 Run `supabase-schema.sql` once in the Supabase SQL editor to create
 `profiles`, `player_cards`, `player_decks`, `match_history`, the global
 chat table, the `friendships`/`presence` tables the Social tab uses, the
-`guilds`/`guild_members`/guild chat tables, and the
+`guilds`/`guild_members`/guild chat tables, the
 `marketplace_listings`/`marketplace_bids`/`direct_messages` tables the
-Bazaar tab uses.
+Bazaar tab uses, and the `tournament_events`/`tournament_registrations`/
+`tournament_brackets` tables the Tourney tab uses.
 
 If you leave the Supabase env vars blank, the server still runs — matches
 work over WebSockets — but wallets, friends, and presence are in-memory
@@ -92,6 +93,12 @@ Everything is JSON over one WebSocket connection. Client → server messages:
 | `dm_history` | `{ userId }` | full message history with one other player (marks their messages read) |
 | `dm_send` | `{ toId, text, listingId?, offerAmount?, offerCurrency? }` | send a DM, optionally carrying a price offer tied to a 'price' listing — negotiation only, auctions use bids instead. Messages sent with a `listingId` are auto-deleted ~1hr after that listing settles (see `cleanupExpiredListingDMs`), so a thread doesn't accumulate old negotiation clutter every time you buy from the same seller again |
 | `dm_accept_offer` | `{ messageId }` | accept a pending offer sent *to you*, executing the sale immediately at that price |
+| `tournament_list` | — | fetch the current official Daily/Weekly slots, open unofficial lobbies, and your own registrations/brackets |
+| `tournament_create` | `{ name, maxPlayers, prizePoolPercent, startAt (ISO), entryCurrency:'gold'\|'gems', entryAmount }` | host an unofficial tournament — registration itself is capped at `maxPlayers`, so unlike official events this is always exactly one bracket |
+| `tournament_join` | `{ eventId }` | register + pay the entry fee for an official or unofficial event, any time before it locks |
+| `tournament_leave` | `{ eventId }` | unregister before lock time — full refund. Can't leave once it's locked/running |
+| `tournament_cancel` | `{ eventId }` | host-only, unofficial only, before lock — refunds every registrant |
+| `tournament_bracket` | `{ bracketId }` | fetch one specific bracket's full live tree, for the bracket view |
 
 Server → client messages:
 
@@ -99,10 +106,10 @@ Server → client messages:
 |---|---|
 | `auth_ok` | `{ userId, profile }` |
 | `queue_status` | `{ inQueue }` |
-| `match_found` | `{ matchId, youAre: 0|1, opponentName, opponentIcon }` |
+| `match_found` | `{ matchId, youAre: 0|1, opponentName, opponentIcon, tournament? }` — `tournament` is present when this match is a bracket match: `{ bracketId, eventName, roundIndex, totalRounds, roundLabel }` |
 | `state` | `{ matchId, phase, turn, you, state, events }` — full snapshot from your perspective (your hand's contents, opponent's hand *count* only) plus an `events` array to replay animations (`hit`, `dot`, `status`, `death`, `weapon_use`, `defense_use`, `curse_recoil`, `rocks`, `coinflip`, `ability`, `miss`, `excess`, `turn_skip`) |
 | `opponent_ready` / `opponent_disconnected` / `opponent_reconnected` | setup/connection status |
-| `match_over` | `{ result: 'win'|'loss', reward: {gold, gems}, profile }` |
+| `match_over` | `{ result: 'win'|'loss', reward: {gold, gems}, profile, tournament? }` — `tournament` (bracket matches only) is `{ bracketId, eventName, tournamentComplete, championId, nextRoundLabel }` |
 | `profile` | `{ profile }` |
 | `player_profile` | `{ profile, friendship }` — response to `view_profile`; `friendship` is `'none'|'outgoing'|'incoming'|'friends'|null` (null when viewing yourself or a bot) |
 | `deck_saved` | `{ cardIds }` |
@@ -125,6 +132,17 @@ Server → client messages:
 | `dm_conversations` | `{ conversations: [{userId,username,icon,lastMessage,unread}] }` |
 | `dm_history` | `{ userId, username, icon, messages }` |
 | `dm_message` | `{ message }` — pushed to both sides of a new DM (with `fromUsername`/`fromIcon` for the recipient) |
+| `tournament_list` | `{ officialDaily, officialWeekly, unofficial, mine }` — each an array of event summaries (`registeredCount`, `youRegistered`, `youCheckedIn`, `myBracketId` once running) |
+| `tournament_created` / `tournament_joined` / `tournament_left` / `tournament_cancelled` | `{ event, profile? }` — confirms your own action |
+| `tournament_refunded` | `{ eventId, reason:'cancelled'\|'not_enough_players', profile }` — pushed when an event you paid into gets cancelled out from under you (never sent for a no-show — that forfeits) |
+| `tournament_disqualified` | `{ eventId, reason:'no_show' }` — best-effort; only reaches you if you happen to reconnect right as it's sent |
+| `tournament_bracket_assigned` | `{ bracket }` — pushed to every checked-in participant the instant their shard's bracket is formed |
+| `tournament_bracket_update` | `{ bracket }` — pushed to every participant of a bracket whenever its state changes (a round advances, it completes) |
+| `tournament_bracket` | `{ bracket }` — response to a `tournament_bracket` request |
+| `tournament_won` | `{ bracket, prize:{currency,amount}, profile }` — pushed specifically to the champion |
+| `tournament_rematch` | `{ bracketId }` — pushed to both sides when their match drew and an immediate rematch is starting |
+
+A `bracket` payload is `{ id, eventId, eventName, eventKind, prizeCurrency, prizePool, winnerPayout, status, winnerId, participants: [{userId,username,icon,seed}], rounds: [[{a,b,winnerId,loserId,isBye,matchId}, ...], ...] }` — everything the client needs to draw the full tree, one round per array entry.
 
 ## Anti-cheat notes for the client rewrite
 
@@ -171,3 +189,15 @@ Server → client messages:
   after 60s.
 - Reconnect uses a stable client-supplied `guestId` for guests; logged-in
   users reconnect via their Supabase user id automatically.
+- **Tournaments assume a single server process.** `tournamentSweep()` guards
+  against overlapping runs with an in-process flag, not a DB-level lock —
+  fine for one instance, not safe to run as-is behind multiple server
+  processes sharing one Supabase project (two processes could both lock the
+  same event). "Showing up" for check-in/walkover purposes means "has an
+  open WebSocket to *this* process right now", so it has the same
+  single-process assumption as `matches`/`activeMatchByUser` already do
+  elsewhere in this file.
+- A drawn tournament match triggers an immediate rematch (new `Match`,
+  same bracket slot) rather than any tie-break rule — draws are already
+  rare in normal play (see `finishDraw`'s doc comment), so this keeps the
+  bracket simple instead of adding a sudden-death mode nobody asked for.
