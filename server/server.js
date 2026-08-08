@@ -81,9 +81,27 @@ const connections = new Map();
 const activeMatchByUser = new Map();
 /** matchId -> Match */
 const matches = new Map();
-/** FIFO queue of userIds waiting for an opponent */
-const queue = [];
-/** userId -> pending bot-fallback Timeout, armed while that user sits in `queue` */
+/** FIFO queues of userIds waiting for an opponent — kept separate so a
+ * ranked player is never paired against someone who queued casual, and
+ * vice versa. */
+const rankedQueue = [];
+const casualQueue = [];
+/** userId -> 'ranked' | 'casual', tracking which queue a waiting user is in
+ * so queue_leave/disconnect/duel-accept can pull them out of the right one
+ * without having to search both every time. */
+const queueMode = new Map();
+function queueForMode(mode) { return mode === 'casual' ? casualQueue : rankedQueue; }
+/** Removes a user from whichever queue (if any) they're currently sitting
+ * in. Safe to call unconditionally — used from every place a user needs to
+ * be pulled out of matchmaking (leave, disconnect, duel accept, etc). */
+function removeFromQueues(userId) {
+  const mode = queueMode.get(userId);
+  const q = queueForMode(mode);
+  const i = q.indexOf(userId);
+  if (i !== -1) q.splice(i, 1);
+  queueMode.delete(userId);
+}
+/** userId -> pending bot-fallback Timeout, armed while that user sits in a queue */
 const queueTimers = new Map();
 /** targetUserId -> requesterUserId — at most one live incoming duel invite
  * tracked per target; a newer invite simply replaces an older unanswered one. */
@@ -1517,30 +1535,32 @@ const isBotId = id => typeof id === 'string' && id.startsWith('bot:');
 
 const RANK_POINTS_WIN = 2, RANK_POINTS_LOSS = -1;
 
-async function applyMatchReward(winnerId, loserId) {
+async function applyMatchReward(winnerId, loserId, ranked = true) {
   if (!HAS_SUPABASE) {
     const w = guestProfiles.get(winnerId), l = guestProfiles.get(loserId);
-    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); }
-    if (l) { l.losses++; l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); }
+    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; if (ranked) w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); }
+    if (l) { l.losses++; if (ranked) l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); }
     return { gold: WIN_GOLD_REWARD, gems: 0 };
   }
   if (!isBotId(winnerId)) {
     const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
     if (winner) {
-      const rankPoints = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
-      await supabase.from('profiles').update({ gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1, rank_points: rankPoints }).eq('id', winnerId);
+      const update = { gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 };
+      if (ranked) update.rank_points = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
+      await supabase.from('profiles').update(update).eq('id', winnerId);
     }
   }
   if (!isBotId(loserId)) {
     const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
     if (loser) {
-      const rankPoints = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
-      await supabase.from('profiles').update({ losses: loser.losses + 1, rank_points: rankPoints }).eq('id', loserId);
+      const update = { losses: loser.losses + 1 };
+      if (ranked) update.rank_points = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
+      await supabase.from('profiles').update(update).eq('id', loserId);
     }
   }
   // don't log fake matches against a bot into permanent match history
   if (!isBotId(winnerId) && !isBotId(loserId)) {
-    await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0 });
+    await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked });
   }
   return { gold: WIN_GOLD_REWARD, gems: 0 };
 }
@@ -1563,9 +1583,14 @@ class Connection {
 
 /* ── MATCH ────────────────────────────────────────────────────────── */
 class Match {
-  constructor(userA, userB, deckA, deckB) {
+  constructor(userA, userB, deckA, deckB, ranked = true) {
     this.id = crypto.randomUUID();
     this.users = [userA, userB]; // side 0, side 1
+    /** Whether a win/loss here moves rankPoints. Casual queue matches set
+     * this false; duels, tournaments, and ranked-queue matches leave it at
+     * the default true. Gold reward and win/loss counts are unaffected
+     * either way — only the rank ladder cares about this flag. */
+    this.ranked = ranked !== false;
     this.sides = [Engine.freshSide(deckA), Engine.freshSide(deckB)];
     this.actedThisTurn = [new Set(), new Set()];
     this.phase = 'SETUP';
@@ -1868,7 +1893,7 @@ class Match {
     this.users.forEach(u => activeMatchByUser.delete(u));
 
     let reward = { gold: WIN_GOLD_REWARD, gems: 0 };
-    try { reward = await applyMatchReward(winnerId, loserId); }
+    try { reward = await applyMatchReward(winnerId, loserId, this.ranked); }
     catch (e) { console.error('[arena] reward write failed', e); }
 
     let tournamentSummary = null;
@@ -1883,7 +1908,7 @@ class Match {
       const won = this.users[side] === winnerId;
       let profile = null;
       try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
-      c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile, tournament: tournamentSummary });
+      c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile, tournament: tournamentSummary, ranked: this.ranked });
     }
   }
 
@@ -1923,10 +1948,10 @@ function clearQueueTimer(userId) {
 
 /** Arm (or re-arm) the randomized 13–17s window after which, if this user is
  * still waiting, they're matched against a bot instead of a real opponent. */
-function armBotFallback(userId) {
+function armBotFallback(userId, mode) {
   clearQueueTimer(userId);
   const delay = BOT_FALLBACK_MIN_MS + Math.floor(Math.random() * (BOT_FALLBACK_MAX_MS - BOT_FALLBACK_MIN_MS));
-  queueTimers.set(userId, setTimeout(() => startBotMatch(userId), delay));
+  queueTimers.set(userId, setTimeout(() => startBotMatch(userId, mode), delay));
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -2035,11 +2060,14 @@ function attachBotAI(match) {
  * no real opponent found. Builds a normal two-sided Match — the human's
  * client only ever sees a `match_found` with a human-sounding opponent name
  * and never learns the other "player" is server-controlled. */
-async function startBotMatch(userId) {
+async function startBotMatch(userId, mode) {
   queueTimers.delete(userId);
-  const i = queue.indexOf(userId);
+  const q = queueForMode(mode);
+  const i = q.indexOf(userId);
   if (i === -1) return; // already matched with a real opponent, or left the queue
-  queue.splice(i, 1);
+  q.splice(i, 1);
+  queueMode.delete(userId);
+  const ranked = mode !== 'casual';
 
   const conn = connections.get(userId);
   if (!conn || conn.ws.readyState !== conn.ws.OPEN) return;
@@ -2057,14 +2085,14 @@ async function startBotMatch(userId) {
     const dA = humanSide === 0 ? humanDeck : botDeck;
     const dB = humanSide === 0 ? botDeck : humanDeck;
 
-    const match = new Match(uA, uB, dA, dB);
+    const match = new Match(uA, uB, dA, dB, ranked);
     match.usernames = humanSide === 0 ? [profile.username, botName] : [botName, profile.username];
     match.icons = humanSide === 0 ? [profile.icon || 'star', 'skull'] : ['skull', profile.icon || 'star'];
     match.ranks = humanSide === 0 ? [profile.rank, null] : [null, profile.rank];
     match.botSide = humanSide === 0 ? 1 : 0;
     match.botUserId = botUserId;
 
-    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName, opponentIcon: 'skull', opponentRank: null });
+    conn.send({ type: 'match_found', matchId: match.id, youAre: humanSide, opponentName: botName, opponentIcon: 'skull', opponentRank: null, ranked });
     match.broadcastState([]);
     attachBotAI(match);
   } catch (e) {
@@ -2956,23 +2984,26 @@ async function executeTrade(session) {
   }
 }
 
-async function tryMatch() {
-  while (queue.length >= 2) {
-    const uA = queue.shift(), uB = queue.shift();
+async function tryMatch(mode) {
+  const q = queueForMode(mode);
+  const ranked = mode !== 'casual';
+  while (q.length >= 2) {
+    const uA = q.shift(), uB = q.shift();
+    queueMode.delete(uA); queueMode.delete(uB);
     clearQueueTimer(uA); clearQueueTimer(uB);
     const connA = connections.get(uA), connB = connections.get(uB);
-    if (!connA || connA.ws.readyState !== connA.ws.OPEN) { if (connB) { queue.unshift(uB); armBotFallback(uB); } continue; }
-    if (!connB || connB.ws.readyState !== connB.ws.OPEN) { queue.unshift(uA); armBotFallback(uA); continue; }
+    if (!connA || connA.ws.readyState !== connA.ws.OPEN) { if (connB) { q.unshift(uB); queueMode.set(uB, mode); armBotFallback(uB, mode); } continue; }
+    if (!connB || connB.ws.readyState !== connB.ws.OPEN) { q.unshift(uA); queueMode.set(uA, mode); armBotFallback(uA, mode); continue; }
     try {
       const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
       const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
       const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
-      const match = new Match(uA, uB, deckA, deckB);
+      const match = new Match(uA, uB, deckA, deckB, ranked);
       match.usernames = [profileA.username, profileB.username];
       match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
       match.ranks = [profileA.rank, profileB.rank];
-      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank });
-      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank });
+      connA.send({ type:'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank, ranked });
+      connB.send({ type:'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank, ranked });
       match.broadcastState([]);
     } catch (e) {
       console.error('[arena] matchmaking failed', e);
@@ -2984,7 +3015,7 @@ async function tryMatch() {
 
 /* ── WS SERVER ────────────────────────────────────────────────────── */
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({ ok:true, matches: matches.size, queue: queue.length })); return; }
+  if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({ ok:true, matches: matches.size, queue: rankedQueue.length + casualQueue.length, rankedQueue: rankedQueue.length, casualQueue: casualQueue.length })); return; }
   if (req.url === '/cards.hash') {
     // Tiny endpoint for the "have I already got this?" check — a client with
     // a cached copy in localStorage hits this instead of re-downloading the
@@ -3074,14 +3105,18 @@ wss.on('connection', (ws) => {
         if (conn.cardLibraryHash !== Engine.CARD_LIBRARY_HASH) {
           return conn.send({ type:'error', reason:'card_library_mismatch', expectedHash: Engine.CARD_LIBRARY_HASH });
         }
-        if (!queue.includes(userId)) queue.push(userId);
-        armBotFallback(userId);
-        conn.send({ type:'queue_status', inQueue:true });
-        tryMatch();
+        const mode = msg.mode === 'casual' ? 'casual' : 'ranked';
+        removeFromQueues(userId); // in case they were sitting in the other mode's queue
+        const q = queueForMode(mode);
+        if (!q.includes(userId)) q.push(userId);
+        queueMode.set(userId, mode);
+        armBotFallback(userId, mode);
+        conn.send({ type:'queue_status', inQueue:true, mode });
+        tryMatch(mode);
         break;
       }
       case 'queue_leave': {
-        const i = queue.indexOf(userId); if (i !== -1) queue.splice(i, 1);
+        removeFromQueues(userId);
         clearQueueTimer(userId);
         conn.send({ type:'queue_status', inQueue:false });
         break;
@@ -3497,7 +3532,7 @@ wss.on('connection', (ws) => {
           break;
         }
         [userId, fromId].forEach(id => {
-          const i = queue.indexOf(id); if (i !== -1) queue.splice(i, 1);
+          removeFromQueues(id);
           clearQueueTimer(id);
         });
         await startDuelMatch(fromId, userId);
@@ -3780,7 +3815,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (conn.userId && connections.get(conn.userId) === conn) {
       connections.delete(conn.userId);
-      const i = queue.indexOf(conn.userId); if (i !== -1) queue.splice(i, 1);
+      removeFromQueues(conn.userId);
       clearQueueTimer(conn.userId);
       activeMatchByUser.get(conn.userId)?.handleDisconnect(conn.userId);
       if (conn.presenceOnline) {
