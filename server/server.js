@@ -2185,16 +2185,6 @@ async function setTournamentEventStatus(eventId, status) {
   await supabase.from('tournament_events').update({ status }).eq('id', eventId);
 }
 /** Latest (by start_at) event of a given kind, any status — used to decide whether a fresh official slot needs creating yet. */
-async function latestEventOfKind(kind) {
-  if (!HAS_SUPABASE) {
-    let best = null;
-    for (const e of guestTournamentEvents.values()) if (e.kind === kind && (!best || e.startAt > best.startAt)) best = e;
-    return best;
-  }
-  const { data, error } = await supabase.from('tournament_events').select('*').eq('kind', kind).order('start_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
-  return data ? rowToTournamentEvent(data) : null;
-}
 async function eventsByStatus(statuses, { kinds = null, limit = 100 } = {}) {
   if (!HAS_SUPABASE) {
     let list = [...guestTournamentEvents.values()].filter(e => statuses.includes(e.status) && (!kinds || kinds.includes(e.kind)));
@@ -2337,15 +2327,51 @@ async function ensureUpcomingOfficialEvents() {
   for (const [kind, slotFn] of [['official_daily', nextDailySlot], ['official_weekly', nextWeeklySlot]]) {
     const slot = slotFn(now);
     const slotIso = slot.toISOString();
-    const latest = await latestEventOfKind(kind);
-    if (latest && latest.startAt === slotIso) continue;
+    // Fetch every currently-'scheduled' event of this kind — not just the
+    // latest — so a duplicate created by a race (two server processes, or
+    // two overlapping sweeps, both seeing "none exists yet" and both
+    // inserting) gets cleaned up here instead of quietly persisting as two
+    // simultaneous joinable daily/weekly tournaments.
+    const scheduled = await eventsByStatus(['scheduled'], { kinds: [kind] });
+    const forCorrectSlot = scheduled.filter(e => e.startAt === slotIso);
+    if (forCorrectSlot.length > 1) {
+      // Keep the oldest (first created), refund+cancel the rest.
+      const [keep, ...extras] = forCorrectSlot.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      for (const dupe of extras) await cancelDuplicateOfficialEvent(dupe);
+    }
+    if (forCorrectSlot.length >= 1) {
+      // Also clean up any stray 'scheduled' rows of this kind that don't
+      // match the correct slot (e.g. left over from a clock/config change) —
+      // there should only ever be one joinable event per kind at a time.
+      for (const stray of scheduled.filter(e => e.startAt !== slotIso)) await cancelDuplicateOfficialEvent(stray);
+      continue;
+    }
     const entry = officialEntryFor(kind);
-    await createTournamentEventRow({
-      kind, name: officialEventName(kind, slot), hostId: null,
-      bracketSizeCap: TOURNAMENT_BRACKET_SIZE, entryCurrency: entry.currency, entryAmount: entry.amount,
-      prizePoolPercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, startAt: slotIso,
-    });
+    try {
+      await createTournamentEventRow({
+        kind, name: officialEventName(kind, slot), hostId: null,
+        bracketSizeCap: TOURNAMENT_BRACKET_SIZE, entryCurrency: entry.currency, entryAmount: entry.amount,
+        prizePoolPercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, startAt: slotIso,
+      });
+    } catch (e) {
+      // A unique constraint (tournament_events_one_scheduled_per_kind, see
+      // supabase-schema.sql) rejects a second concurrent insert for the same
+      // kind — that means another process just created it a moment ago,
+      // which is fine; nothing to do here.
+      if (!isUniqueViolation(e)) throw e;
+    }
   }
+}
+async function cancelDuplicateOfficialEvent(event) {
+  for (const reg of await listRegistrations(event.id)) {
+    if (reg.paidAmount > 0) await adjustWallet(reg.userId, reg.paidCurrency === 'gold' ? reg.paidAmount : 0, reg.paidCurrency === 'gems' ? reg.paidAmount : 0);
+    await markRegistrationRefunded(event.id, reg.userId);
+    notifyUser(reg.userId, { type: 'tournament_refunded', eventId: event.id, reason: 'cancelled', profile: await fetchProfile(reg.userId) });
+  }
+  await setTournamentEventStatus(event.id, 'cancelled');
+}
+function isUniqueViolation(e) {
+  return e && (e.code === '23505' || /duplicate key value/i.test(e.message || ''));
 }
 
 /* -- player-facing actions ------------------------------------------------- */
@@ -2740,9 +2766,16 @@ async function tournamentEventPayload(event, userId, summaries) {
   };
 }
 async function buildTournamentListPayload(userId) {
+  // Official tab shows only the single currently-joinable event of each kind
+  // (ensureUpcomingOfficialEvents guarantees exactly one 'scheduled' event
+  // per kind exists at a time). A previous daily/weekly that's already
+  // locked/running is intentionally NOT included here — showing it
+  // alongside the new joinable one made it look like two daily/weekly
+  // tournaments were open at once. Anyone registered in that in-progress
+  // one can still find it under "My Tournaments".
   const [officialDaily, officialWeekly, unofficialOpen, mineIds] = await Promise.all([
-    eventsByStatus(['scheduled', 'locked', 'running'], { kinds: ['official_daily'], limit: 2 }),
-    eventsByStatus(['scheduled', 'locked', 'running'], { kinds: ['official_weekly'], limit: 2 }),
+    eventsByStatus(['scheduled'], { kinds: ['official_daily'], limit: 1 }),
+    eventsByStatus(['scheduled'], { kinds: ['official_weekly'], limit: 1 }),
     eventsByStatus(['scheduled'], { kinds: ['unofficial'], limit: TOURNAMENT_LIST_LIMIT }),
     listUserRegisteredEventIds(userId, TOURNAMENT_MINE_LIMIT),
   ]);
