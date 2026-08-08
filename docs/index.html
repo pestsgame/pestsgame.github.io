@@ -623,6 +623,35 @@ img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;displ
 .play-battle-btn:hover{transform:translateY(-3px) scale(1.03);border-color:rgba(196,181,253,.95);box-shadow:0 0 52px rgba(139,92,246,.62),0 8px 28px rgba(0,0,0,.6);}
 .play-record-sub{font-size:.58rem;letter-spacing:.1em;color:rgba(156,163,175,.72);position:relative;z-index:1;}
 
+/* ── Rank progression card ── */
+.play-rank-card{width:100%;max-width:480px;position:relative;z-index:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+.play-rank-top{display:flex;align-items:center;gap:12px;}
+.play-rank-medal svg{width:38px;height:38px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
+.play-rank-info{display:flex;flex-direction:column;gap:2px;text-align:left;}
+.play-rank-label{font-family:'Cinzel',serif;font-size:1rem;font-weight:900;color:#f3e8ff;letter-spacing:.03em;}
+.play-rank-points{font-size:.62rem;letter-spacing:.08em;color:rgba(196,181,253,.75);text-transform:uppercase;}
+.play-rank-bar-track{width:100%;height:8px;border-radius:5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.06);overflow:hidden;}
+.play-rank-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#7c3aed,#c4b5fd);box-shadow:0 0 10px rgba(167,139,250,.6);transition:width .5s ease;}
+.play-rank-bar-caption{font-size:.58rem;letter-spacing:.06em;color:rgba(156,163,175,.75);text-align:left;}
+.play-rank-ladder{display:flex;align-items:center;justify-content:space-between;gap:2px;margin-top:2px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);}
+.play-rank-ladder-pip{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.35;transition:opacity .2s,transform .2s;flex:1;}
+.play-rank-ladder-pip svg{width:15px;height:15px;}
+.play-rank-ladder-pip.done{opacity:.65;}
+.play-rank-ladder-pip.current{opacity:1;transform:scale(1.22);}
+.play-rank-ladder-pip-name{font-size:.44rem;letter-spacing:.04em;color:rgba(196,181,253,.8);text-transform:uppercase;white-space:nowrap;}
+
+.play-record-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:480px;position:relative;z-index:1;}
+
+/* ── Ranked / casual toggle ── */
+.play-mode-toggle{display:flex;gap:8px;width:100%;max-width:480px;position:relative;z-index:1;}
+.play-mode-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 10px;border-radius:9px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);cursor:pointer;transition:background .18s,border-color .18s,transform .12s;font-family:inherit;}
+.play-mode-btn:hover{background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);}
+.play-mode-btn.active{background:rgba(139,92,246,.18);border-color:rgba(167,139,250,.65);box-shadow:0 0 16px rgba(139,92,246,.22),inset 0 1px 0 rgba(255,255,255,.06);}
+.play-mode-btn-label{font-family:'Cinzel',serif;font-size:.72rem;font-weight:800;letter-spacing:.08em;color:#e9d5ff;text-transform:uppercase;}
+.play-mode-btn-sub{font-size:.56rem;letter-spacing:.05em;color:rgba(156,163,175,.75);}
+.play-mode-btn.active .play-mode-btn-sub{color:rgba(196,181,253,.85);}
+.play-mode-note{font-size:.6rem;letter-spacing:.06em;color:rgba(196,181,253,.7);position:relative;z-index:1;margin-top:-20px;}
+
 /* deck & market panel shared topbar */
 .panel-topbar{height:46px;flex-shrink:0;background:rgba(6,6,16,.9);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:14px;}
 .panel-title{font-family:'Cinzel',serif;font-size:.7rem;font-weight:700;letter-spacing:.14em;color:#e9d5ff;text-transform:uppercase;}
@@ -2051,7 +2080,24 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
             <div class="menu-game-title">Arena of Pests</div>
             <div class="menu-game-sub">Summon · Strike · Survive</div>
           </div>
-          <div class="play-stats-grid">
+
+          <!-- Rank progression: medal + label/points, progress toward the next
+               sub-rank, and a compact 10-tier ladder so a glance shows both
+               exactly where you are and how far the climb goes. -->
+          <div class="play-rank-card">
+            <div class="play-rank-top">
+              <div class="play-rank-medal" id="play-rank-medal"></div>
+              <div class="play-rank-info">
+                <div class="play-rank-label" id="play-rank-label">Copper V</div>
+                <div class="play-rank-points" id="play-rank-points">0 rank points</div>
+              </div>
+            </div>
+            <div class="play-rank-bar-track"><div class="play-rank-bar-fill" id="play-rank-bar-fill" style="width:0%"></div></div>
+            <div class="play-rank-bar-caption" id="play-rank-bar-caption">0 / 25 RP in this tier</div>
+            <div class="play-rank-ladder" id="play-rank-ladder"></div>
+          </div>
+
+          <div class="play-record-grid">
             <div class="play-stat-card">
               <div class="play-stat-label">Wins</div>
               <div class="play-stat-value" id="pnl-wins">0</div>
@@ -2061,16 +2107,26 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <div class="play-stat-value" id="pnl-losses">0</div>
             </div>
             <div class="play-stat-card">
-              <div class="play-stat-label">Rank</div>
-              <div class="play-stat-value" id="pnl-rank">Bronze</div>
-            </div>
-            <div class="play-stat-card">
-              <div class="play-stat-label">Deck</div>
-              <div class="play-stat-value" id="pnl-deck">0/16</div>
+              <div class="play-stat-label">Win Rate</div>
+              <div class="play-stat-value" id="pnl-winrate">0%</div>
             </div>
           </div>
-          <button class="play-battle-btn" onclick="startMultiplayerGame()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg> Find Match <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg></button>
-          <div class="play-record-sub" id="menu-win-record">0 Wins · 0 Losses</div>
+
+          <!-- Ranked vs casual — casual never touches rankPoints (server-enforced,
+               see applyMatchReward in server.js), it's purely for practice. -->
+          <div class="play-mode-toggle" id="play-mode-toggle" role="tablist" aria-label="Match type">
+            <button class="play-mode-btn active" data-mode="ranked" onclick="setPlayMode('ranked')">
+              <span class="play-mode-btn-label">Ranked</span>
+              <span class="play-mode-btn-sub">Climb the ladder</span>
+            </button>
+            <button class="play-mode-btn" data-mode="casual" onclick="setPlayMode('casual')">
+              <span class="play-mode-btn-label">Casual</span>
+              <span class="play-mode-btn-sub">No effect on rank</span>
+            </button>
+          </div>
+
+          <button class="play-battle-btn" id="play-battle-btn" onclick="startMultiplayerGame()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg> <span id="play-battle-btn-label">Find Ranked Match</span> <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;"><path d="M5 3l16 16"/><path d="M3 19.5l2.4-.7.7-2.4"/><path d="M19 3L3 19"/><path d="M21 19.5l-2.4-.7-.7-2.4"/></svg></button>
+          <div class="play-mode-note" id="play-mode-note" style="display:none;">Casual matches don't affect your rank — practice freely.</div>
         </div>
       </div>
 
@@ -2581,7 +2637,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <div id="mp-queue-overlay" class="loading-screen-solid" style="display:none;position:fixed;inset:0;background:#05060f;z-index:2000;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font-family:'Cinzel',serif;overflow:hidden;">
   <canvas class="loading-rune-canvas" id="mp-queue-runes"></canvas>
   <div class="loading-screen-content">
-    <div style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ FINDING OPPONENT ✦</div>
+    <div id="mp-queue-title" style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ FINDING OPPONENT ✦</div>
     <div style="width:46px;height:46px;border:4px solid rgba(167,139,250,.25);border-top-color:#a78bfa;border-radius:50%;animation:mp-spin 1s linear infinite;"></div>
     <div style="font-size:.75rem;color:#94a3b8;letter-spacing:.05em;">Hang tight, matching you with another Pestmaster…</div>
     <button class="bbtn bbtn-restart" style="padding:10px 26px;font-size:.85rem;" onclick="cancelMatchmaking()">Cancel</button>
@@ -4605,13 +4661,68 @@ function refreshMenuUI(){
   avatarEl.style.setProperty('--banner-grad', BANNER_GRADIENTS[Player.banner] || BANNER_GRADIENTS.violet);
   const rankLabel=Player.rank?.label||'Copper V';
   document.getElementById('menu-profile-stats').textContent=`${Player.wins}W · ${Player.losses}L · Rank: ${rankLabel}`;
-  document.getElementById('menu-win-record').textContent=`${Player.wins} Wins · ${Player.losses} Losses`;
   document.getElementById('menu-deck-count').textContent=`${Player.deck.length} / ${DECK_SIZE} cards in deck`;
   document.getElementById('menu-collection-count').textContent=`${Player.collection.length} cards owned`;
   const ew=document.getElementById('pnl-wins');const el=document.getElementById('pnl-losses');
-  const er=document.getElementById('pnl-rank');const ed=document.getElementById('pnl-deck');
+  const totalGames=(Player.wins||0)+(Player.losses||0);
+  const winRate=totalGames?Math.round((Player.wins/totalGames)*100):0;
+  const ewr=document.getElementById('pnl-winrate');
   if(ew)ew.textContent=Player.wins;if(el)el.textContent=Player.losses;
-  if(er)er.textContent=rankLabel;if(ed)ed.textContent=`${Player.deck.length}/${DECK_SIZE}`;
+  if(ewr)ewr.textContent=`${winRate}%`;
+  renderPlayRankCard(Player.rank);
+}
+
+/* ── PLAY TAB: rank progression card ─────────────────────
+ * Purely a display layer — points/tier/sub always come from the server's
+ * Engine.getRank (see Player.rank). The 5-per-sub/25-per-tier constants
+ * mirrored here are only used to draw the progress bar and ladder; they
+ * never decide anyone's actual rank. */
+const RANK_LADDER_TIERS=Object.keys(RANK_TIER_COLORS);
+const RANK_POINTS_PER_SUB_DISPLAY=5, RANK_POINTS_PER_TIER_DISPLAY=25, RANK_MAX_POINTS_DISPLAY=RANK_LADDER_TIERS.length*RANK_POINTS_PER_TIER_DISPLAY-1;
+function renderPlayRankCard(rank){
+  const r=rank||{tier:'Copper',sub:'V',label:'Copper V',points:0};
+  const medalEl=document.getElementById('play-rank-medal');
+  if(medalEl)medalEl.innerHTML=medalSVG(r.tier);
+  const labelEl=document.getElementById('play-rank-label');
+  if(labelEl)labelEl.textContent=r.label||'Copper V';
+  const pointsEl=document.getElementById('play-rank-points');
+  if(pointsEl)pointsEl.textContent=`${r.points||0} rank points`;
+
+  const points=Math.max(0,r.points||0);
+  const isMax=points>=RANK_MAX_POINTS_DISPLAY;
+  const clamped=Math.min(points,RANK_MAX_POINTS_DISPLAY);
+  const intoTier=clamped%RANK_POINTS_PER_TIER_DISPLAY;
+  const pct=isMax?100:Math.round((intoTier/RANK_POINTS_PER_TIER_DISPLAY)*100);
+  const fillEl=document.getElementById('play-rank-bar-fill');
+  if(fillEl)fillEl.style.width=`${pct}%`;
+  const capEl=document.getElementById('play-rank-bar-caption');
+  if(capEl)capEl.textContent=isMax?'Top of the ladder — Absolute I':`${intoTier} / ${RANK_POINTS_PER_TIER_DISPLAY} RP in ${r.tier||'Copper'}`;
+
+  const ladderEl=document.getElementById('play-rank-ladder');
+  if(ladderEl){
+    const currentIdx=Math.max(0,RANK_LADDER_TIERS.indexOf(r.tier));
+    ladderEl.innerHTML=RANK_LADDER_TIERS.map((tier,i)=>{
+      const cls=i===currentIdx?'current':(i<currentIdx?'done':'');
+      return `<div class="play-rank-ladder-pip ${cls}" title="${escapeHtml(tier)}">${medalSVG(tier)}<span class="play-rank-ladder-pip-name">${escapeHtml(tier)}</span></div>`;
+    }).join('');
+  }
+}
+
+/* ── PLAY TAB: ranked vs casual toggle ───────────────────
+ * Purely a client-side matchmaking preference sent as `mode` on queue_join;
+ * the server is what actually withholds rank-point changes for casual
+ * matches (see applyMatchReward in server.js), never trust the client here. */
+let PlayMode=(()=>{ try{ return localStorage.getItem('aop_play_mode')==='casual'?'casual':'ranked'; }catch(e){ return 'ranked'; } })();
+function setPlayMode(mode){
+  PlayMode=mode==='casual'?'casual':'ranked';
+  try{ localStorage.setItem('aop_play_mode',PlayMode); }catch(e){}
+  document.querySelectorAll('#play-mode-toggle .play-mode-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.mode===PlayMode);
+  });
+  const labelEl=document.getElementById('play-battle-btn-label');
+  if(labelEl)labelEl.textContent=PlayMode==='casual'?'Find Casual Match':'Find Ranked Match';
+  const noteEl=document.getElementById('play-mode-note');
+  if(noteEl)noteEl.style.display=PlayMode==='casual'?'block':'none';
 }
 
 /* ── SCREEN NAVIGATION ────────────────────────────────── */
@@ -8583,6 +8694,8 @@ function beginServerWait(onReady){
 
 function showQueueOverlay(){
   const el=document.getElementById('mp-queue-overlay');
+  const titleEl=document.getElementById('mp-queue-title');
+  if(titleEl)titleEl.textContent=PlayMode==='casual'?'✦ FINDING CASUAL MATCH ✦':'✦ FINDING RANKED MATCH ✦';
   el.style.display='flex';
   playLoadingEnterTransition(el);
   LoadingRunes.start('mp-queue-runes');
@@ -8596,7 +8709,7 @@ function hideQueueOverlay(){
 function startMultiplayerGame(){
   beginServerWait(()=>{
     showQueueOverlay();
-    Net.send({type:'queue_join'});
+    Net.send({type:'queue_join', mode:PlayMode});
   });
 }
 function cancelMatchmaking(){
@@ -8632,6 +8745,7 @@ function beginMultiplayerMatch(msg){
   State.opponentIcon=msg.opponentIcon||'star';
   State.opponentRank=msg.opponentRank||null;
   State.tournament=msg.tournament||null;
+  State.matchRanked=msg.ranked!==false; // duels/tournaments don't send `ranked` — default true preserves their existing behavior
   State.selectedSlot=null; State.pendingTarget=null; State.pendingRevive=null;
   State.player._maxSeenCreatures=0; State.enemy._maxSeenCreatures=0;
   document.getElementById('game-over').style.display='none';
@@ -8641,6 +8755,9 @@ function beginMultiplayerMatch(msg){
   const ribbon=document.getElementById('tourney-match-ribbon');
   if(State.tournament){
     ribbon.innerHTML=`${renderTourneyTabIcon(12)} ${escapeHtml(State.tournament.eventName)} — ${escapeHtml(State.tournament.roundLabel)}`;
+    ribbon.classList.add('show');
+  } else if(!State.matchRanked){
+    ribbon.innerHTML=`✦ Casual Match — No Rank Change`;
     ribbon.classList.add('show');
   } else {
     ribbon.classList.remove('show');
@@ -8840,6 +8957,9 @@ function handleMatchOver(msg){
     } else {
       noteEl.innerHTML=`${renderTourneyTabIcon(13)} Eliminated from ${escapeHtml(t.eventName||'the tournament')}.`;
     }
+  } else if(msg.ranked===false){
+    noteEl.style.display='flex';
+    noteEl.innerHTML='✦ Casual match — no rank change';
   } else {
     noteEl.style.display='none';
     noteEl.innerHTML='';
@@ -9196,6 +9316,7 @@ window.onload=()=>{
   Anim.init();
   // hide main board initially
   document.getElementById('main').style.display='none';
+  setPlayMode(PlayMode); // sync the ranked/casual toggle UI with the persisted preference
   window._startRuneEngine();
   // Prefetch quietly in the background so it's likely ready by the time the player
   // presses Enter — but Enter Arena/Find Match/pack purchases all await this same
