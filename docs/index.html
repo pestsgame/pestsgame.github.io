@@ -570,6 +570,11 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .currency-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:5px 14px 5px 9px;transition:border-color .2s,background .2s;cursor:default;}
 .currency-pill:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);}
 img.currency-pill-icon{width:20px;height:20px;object-fit:contain;display:block;image-rendering:auto;}
+/* Default size for every gem.png/coin.png rendered via currencyIcon() — the
+   source files are 325x325, so anywhere that doesn't have a more specific
+   size rule (e.g. .bazaar-tile-price img) needs this fallback or the icon
+   renders at full native size. */
+img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;display:inline-block;flex-shrink:0;}
 .currency-col{display:flex;flex-direction:column;gap:0;}
 .currency-amount{font-family:'Cinzel',serif;font-size:.72rem;font-weight:700;color:#fde68a;line-height:1.1;}
 .currency-label{font-size:.54rem;letter-spacing:.12em;color:rgba(253,230,138,.8);text-transform:uppercase;}
@@ -1361,6 +1366,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .bbtn-tourney-view{background:linear-gradient(135deg,#4c1d95,#7c3aed);border:1px solid #7c3aed;}
 .tourney-host-tag{font-size:.58rem;color:#c4b5fd;display:flex;align-items:center;gap:3px;}
 .tourney-empty{text-align:center;color:var(--txt-dim);font-size:.75rem;padding:30px 24px;}
+.tourney-btn-spinner{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;vertical-align:-1px;margin-right:6px;animation:tourneySpin .7s linear infinite;}
+@keyframes tourneySpin{to{transform:rotate(360deg);}}
 
 /* ── create-tournament modal ── */
 #tourney-create-overlay{
@@ -2769,7 +2776,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         </div>
       </div>
       <div>
-        <label class="pf-field-label">Prize Pool % <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">— rest is burned, never returned to you</span></label>
+        <label class="pf-field-label">Prize Pool % <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">— the rest goes to you as host</span></label>
         <div class="tourney-range-row">
           <input type="range" id="tc-prizepct-input" class="tourney-range" min="50" max="100" value="80" oninput="updateTourneyCreatePreview()">
           <div class="tourney-range-value" id="tc-prizepct-value">80%</div>
@@ -2781,7 +2788,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
         <input type="number" id="tc-amount-input" class="pf-name-input" min="0" placeholder="Amount" style="margin-top:8px;" oninput="updateTourneyCreatePreview()">
       </div>
       <div class="tourney-prize-preview" id="tc-prize-preview"></div>
-      <div class="tourney-hint">Everyone (including you) pays the entry fee to join, same as any other player. If fewer than 2 people actually show up when it starts, entry fees are refunded automatically — no-shows forfeit theirs.</div>
+      <div class="tourney-hint">Everyone (including you) pays the entry fee to join, same as any other player. Your host's cut is paid out automatically once the bracket finishes. If fewer than 2 people actually show up when it starts, entry fees are refunded automatically — no-shows forfeit theirs.</div>
       <div class="profile-modal-actions">
         <button class="pf-btn pf-btn-cancel" onclick="closeTourneyCreateModal()">Cancel</button>
         <button class="pf-btn pf-btn-save" id="tc-submit-btn" onclick="submitTourneyCreate()">Host Tournament</button>
@@ -4793,6 +4800,29 @@ let TourneyState={
 let _tourneyLoadedOnce=false;
 let _tourneyCountdownTimer=null;
 let _tcCurrency='gold'; // create-modal entry-fee currency selection
+let _tcSubmitTimeout=null; // safety-net timer, see submitTourneyCreate()
+let _tourneyActionBtn=null, _tourneyActionOriginalHtml='', _tourneyActionTimeout=null;
+/** Puts a tournament action button (Join/Leave/Cancel) into a disabled
+ * spinner state so the click has visible feedback instead of looking like
+ * the game froze while we wait on the round trip. Paired with
+ * clearTourneyActionLoading(), which every success/error/timeout path below
+ * calls, so it can never get stuck disabled. */
+function setTourneyActionLoading(btn,label){
+  if(!btn) return;
+  clearTourneyActionLoading();
+  _tourneyActionBtn=btn; _tourneyActionOriginalHtml=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML=`<span class="tourney-btn-spinner"></span>${escapeHtml(label)}`;
+  clearTimeout(_tourneyActionTimeout);
+  _tourneyActionTimeout=setTimeout(()=>{
+    if(_tourneyActionBtn===btn){ showToast('⚠ No response from server — please try again.', 3200); clearTourneyActionLoading(); }
+  }, 7000);
+}
+function clearTourneyActionLoading(){
+  clearTimeout(_tourneyActionTimeout);
+  if(_tourneyActionBtn){ _tourneyActionBtn.disabled=false; _tourneyActionBtn.innerHTML=_tourneyActionOriginalHtml; }
+  _tourneyActionBtn=null; _tourneyActionOriginalHtml='';
+}
 
 function updateGuildBadge(){
   const badge=document.getElementById('guild-tab-badge');
@@ -7285,7 +7315,7 @@ function msLeftLabel(expiresAt){
   if(hrs>0) return `${hrs}h ${mins}m left`;
   return `${Math.max(1,mins)}m left`;
 }
-function currencyIcon(cur){ return `<img src="${cur==='gems'?'gem.png':'coin.png'}" alt="">`; }
+function currencyIcon(cur){ return `<img src="${cur==='gems'?'gem.png':'coin.png'}" class="cur-icon" alt="">`; }
 function findListingById(id){ return BazaarState.browse.find(l=>l.id===id) || BazaarState.mine.find(l=>l.id===id) || null; }
 
 /* ── Minimal grid tile — cropped card-art thumbnail + one price line.
@@ -7913,6 +7943,7 @@ const Net={
 
       /* ── TOURNAMENTS ── */
       case 'tournament_list':
+        clearTourneyActionLoading();
         TourneyState.officialDaily=msg.officialDaily||[];
         TourneyState.officialWeekly=msg.officialWeekly||[];
         TourneyState.unofficial=msg.unofficial||[];
@@ -7924,22 +7955,26 @@ const Net={
         document.getElementById('tourney-content').style.display='block';
         break;
       case 'tournament_created':
+        clearTimeout(_tcSubmitTimeout);
         closeTourneyCreateModal();
         showToast('Tournament created!', 2400, renderTourneyTabIcon(13));
         switchTourneySubtab('mine');
         Net.send({type:'tournament_list'});
         break;
       case 'tournament_joined':
+        clearTourneyActionLoading();
         applyServerProfile(msg.profile);
         showToast("Registered! Be online when it starts, or you'll be disqualified.", 3600, renderCheckIcon(13));
         Net.send({type:'tournament_list'});
         break;
       case 'tournament_left':
+        clearTourneyActionLoading();
         applyServerProfile(msg.profile);
         showToast('Left the tournament — entry fee refunded.');
         Net.send({type:'tournament_list'});
         break;
       case 'tournament_cancelled':
+        clearTourneyActionLoading();
         showToast('Tournament cancelled — everyone refunded.');
         Net.send({type:'tournament_list'});
         break;
@@ -7972,6 +8007,10 @@ const Net={
         applyServerProfile(msg.profile);
         setTimeout(()=>showTourneyChampionModal(msg.bracket, msg.prize), 1600);
         break;
+      case 'tournament_host_payout':
+        applyServerProfile(msg.profile);
+        showToast(`Your tournament "${escapeHtml(msg.bracket.eventName)}" wrapped up — you earned ${currencyIcon(msg.prize.currency)} ${msg.prize.amount.toLocaleString()} as host.`, 4200, renderTourneyTabIcon(13));
+        break;
       case 'tournament_rematch':
         showToast('Draw! Starting a rematch...', 2600);
         break;
@@ -7980,6 +8019,8 @@ const Net={
         hidePackLoading();
         hideProfileLoading();
         hideBazaarLoading();
+        clearTimeout(_tcSubmitTimeout);
+        clearTourneyActionLoading();
         if(msg.reason==='card_library_mismatch'){
           const overlay=document.getElementById('mp-connecting-overlay');
           if(overlay&&overlay.style.display==='flex'){
@@ -8142,8 +8183,18 @@ const Net={
         } else if(msg.reason==='tournament_already_started'){
           showToast('⚠ That tournament has already started.');
           Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_create_failed'){
+          showToast('⚠ Could not create that tournament — please try again.');
+          document.getElementById('tc-submit-btn').disabled=false;
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
+          // Whatever this error was, make sure it can't leave a disabled
+          // button stuck forever with no way to retry (a submit button that
+          // silently stays disabled reads as "I pressed it and nothing
+          // happened" on the next click, since disabled buttons don't even
+          // fire onclick).
+          const stuckBtn=document.getElementById('tc-submit-btn');
+          if(stuckBtn) stuckBtn.disabled=false;
         }
         break;
     }
@@ -8233,7 +8284,15 @@ function tourneyStatusPill(status){
 }
 function renderTourneyCard(event){
   const isOfficial=event.kind!=='unofficial';
-  const prizeEst=Math.floor(event.registeredCount*event.entryAmount*event.prizePoolPercent/100);
+  // Official events split registrants into independent brackets of up to
+  // bracketSizeCap (16) at lock time — each bracket has its OWN prize pool,
+  // not one giant pool shared across everyone registered. So the per-winner
+  // estimate must be based on a single bracket's worth of entries (capped at
+  // bracketSizeCap), not the full registeredCount, or it wildly overstates
+  // the prize once more than 16 people sign up.
+  const groupCount=isOfficial?Math.max(1,Math.ceil(event.registeredCount/event.bracketSizeCap)):1;
+  const perBracketCount=isOfficial?Math.min(event.registeredCount,event.bracketSizeCap):event.registeredCount;
+  const prizeEst=Math.floor(perBracketCount*event.entryAmount*event.prizePoolPercent/100);
   const canAfford=event.entryCurrency==='gold'?Player.gold>=event.entryAmount:Player.gems>=event.entryAmount;
   const full=!isOfficial && event.registeredCount>=event.bracketSizeCap;
 
@@ -8242,17 +8301,17 @@ function renderTourneyCard(event){
     if(event.youRegistered){
       actionsHtml=`<div class="tourney-card-actions">
         <button class="bbtn bbtn-tourney-registered" disabled>${renderCheckIcon(12)} Registered</button>
-        <button class="bbtn bbtn-tourney-leave" onclick="leaveTourneyConfirm('${event.id}')">Leave</button>
+        <button class="bbtn bbtn-tourney-leave" onclick="leaveTourneyConfirm('${event.id}',this)">Leave</button>
       </div>`;
     } else if(full){
       actionsHtml=`<div class="tourney-card-actions"><button class="bbtn" disabled style="opacity:.4;">Full</button></div>`;
     } else {
       actionsHtml=`<div class="tourney-card-actions">
-        <button class="bbtn bbtn-battle" ${canAfford?'':'disabled style="opacity:.4;"'} onclick="joinTournament('${event.id}')">Join — ${currencyIcon(event.entryCurrency)} ${event.entryAmount.toLocaleString()}</button>
+        <button class="bbtn bbtn-battle" ${canAfford?'':'disabled style="opacity:.4;"'} onclick="joinTournament('${event.id}',this)">Join — ${currencyIcon(event.entryCurrency)} ${event.entryAmount.toLocaleString()}</button>
       </div>`;
     }
     if(!isOfficial && event.hostId===Net.userId){
-      actionsHtml+=`<div class="tourney-card-actions"><button class="bbtn bbtn-tourney-leave" onclick="cancelTourneyConfirm('${event.id}')">Cancel Tournament</button></div>`;
+      actionsHtml+=`<div class="tourney-card-actions"><button class="bbtn bbtn-tourney-leave" onclick="cancelTourneyConfirm('${event.id}',this)">Cancel Tournament</button></div>`;
     }
   } else if((event.status==='locked'||event.status==='running'||event.status==='completed') && event.myBracketId){
     actionsHtml=`<div class="tourney-card-actions"><button class="bbtn bbtn-tourney-view" onclick="openTourneyBracket('${event.myBracketId}')">View Bracket</button></div>`;
@@ -8268,8 +8327,9 @@ function renderTourneyCard(event){
     </div>
     <div class="tourney-card-stats">
       <span class="tourney-card-stat">${renderCalendarIcon(12)} <span class="tourney-countdown" data-start="${event.startAt}" data-status="${event.status}">${formatTourneyCountdown(event.startAt,event.status)}</span></span>
-      <span class="tourney-card-stat">${renderUsersIcon(12)} ${event.registeredCount}${isOfficial?' registered':' / '+event.bracketSizeCap}</span>
-      <span class="tourney-prize-pill">${currencyIcon(event.entryCurrency)} ${prizeEst.toLocaleString()} to winner (${event.prizePoolPercent}%)</span>
+      <span class="tourney-card-stat">${renderUsersIcon(12)} ${event.registeredCount}${isOfficial?' registered':' / '+event.bracketSizeCap}${groupCount>1?` → ${groupCount} groups of ≤${event.bracketSizeCap}`:''}</span>
+      <span class="tourney-prize-pill">${currencyIcon(event.entryCurrency)} ${prizeEst.toLocaleString()} to winner (${event.prizePoolPercent}%${isOfficial?' of one group\u2019s pool':''})</span>
+      ${!isOfficial && event.hostId===Net.userId?`<span class="tourney-prize-pill">${currencyIcon(event.entryCurrency)} ${Math.floor(event.registeredCount*event.entryAmount-prizeEst).toLocaleString()} to you as host</span>`:''}
     </div>
     ${actionsHtml}
   </div>`;
@@ -8290,16 +8350,24 @@ function renderTourneyLists(){
 }
 
 /* ── actions ── */
-function joinTournament(eventId){ Net.send({type:'tournament_join',eventId}); }
-function leaveTourneyConfirm(eventId){
+function joinTournament(eventId,btn){
+  if(!Net.connected||!Net.ws||Net.ws.readyState!==1){ showToast('⚠ Not connected — reconnecting, try again in a moment.', 3200); return; }
+  setTourneyActionLoading(btn,'Joining…');
+  Net.send({type:'tournament_join',eventId});
+}
+function leaveTourneyConfirm(eventId,btn){
   const event=findTourneyEventById(eventId);
   showGConfirm('Leave Tournament?', `You'll be unregistered from "${event?event.name:'this tournament'}" and your entry fee will be refunded.`, 'Leave', ()=>{
+    if(!Net.connected||!Net.ws||Net.ws.readyState!==1){ showToast('⚠ Not connected — reconnecting, try again in a moment.', 3200); return; }
+    setTourneyActionLoading(btn,'Leaving…');
     Net.send({type:'tournament_leave',eventId});
   });
 }
-function cancelTourneyConfirm(eventId){
+function cancelTourneyConfirm(eventId,btn){
   const event=findTourneyEventById(eventId);
   showGConfirm('Cancel Tournament?', `"${event?event.name:'This tournament'}" will be cancelled and every registered player refunded. This can't be undone.`, 'Cancel Tournament', ()=>{
+    if(!Net.connected||!Net.ws||Net.ws.readyState!==1){ showToast('⚠ Not connected — reconnecting, try again in a moment.', 3200); return; }
+    setTourneyActionLoading(btn,'Cancelling…');
     Net.send({type:'tournament_cancel',eventId});
   });
 }
@@ -8342,8 +8410,8 @@ function updateTourneyCreatePreview(){
   const prizePct=parseInt(document.getElementById('tc-prizepct-input').value,10)||80;
   document.getElementById('tc-prizepct-value').textContent=prizePct+'%';
   const amount=Math.max(0,parseInt(document.getElementById('tc-amount-input').value,10)||0);
-  const pool=maxPlayers*amount, winnerTakes=Math.floor(pool*prizePct/100);
-  document.getElementById('tc-prize-preview').innerHTML=`${renderTourneyTabIcon(13)} If it fills up (${maxPlayers} players): pool of ${currencyIcon(_tcCurrency)} ${pool.toLocaleString()}, winner takes ${currencyIcon(_tcCurrency)} ${winnerTakes.toLocaleString()}`;
+  const pool=maxPlayers*amount, winnerTakes=Math.floor(pool*prizePct/100), hostTakes=pool-winnerTakes;
+  document.getElementById('tc-prize-preview').innerHTML=`${renderTourneyTabIcon(13)} If it fills up (${maxPlayers} players): pool of ${currencyIcon(_tcCurrency)} ${pool.toLocaleString()} — winner takes ${currencyIcon(_tcCurrency)} ${winnerTakes.toLocaleString()}, you keep ${currencyIcon(_tcCurrency)} ${hostTakes.toLocaleString()} as host`;
 }
 function submitTourneyCreate(){
   const name=document.getElementById('tc-name-input').value.trim();
@@ -8354,7 +8422,22 @@ function submitTourneyCreate(){
   const startLocal=document.getElementById('tc-start-input').value;
   if(!startLocal){ showToast('⚠ Pick a start time.'); return; }
   const startAt=new Date(startLocal).toISOString();
+  if(!Net.connected||!Net.ws||Net.ws.readyState!==1){
+    // Net.send() silently no-ops on a closed/connecting socket — without this
+    // check the button would disable itself and just sit there forever with
+    // no server reply and no toast, which looks exactly like a dead button.
+    showToast('⚠ Not connected — reconnecting, try again in a moment.', 3200);
+    return;
+  }
   document.getElementById('tc-submit-btn').disabled=true;
+  // Safety net for the same silent-failure shape (dropped message, server
+  // never replies, connection drops mid-request): if nothing comes back in
+  // a few seconds, don't leave the button disabled forever.
+  clearTimeout(_tcSubmitTimeout);
+  _tcSubmitTimeout=setTimeout(()=>{
+    const btn=document.getElementById('tc-submit-btn');
+    if(btn&&btn.disabled){ btn.disabled=false; showToast('⚠ No response from server — please try again.', 3200); }
+  }, 7000);
   Net.send({type:'tournament_create',name,maxPlayers,prizePoolPercent,startAt,entryCurrency:_tcCurrency,entryAmount});
 }
 
