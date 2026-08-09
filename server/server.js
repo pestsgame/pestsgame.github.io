@@ -25,6 +25,28 @@ const { WebSocketServer } = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 const Engine = require('./game-engine');
 
+/* ── CHAT IMAGE CATALOG ───────────────────────────────────────────────
+ * The server's own copy of the same image.json the client's chat-image
+ * picker reads from (docs/chat-images/image.json) — kept as a separate
+ * file here on purpose, so this validation never depends on trusting
+ * whatever a connecting client claims its catalog looks like. The actual
+ * image files are never touched or served by this server (they're static
+ * assets shipped with the client); only the id list is needed, to decide
+ * whether a `{image:<id>}` token a client tries to send is one of the
+ * official images or something a modified client made up. Any chat text
+ * that matches the token shape but isn't a real catalog id is rejected
+ * outright rather than relayed or persisted. */
+const CHAT_IMAGE_CATALOG_PATH = path.join(__dirname, 'image.json');
+const CHAT_IMAGE_IDS = new Set(Object.keys(JSON.parse(fs.readFileSync(CHAT_IMAGE_CATALOG_PATH, 'utf8'))));
+const CHAT_IMAGE_TOKEN_RE = /^\{image:([a-zA-Z0-9_-]{1,64})\}$/;
+/** True for ordinary text (nothing shaped like an image token) or a token
+ * naming a real catalog id; false only for a token naming an id that isn't
+ * in the official catalog — the one case every chat send path must block. */
+function isAllowedChatText(text) {
+  const m = String(text || '').trim().match(CHAT_IMAGE_TOKEN_RE);
+  return !m || CHAT_IMAGE_IDS.has(m[1]);
+}
+
 /* ── CONFIG ───────────────────────────────────────────────────────── */
 const PORT = process.env.PORT || 8787;
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -72,6 +94,36 @@ const supabase = HAS_SUPABASE
 if (!HAS_SUPABASE) {
   console.warn('[arena] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — running in GUEST-ONLY mode.');
   console.warn('[arena] Wins/losses/gold/gems/collection will NOT persist. See .env.example.');
+}
+
+/** Keeps the `chat_image_catalog` table in Postgres in sync with this
+ * server's own image.json. That table exists solely so the global-chat
+ * insert policy (global chat is written directly by the client to
+ * Supabase and never touches this server) can reject a `{image:<id>}`
+ * token naming anything outside the official catalog — battle/guild/DM
+ * chat get the same check in-process via isAllowedChatText, but global
+ * chat has no server in the loop to ask, so the check has to live in the
+ * database itself. image.json here stays the single source of truth;
+ * this just mirrors it. */
+async function syncChatImageCatalog() {
+  if (!HAS_SUPABASE) return;
+  try {
+    const ids = [...CHAT_IMAGE_IDS];
+    if (ids.length) {
+      const { error: upsertErr } = await supabase.from('chat_image_catalog').upsert(ids.map(id => ({ id, updated_at: new Date().toISOString() })));
+      if (upsertErr) throw upsertErr;
+    }
+    const { data: existing, error: selectErr } = await supabase.from('chat_image_catalog').select('id');
+    if (selectErr) throw selectErr;
+    const stale = (existing || []).map(r => r.id).filter(id => !CHAT_IMAGE_IDS.has(id));
+    if (stale.length) {
+      const { error: deleteErr } = await supabase.from('chat_image_catalog').delete().in('id', stale);
+      if (deleteErr) throw deleteErr;
+    }
+    console.log(`[arena] chat image catalog synced (${ids.length} official image${ids.length === 1 ? '' : 's'})`);
+  } catch (e) {
+    console.error('[arena] chat image catalog sync failed — global chat image posts may be rejected until this is fixed', e);
+  }
 }
 
 /* ── IN-MEMORY REGISTRIES ────────────────────────────────────────── */
@@ -870,6 +922,7 @@ async function listGuildChatMessages(guildId) {
 async function sendGuildChatMessage(guildId, userId, text) {
   const message = String(text || '').trim().slice(0, GUILD_CHAT_MESSAGE_MAX);
   if (!message) { const e = new Error('guild_chat_empty'); e.code = 'guild_chat_empty'; throw e; }
+  if (!isAllowedChatText(message)) { const e = new Error('invalid_chat_image'); e.code = 'invalid_chat_image'; throw e; }
   let row;
   if (!HAS_SUPABASE) {
     row = { id: crypto.randomUUID(), userId, message, createdAt: new Date().toISOString() };
@@ -1379,6 +1432,7 @@ async function sendDM(fromId, toId, text, opts = {}) {
   if (typeof toId !== 'string' || toId === fromId) return { error: 'dm_invalid' };
   const message = typeof text === 'string' ? text.trim() : '';
   if (!message || message.length > DM_MESSAGE_MAX) return { error: 'dm_invalid' };
+  if (!isAllowedChatText(message)) return { error: 'invalid_chat_image' };
 
   let listingId = null, offerAmount = null, offerCurrency = null, offerStatus = null;
   if (opts.listingId) {
@@ -1620,6 +1674,7 @@ class Match {
     if (!clean) return;
     const side = this.sideOf(userId);
     if (side === -1) return;
+    if (!isAllowedChatText(clean)) { this.conn(side)?.send({ type: 'error', reason: 'invalid_chat_image' }); return; }
     const payload = {
       type: 'battle_chat',
       matchId: this.id,
@@ -1736,7 +1791,7 @@ class Match {
     if (!isFirstTurnOfMatch && entity.deck.length > 0 && entity.hand.length < 6) entity.hand.push(entity.deck.pop());
     const ctx = { events: [], skipTurn: false };
     if (entity.activeCard || entity.activeCard2) {
-      Engine.processEffects(entity, 'onTurnStart', ctx, side);
+      Engine.processEffects(this, entity, 'onTurnStart', ctx, side);
       Engine.checkCardDeath(this, side, ctx.events);
     }
     Engine.decayHandEffects(entity, ctx.events, side);
@@ -2074,8 +2129,17 @@ async function startBotMatch(userId, mode) {
 
   try {
     const profile = await fetchProfile(userId, conn.username);
-    const humanDeck = Engine.buildDeckFromIds(Engine.isDeckLegal(profile.deck) ? profile.deck : null);
-    const botDeck = Engine.buildDeckFromIds(null); // random deck, same as any fresh/guest opponent would get
+    // Deck legality is already checked at queue_join time, but re-check here too —
+    // this fires after a randomized delay, so the deck could have been edited (or a
+    // stale one desynced) in the meantime. Block rather than silently handing out a
+    // random deck.
+    if (!Engine.isDeckLegal(profile.deck)) {
+      removeFromQueues(userId);
+      conn.send({ type: 'error', reason: 'invalid_deck', deckSize: (profile.deck || []).length, requiredSize: Engine.DECK_SIZE });
+      return;
+    }
+    const humanDeck = Engine.buildDeckFromIds(profile.deck);
+    const botDeck = Engine.buildDeckFromIds(null); // the bot's own deck is always freshly randomized — this isn't a fallback
     const botUserId = `bot:${crypto.randomUUID()}`;
     const botName = pickBotName();
     const humanSide = Math.random() < 0.5 ? 0 : 1;
@@ -2108,8 +2172,14 @@ async function startDuelMatch(uA, uB) {
   const connA = connections.get(uA), connB = connections.get(uB);
   try {
     const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
-    const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
-    const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
+    const legalA = Engine.isDeckLegal(profileA.deck), legalB = Engine.isDeckLegal(profileB.deck);
+    if (!legalA || !legalB) {
+      if (!legalA) connA?.send({ type:'error', reason:'invalid_deck', deckSize:(profileA.deck||[]).length, requiredSize:Engine.DECK_SIZE });
+      if (!legalB) connB?.send({ type:'error', reason:'invalid_deck', deckSize:(profileB.deck||[]).length, requiredSize:Engine.DECK_SIZE });
+      return;
+    }
+    const deckA = Engine.buildDeckFromIds(profileA.deck);
+    const deckB = Engine.buildDeckFromIds(profileB.deck);
     const match = new Match(uA, uB, deckA, deckB);
     match.usernames = [profileA.username, profileB.username];
     match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
@@ -2996,8 +3066,20 @@ async function tryMatch(mode) {
     if (!connB || connB.ws.readyState !== connB.ws.OPEN) { q.unshift(uA); queueMode.set(uA, mode); armBotFallback(uA, mode); continue; }
     try {
       const [profileA, profileB] = await Promise.all([fetchProfile(uA), fetchProfile(uB)]);
-      const deckA = Engine.buildDeckFromIds(Engine.isDeckLegal(profileA.deck) ? profileA.deck : null);
-      const deckB = Engine.buildDeckFromIds(Engine.isDeckLegal(profileB.deck) ? profileB.deck : null);
+      // Same re-check as startBotMatch: deck legality was already gated at queue_join,
+      // this just covers a deck edited out from under a still-queued player. Whoever's
+      // deck is invalid gets blocked and told why; whoever's deck is fine goes back to
+      // the front of the queue instead of losing their spot.
+      const legalA = Engine.isDeckLegal(profileA.deck), legalB = Engine.isDeckLegal(profileB.deck);
+      if (!legalA || !legalB) {
+        if (!legalA) connA.send({ type:'error', reason:'invalid_deck', deckSize:(profileA.deck||[]).length, requiredSize:Engine.DECK_SIZE });
+        else { q.unshift(uA); queueMode.set(uA, mode); armBotFallback(uA, mode); }
+        if (!legalB) connB.send({ type:'error', reason:'invalid_deck', deckSize:(profileB.deck||[]).length, requiredSize:Engine.DECK_SIZE });
+        else { q.unshift(uB); queueMode.set(uB, mode); armBotFallback(uB, mode); }
+        continue;
+      }
+      const deckA = Engine.buildDeckFromIds(profileA.deck);
+      const deckB = Engine.buildDeckFromIds(profileB.deck);
       const match = new Match(uA, uB, deckA, deckB, ranked);
       match.usernames = [profileA.username, profileB.username];
       match.icons = [profileA.icon || 'star', profileB.icon || 'star'];
@@ -3104,6 +3186,16 @@ wss.on('connection', (ws) => {
         // pairing with a real opponent or falling back to a bot — same gate, same code path.
         if (conn.cardLibraryHash !== Engine.CARD_LIBRARY_HASH) {
           return conn.send({ type:'error', reason:'card_library_mismatch', expectedHash: Engine.CARD_LIBRARY_HASH });
+        }
+        // A deck must be exactly DECK_SIZE legal cards to queue at all — no more handing
+        // out a random deck as a silent stand-in. Block here with a clear reason so the
+        // client can point the player at the deck builder instead of starting a match
+        // they never actually built.
+        let joinProfile;
+        try { joinProfile = await fetchProfile(userId, conn.username); }
+        catch (e) { console.error('[arena] queue_join profile fetch failed', e); return conn.send({ type:'error', reason:'matchmaking_failed' }); }
+        if (!Engine.isDeckLegal(joinProfile.deck)) {
+          return conn.send({ type:'error', reason:'invalid_deck', deckSize: (joinProfile.deck || []).length, requiredSize: Engine.DECK_SIZE });
         }
         const mode = msg.mode === 'casual' ? 'casual' : 'ranked';
         removeFromQueues(userId); // in case they were sitting in the other mode's queue
@@ -3900,6 +3992,8 @@ const tournamentSweepTimer = setInterval(() => {
   tournamentSweep().catch(e => console.error('[arena] tournament sweep failed', e));
 }, TOURNAMENT_SWEEP_MS);
 wss.on('close', () => clearInterval(tournamentSweepTimer));
+
+syncChatImageCatalog();
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
