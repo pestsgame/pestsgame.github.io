@@ -20,7 +20,10 @@
           "lightning"
         ]
       },
-      "description": "\u221210 flat dmg. Immune to Poison. Lightning bypasses."
+      "description": "-10 flat dmg (lightning bypasses). Immune to Poison.",
+      "immuneEffects": [
+        "poison"
+      ]
     },
     "bottomAttack": {
       "name": "Venom Bite",
@@ -130,7 +133,10 @@
           "fire"
         ]
       },
-      "description": "\u221235% incoming dmg. Fire bypasses. Always Soaked."
+      "description": "-35% incoming dmg (fire bypasses). Always Soaked. Immune to Cryo.",
+      "immuneEffects": [
+        "cryo"
+      ]
     },
     "bottomAttack": {
       "name": "Frost Bite",
@@ -187,6 +193,7 @@
   },
   {
     "id": "shadow_rat",
+    "set": "Shadowbound",
     "rarity": "common",
     "name": "Nyxor the Shadow Gnawer",
     "hp": 55,
@@ -221,6 +228,7 @@
   },
   {
     "id": "cursed_golem",
+    "set": "Shadowbound",
     "rarity": "rare",
     "name": "Thrakk the Cursed Colossus",
     "hp": 130,
@@ -369,7 +377,12 @@
           "arcane"
         ]
       },
-      "description": "\u221240% then \u221215 flat incoming dmg. Arcane bypasses."
+      "description": "-40% then -15 flat incoming dmg (arcane bypasses). Immune to Burn, Poison, and Curse.",
+      "immuneEffects": [
+        "burn",
+        "poison",
+        "curse"
+      ]
     },
     "bottomAttack": {
       "name": "World's End",
@@ -436,13 +449,19 @@
   },
   {
     "id": "cursed_blade",
+    "set": "Shadowbound",
     "rarity": "rare",
     "cardType": "weapon",
     "name": "Cursed Blade",
     "flatBonus": 20,
     "maxDurability": 3,
     "image": "cblade.png",
-    "addEffects": [ { "type": "curse", "duration": 3 } ],
+    "addEffects": [
+      {
+        "type": "curse",
+        "duration": 3
+      }
+    ],
     "description": "+20 dmg. Every hit also inflicts Curse for 3 turns."
   },
   {
@@ -453,8 +472,15 @@
     "flatBonus": 35,
     "maxDurability": 1,
     "image": "shard.png",
-    "ampEffects": { "burn": 25 },
-    "addEffects": [ { "type": "burn", "duration": 2 } ],
+    "ampEffects": {
+      "burn": 25
+    },
+    "addEffects": [
+      {
+        "type": "burn",
+        "duration": 2
+      }
+    ],
     "description": "+35 dmg. Every hit also inflicts Burn for 2 turns, and any Burn this weapon causes deals 25 dmg/turn instead of 10."
   },
   {
@@ -477,6 +503,7 @@
   },
   {
     "id": "barrier_rune",
+    "set": "Shadowbound",
     "rarity": "common",
     "cardType": "defense",
     "name": "Barrier Rune",
@@ -492,8 +519,15 @@
     "flatBonus": 30,
     "maxDurability": 2,
     "image": "dscale.png",
-    "ampEffects": { "burn": 20 },
-    "addEffects": [ { "type": "burn", "duration": 2 } ],
+    "ampEffects": {
+      "burn": 20
+    },
+    "addEffects": [
+      {
+        "type": "burn",
+        "duration": 2
+      }
+    ],
     "description": "-30 dmg taken. Every hit it blocks reflects Burn for 2 turns back onto the attacker, dealing 20 dmg/turn instead of 10."
   },
   {
@@ -516,12 +550,10 @@
     "classification": "pests",
     "image": "moth.png",
     "topEffect": {
-      "type": "passive",
+      "type": "revive",
       "name": "Ashen Rebirth",
-      "value": 0,
-      "effects": [],
-      "bonusReviveCharge": 1,
-      "description": "While this card is in your deck, you start the match with 1 banked revive charge — spent automatically on the earliest creature you lose."
+      "healPercent": 0.5,
+      "description": "Instead of attacking, revive any one creature from your graveyard to hand at 50% HP. Uses this card's turn, like an attack would."
     },
     "bottomAttack": {
       "name": "Cinder Wing",
@@ -682,7 +714,7 @@
         "bonusHp": 8,
         "bonusDamage": 4
       },
-      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Striker / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Striker / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond \u2014 no attack sharing."
     },
     "bottomAttack": {
       "name": "Spark Jab",
@@ -719,7 +751,7 @@
         "bonusHp": 8,
         "bonusDamage": 4
       },
-      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+      "description": "+8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Warden that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond \u2014 no attack sharing."
     },
     "bottomAttack": {
       "name": "Cinder Fist",
@@ -754,7 +786,7 @@
         "bonusHp": 8,
         "bonusDamage": 4
       },
-      "description": "\u22128 flat dmg taken. +8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Striker that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond — no attack sharing."
+      "description": "\u22128 flat dmg taken. +8 max HP and +4 dmg on all attacks for each of Ember-Kin Scout / Striker that's also in your deck (up to +16 HP / +8 dmg with both). Stat-only bond \u2014 no attack sharing."
     },
     "bottomAttack": {
       "name": "Guard Slam",
