@@ -46,6 +46,37 @@ const CARD_LIBRARY_HASH = crypto.createHash('sha256').update(CARD_LIBRARY_RAW).d
 const CardDB = JSON.parse(CARD_LIBRARY_RAW);
 const CardById = Object.fromEntries(CardDB.map(c => [c.id, c]));
 
+/** ── CARD SETS ─────────────────────────────────────────────────────
+ * A "set" is any group of CardDB entries sharing the same `set` string.
+ * Building every single member of a set into your deck (weapon/defense
+ * members included) grants +SET_STAT_BONUS max HP and +SET_STAT_BONUS
+ * damage to that set's non-equipment members for the whole match —
+ * equipment members unlock the set but never get the bonus themselves.
+ * Derived once from CardDB at load, same pattern as CardById. */
+const SET_STAT_BONUS = 150;
+const CARD_SET_MEMBERS = {}; // setName -> [cardId, ...]
+for (const c of CardDB) { if (c.set) (CARD_SET_MEMBERS[c.set] = CARD_SET_MEMBERS[c.set] || []).push(c.id); }
+
+/** Mutates `cards` (live card instances just built for a deck) in place,
+ * adding the set bonus to any card whose base definition belongs to a set
+ * that's fully present among `ids` (the deck's card ids). Safe to call on
+ * any deck — decks with no complete set are untouched. */
+function applySetBonuses(cards, ids) {
+  const idSet = new Set(ids);
+  for (const [setName, memberIds] of Object.entries(CARD_SET_MEMBERS)) {
+    if (!memberIds.every(id => idSet.has(id))) continue;
+    for (const card of cards) {
+      const base = CardById[card.baseId];
+      if (!base || base.set !== setName) continue;
+      if (card.cardType === 'weapon' || card.cardType === 'defense') continue; // required for the set, no bonus
+      card.hp += SET_STAT_BONUS; card.maxHp += SET_STAT_BONUS; card.currentHp += SET_STAT_BONUS;
+      if (card.bottomAttack) card.bottomAttack.damage = (card.bottomAttack.damage || 0) + SET_STAT_BONUS;
+      if (card.topEffect && card.topEffect.type === 'attack') card.topEffect.value = (card.topEffect.value || 0) + SET_STAT_BONUS;
+    }
+  }
+  return cards;
+}
+
 const RARITY_ORDER = ['common','uncommon','rare','epic','legendary','mythic'];
 const rarityRank = r => RARITY_ORDER.indexOf(r);
 
@@ -123,36 +154,44 @@ function openPack(packId) {
 }
 
 /* ── EFFECT REGISTRY (verbatim rules, DOM calls stripped to events) ──
- * Each logic(card, ctx, effectInstance) mutates card.currentHp / ctx.skipTurn
- * / ctx.cancelAttack and may push a {type:'vfx', ...} event onto ctx.events.
+ * Each logic(card, ctx, effectInstance, match) mutates card.currentHp /
+ * ctx.skipTurn / ctx.cancelAttack and may push a {type:'vfx', ...} event
+ * onto ctx.events.
  *
- * `effectInstance.dmg` — when present — overrides the effect's baseline tick
- * damage. This is how weapon/defense "amplification" works: a weapon with
- * `ampEffects: { burn: 25 }` stamps `dmg:25` onto every burn stack it
- * inflicts (see applyEffectToCard), so that specific stack ticks for 25
- * instead of the effect's normal 10 — permanently, for the life of that
- * stack, even if the weapon later breaks or is swapped out. */
+ * `effectInstance.ampSide`/`ampKind` — when present — is how weapon/
+ * defense amplification works: a weapon with `ampEffects: { burn: 25 }`
+ * stamps which side's gear to keep re-checking onto every burn stack it
+ * inflicts (see applyEffectToCard), so that stack ticks for 10+25=35 *as
+ * long as* that side still has an amplifying weapon equipped — the
+ * instant it breaks or gets swapped out, the very next tick reverts to
+ * the effect's normal 10. Nothing about the bonus is baked in
+ * permanently; see currentAmpValue/effectiveDmg/chanceFor below. A
+ * defense's `dampEffects` is the mirror image, evaluated on the fly from
+ * the *affected* card's own side rather than stamped onto the effect at
+ * all: while that defense is equipped, it subtracts from any effect
+ * currently ticking on/afflicting its owner's cards. */
 const Effects = {
-  bleed:        { trigger:'onTurnStart', dmg:10,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'bleed');} },
-  poison:       { trigger:'onTurnStart', dmg:25,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 25, 'poison');} },
-  strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 50, 'strongPoison');} },
-  mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 75, 'mythicPoison');} },
+  bleed:        { trigger:'onTurnStart', dmg:10,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'bleed',10), 'bleed');} },
+  poison:       { trigger:'onTurnStart', dmg:25,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'poison',25), 'poison');} },
+  strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'strongPoison',50), 'strongPoison');} },
+  mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'mythicPoison',75), 'mythicPoison');} },
   curse:        { trigger:'onTurnStart', logic(){} },
-  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.5) x.cancelAttack = true; } },
-  sleep:        { trigger:'onTurnStart', logic(c,x){ rollSkip(c,x,'sleep'); } },
-  paralyze:     { trigger:'onTurnStart', logic(c,x){ rollSkip(c,x,'paralyze'); } },
-  burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'burn');} },
-  shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x,ed){dot(c,x, ed && ed.dmg!=null ? ed.dmg : 25, 'shock');} },
+  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.5) x.cancelAttack = true; } }, // its amp/damp-aware miss roll lives inline in performHit, alongside shock/soak — see missChanceFor
+  sleep:        { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'sleep',ed,match); } },
+  paralyze:     { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'paralyze',ed,match); } },
+  burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'burn',10), 'burn');} },
+  shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'shock',25), 'shock');} },
   soak:         { trigger:'onTurnStart', logic(){} },
-  cryo:         { trigger:'onTurnStart', logic(c,x,ed){ dot(c,x, ed && ed.dmg!=null ? ed.dmg : 10, 'cryo'); rollSkip(c,x,'cryo',true); } },
+  cryo:         { trigger:'onTurnStart', logic(c,x,ed,match){ dot(c,x, effectiveDmg(match,x.side,ed,'cryo',10), 'cryo'); rollSkip(c,x,'cryo',ed,match); } },
   rocks:        { trigger:'onSwap',      logic(){} }, // no per-turn logic — see applyRocksOnSwap; this fires on swap, not on turn start
 };
 function dot(card, ctx, dmg, type) {
   card.currentHp -= dmg;
   ctx.events.push({ t:'dot', side: ctx.side, slot: ctx.slot, card:card.instanceId, dmg, effect:type });
 }
-function rollSkip(card, ctx, type, alreadyHit) {
-  if (Math.random() < .5) {
+function rollSkip(card, ctx, type, ed, match) {
+  const chance = chanceFor(match, ctx.side, ed, type, .5);
+  if (Math.random() < chance) {
     ctx.skipTurn = true;
     ctx.events.push({ t:'status', side: ctx.side, slot: ctx.slot, card:card.instanceId, effect:type, hit:true });
   } else {
@@ -160,6 +199,81 @@ function rollSkip(card, ctx, type, alreadyHit) {
   }
 }
 function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e.type === type); }
+
+/* ── WEAPON/DEFENSE EFFECT AMPLIFICATION & DAMPENING (live, additive) ──
+ * Two independent, symmetric bonuses stack additively onto an effect's
+ * baseline every time it's checked — never baked into the stack at the
+ * moment it was inflicted, so either one turns on/off immediately as gear
+ * gets equipped, broken, or swapped:
+ *
+ *  • AMPLIFICATION (ampEffects, on a weapon OR a defense's addEffects):
+ *    the INFLICTING side's currently-equipped gear adds a bonus to any
+ *    effect it causes — stamped as `ampSide`/`ampKind` onto the effect
+ *    instance at infliction time (applyEffectToCard), then re-checked
+ *    live via currentAmpValue() against whatever that side has equipped
+ *    *right now*, which may or may not still be the same item.
+ *
+ *  • DAMPENING (dampEffects, defense only): the AFFECTED side's own
+ *    currently-equipped defense subtracts from any effect currently
+ *    afflicting their cards, regardless of who inflicted it or whether it
+ *    was itself amplified. Needs no stamping at all — every tick already
+ *    knows which side owns the affected card (ctx.side), so it's just a
+ *    live lookup of that side's own gear via currentDampValue().
+ *
+ * Both are additive and stack with each other: a +25 amp from the
+ * attacker's weapon and a -10 damp from the defender's own defense nets
+ * out to +15 over baseline, and the total damage/chance never goes below
+ * zero. Either one disappears the instant its gear isn't active anymore. */
+function currentAmpValue(match, ed, type) {
+  if (!match || !ed || ed.ampSide == null || !ed.ampKind) return undefined;
+  const gearSide = match.sides[ed.ampSide];
+  const gear = ed.ampKind === 'weapon' ? (gearSide && gearSide.weaponCard) : (gearSide && gearSide.defenseCard);
+  return gear && gear.ampEffects && gear.ampEffects[type] != null ? gear.ampEffects[type] : undefined;
+}
+function currentDampValue(match, side, type) {
+  if (!match || side == null) return undefined;
+  const gearSide = match.sides[side];
+  const gear = gearSide && gearSide.defenseCard;
+  return gear && gear.dampEffects && gear.dampEffects[type] != null ? gear.dampEffects[type] : undefined;
+}
+/** Damage-type effects (bleed, poison, burn, shock, cryo, ...): amp adds
+ * to the effect's baseline tick damage, damp subtracts from it — e.g.
+ * baseline 10, ampEffects:{burn:25} while equipped -> 35, and if the
+ * affected side's own defense also carries dampEffects:{burn:5} while
+ * equipped -> 30. Never drops below 0. `side` is whichever side owns the
+ * card the effect is ticking on (i.e. the potential dampener). */
+function effectiveDmg(match, side, ed, type, baseDmg) {
+  const amp = currentAmpValue(match, ed, type);
+  const damp = currentDampValue(match, side, type);
+  let dmg = baseDmg;
+  if (amp != null) dmg += amp;
+  if (damp != null) dmg -= damp;
+  return Math.max(0, dmg);
+}
+/** Chance-type effects (sleep, paralyze, confusion, shock/soak's miss
+ * roll, ...): ampEffects/dampEffects values are 0–100 percentage POINTS
+ * added to/subtracted from the effect's baseline chance — e.g. baseline
+ * 50%, ampEffects:{paralyze:25} while equipped -> 75%, and if the
+ * affected side's defense carries dampEffects:{paralyze:20} while
+ * equipped -> 55%. Clamped to the 0–100% range either way. */
+function chanceFor(match, side, ed, type, baseChance) {
+  const amp = currentAmpValue(match, ed, type);
+  const damp = currentDampValue(match, side, type);
+  let pct = baseChance * 100;
+  if (amp != null) pct += amp;
+  if (damp != null) pct -= damp;
+  return Math.max(0, Math.min(100, pct)) / 100;
+}
+/** Same idea as chanceFor, but for the inline onAttack-time miss checks
+ * (confusion/shock/soak causing the AFFECTED card to whiff its own
+ * attack) in performHit, which look the effect instance up by type
+ * instead of already holding a reference to it. `side` here is whichever
+ * side owns `card` (the one possibly missing its attack) — the same side
+ * whose defense would be doing any dampening. */
+function missChanceFor(card, type, match, side, baseChance) {
+  const ed = card.activeEffects.find(e => e.type === type);
+  return chanceFor(match, side, ed, type, baseChance);
+}
 
 /* ── SYNERGY PASSIVE ──────────────────────────────────────────────────
  * topEffect.synergy = {
@@ -237,30 +351,41 @@ function isImmuneTo(target, effectType) {
   return !!(te && te.type === 'passive' && Array.isArray(te.immuneEffects) && te.immuneEffects.includes(effectType));
 }
 
-/** Applies a status effect to `target`. `dmgOverride` — when given — is how
- * weapon/defense "amplification" (ampEffects) stamps a boosted tick-damage
- * onto the specific stack being applied right now (see performHit). If the
- * target already has a stack of this type, duration extends and the stack
- * keeps the stronger of its existing/incoming dmg override.
+/** Applies a status effect to `target`. `ampSource` — when given, as
+ * `{side, kind:'weapon'|'defense'}` — is the equipped gear (if any) that
+ * was active on the inflicting side at the moment of this attack; it gets
+ * stamped onto the effect instance so future ticks/rolls can dynamically
+ * re-check whether that gear (or another one like it) is still active —
+ * see currentAmpValue. If the target already has a stack of this type,
+ * duration extends and the amp source is refreshed to whatever's active
+ * right now (re-applying the same effect while amplifying gear is
+ * equipped should start amplifying it, same as a fresh stack would).
  * Returns true if the effect was applied, false if the target's passive
  * immunity blocked it entirely (nothing is mutated in that case). */
-function applyEffectToCard(target, effectDef, dmgOverride) {
+function applyEffectToCard(target, effectDef, ampSource) {
   const eDef = Effects[effectDef.type]; if (!eDef) return false;
   if (isImmuneTo(target, effectDef.type)) return false;
   const ex = target.activeEffects.find(e => e.type === effectDef.type);
   if (ex) {
     if (effectDef.duration < 9999) ex.duration = Math.min(9999, ex.duration + effectDef.duration);
-    if (dmgOverride != null) ex.dmg = Math.max(ex.dmg != null ? ex.dmg : 0, dmgOverride);
+    if (ampSource) { ex.ampSide = ampSource.side; ex.ampKind = ampSource.kind; }
   } else {
-    target.activeEffects.push({ type: effectDef.type, duration: effectDef.duration, dmg: dmgOverride != null ? dmgOverride : undefined });
+    target.activeEffects.push({
+      type: effectDef.type, duration: effectDef.duration,
+      ampSide: ampSource ? ampSource.side : undefined,
+      ampKind: ampSource ? ampSource.kind : undefined,
+    });
   }
   return true;
 }
 
 /** `side` (0|1) is whichever side owns `entity` — stamped onto every event so
  * a client on either side of the match can map it back to its own DOM
- * (its own board is always "player-*", the opponent's is always "enemy-*"). */
-function processEffects(entity, trigger, ctx, side) {
+ * (its own board is always "player-*", the opponent's is always "enemy-*").
+ * `match` is threaded through to each effect's logic() so DOT ticks and
+ * skip-turn rolls can dynamically re-check weapon/defense amplification
+ * (see currentAmpValue) instead of using a value frozen at infliction. */
+function processEffects(match, entity, trigger, ctx, side) {
   [['activeCard','slot1'], ['activeCard2','slot2']].forEach(([key, slotKey]) => {
     const card = entity[key];
     if (!card) return;
@@ -268,7 +393,7 @@ function processEffects(entity, trigger, ctx, side) {
       const ed = card.activeEffects[i]; const eDef = Effects[ed.type];
       if (!eDef || eDef.trigger !== trigger) continue;
       ctx.side = side; ctx.slot = slotKey;
-      eDef.logic(card, ctx, ed);
+      eDef.logic(card, ctx, ed, match);
       if (trigger === 'onTurnStart' && ed.duration < 9999) {
         ed.duration--; if (ed.duration <= 0) card.activeEffects.splice(i, 1);
       }
@@ -362,8 +487,9 @@ function createCard(baseId) {
       instanceId: crypto.randomUUID(), baseId, name: base.name, cardType: base.cardType,
       flatBonus: base.flatBonus, maxDurability: base.maxDurability,
       currentDurability: base.maxDurability, image: base.image,
-      // Optional customization — see performHit for how these are used:
+      // Optional customization — see performHit/currentAmpValue/currentDampValue:
       ampEffects: base.ampEffects ? { ...base.ampEffects } : null,
+      dampEffects: base.dampEffects ? { ...base.dampEffects } : null,
       addEffects: base.addEffects ? base.addEffects.map(e => ({ ...e })) : null,
     };
   }
@@ -488,8 +614,11 @@ function isDeckLegal(ids) {
 }
 
 function buildDeckFromIds(ids) {
-  if (!isDeckLegal(ids)) return generateDeck(DECK_SIZE);
-  return ids.map(id => createCard(id));
+  const cards = isDeckLegal(ids) ? ids.map(id => createCard(id)) : generateDeck(DECK_SIZE);
+  // Derive the id list from the actual cards built rather than trusting the
+  // input `ids` — covers the generateDeck(DECK_SIZE) fallback path too, so a
+  // lucky random bot deck gets its set bonus exactly like a real one would.
+  return applySetBonuses(cards, cards.map(c => c.baseId));
 }
 
 /* ── PLAYER SIDE FACTORY ──────────────────────────────────────────── */
@@ -558,18 +687,24 @@ function performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side) {
  * a multi-attack sequence should not continue.
  *
  * Weapon/defense customization:
- *  - weapon.ampEffects / defense.ampEffects: { effectType: overrideDmg } — while this
+ *  - weapon.ampEffects / defense.ampEffects: { effectType: bonus } — while this
  *    piece of equipment is the one landing/absorbing the hit, any matching status
- *    effect it applies ticks for the overridden damage instead of that effect's
- *    normal baseline (e.g. a weapon can make its burn deal 25/turn instead of 10).
+ *    effect it applies ticks for its normal baseline PLUS this bonus (e.g. a weapon
+ *    with ampEffects:{burn:25} makes its burn deal 10+25=35/turn instead of 10), for
+ *    as long as that equipment stays active — see currentAmpValue/effectiveDmg.
+ *  - defense.dampEffects: { effectType: reduction } — the mirror image: while this
+ *    defense is equipped, it subtracts from any effect currently afflicting its
+ *    owner's cards, regardless of who inflicted it or whether it was itself
+ *    amplified — see currentDampValue. Amp and damp stack additively and the
+ *    combined result never drops below the effect's normal floor (0 dmg / 0% chance).
  *  - weapon.addEffects / defense.addEffects: [{type, duration}, ...] — extra status
  *    effects applied on every hit this equipment participates in, independent of
  *    whatever the attack itself already applies. A weapon's addEffects land on the
  *    target being hit; a defense's addEffects land back on the attacker (thorns). */
 function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events) {
-  if (hasEffect(ac, 'confusion') && Math.random() < .5) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
-  if (hasEffect(ac, 'shock') && Math.random() < .5)     { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
-  if (hasEffect(ac, 'soak') && Math.random() < .5)      { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false }; }
+  if (hasEffect(ac, 'confusion') && Math.random() < missChanceFor(ac,'confusion',match,side,.5)) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
+  if (hasEffect(ac, 'shock') && Math.random() < missChanceFor(ac,'shock',match,side,.5))         { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
+  if (hasEffect(ac, 'soak') && Math.random() < missChanceFor(ac,'soak',match,side,.5))           { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false }; }
 
   if (atkDef.heal) return performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side);
 
@@ -615,22 +750,22 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   targetCard.currentHp -= dmg;
   events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:tgtSlotKey, tgtCard:targetCard.instanceId, direct:false, dmg, name:atkDef.name, element:atkDef.element });
 
-  const weaponAmp = weaponRef && weaponRef.ampEffects;
+  const weaponAmp = weaponRef ? { side, kind:'weapon' } : null;
   (atkDef.effects || []).forEach(eff => {
-    const applied = applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined);
+    const applied = applyEffectToCard(targetCard, eff, weaponAmp);
     if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
   });
   if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
     weaponRef.addEffects.forEach(eff => {
-      const applied = applyEffectToCard(targetCard, eff, weaponAmp && weaponAmp[eff.type] != null ? weaponAmp[eff.type] : undefined);
+      const applied = applyEffectToCard(targetCard, eff, weaponAmp);
       if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
     });
     events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:targetCard.instanceId });
   }
   if (defenseRef && defenseRef.addEffects && defenseRef.addEffects.length) {
-    const defAmp = defenseRef.ampEffects;
+    const defenseAmp = { side: defSide, kind:'defense' };
     defenseRef.addEffects.forEach(eff => {
-      const applied = applyEffectToCard(ac, eff, defAmp && defAmp[eff.type] != null ? defAmp[eff.type] : undefined);
+      const applied = applyEffectToCard(ac, eff, defenseAmp);
       if (!applied) events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
     });
     events.push({ t:'defense_effect', side:defSide, slot:tgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
@@ -773,6 +908,7 @@ module.exports = {
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
   executeAttack, applyRocksOnSwap, isMatchOver, applyDeployAbility,
   killCard, executeRevive, applySynergies, attackDefFor, aliveCreatureCount,
+  applySetBonuses, CARD_SET_MEMBERS, SET_STAT_BONUS,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
   DECK_SIZE, MAX_CREATURES, deckClassificationOk,
   RANK_TIERS, RANK_SUBS, RANK_POINTS_PER_SUB, RANK_POINTS_PER_TIER, RANK_MAX_POINTS, getRank,
