@@ -477,6 +477,20 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 
 /* footer — black strip, clips to remaining height */
 .card-footer{background:#04040a;border-top:3px solid #10102a;overflow:hidden;border-radius:0 0 6px 6px;flex-shrink:0;flex-grow:1;display:flex;flex-direction:column;justify-content:flex-start;}
+/* Purely informational "belongs to a set" marker — deliberately almost
+ * invisible (very low-opacity text on a near-transparent strip) since it's
+ * just a hint, not something meant to compete with the card's real info.
+ * Absolutely positioned over the bottom edge rather than a flex child, so
+ * it never affects the fixed-height .card layout used across every screen
+ * this component renders on (collection, deck builder, hand, battlefield,
+ * bazaar, etc). */
+.card-set-bar{
+  position:absolute;left:0;right:0;bottom:0;height:11px;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.38rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:rgba(255,255,255,.2);background:rgba(255,255,255,.025);
+  pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .card-eff-row{display:flex;align-items:center;justify-content:space-between;padding:2px 6px;border-bottom:1px solid rgba(255,255,255,0.04);}
 .card-eff-row:last-child{border-bottom:none;}
 .card-eff-row.atk {background:rgba(239,68,68,0.07);}
@@ -621,6 +635,8 @@ img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;displ
 .play-stat-value{font-family:'Cinzel',serif;font-size:1.05rem;font-weight:900;color:#c4b5fd;line-height:1;}
 .play-battle-btn{font-family:'Cinzel',serif;font-size:.85rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(60,10,100,.7),rgba(109,40,217,.55));border:1px solid rgba(139,92,246,.7);border-radius:8px;padding:15px 52px;transition:transform .18s,border-color .2s,box-shadow .2s;box-shadow:0 0 28px rgba(109,40,217,.32),inset 0 1px 0 rgba(255,255,255,.07);animation:pulse-battle 1.8s ease-in-out infinite;position:relative;z-index:1;}
 .play-battle-btn:hover{transform:translateY(-3px) scale(1.03);border-color:rgba(196,181,253,.95);box-shadow:0 0 52px rgba(139,92,246,.62),0 8px 28px rgba(0,0,0,.6);}
+.play-battle-btn.disabled{animation:none;color:rgba(233,213,255,.55);background:rgba(80,80,100,.18);border-color:rgba(148,163,184,.3);box-shadow:none;letter-spacing:.1em;font-size:.75rem;}
+.play-battle-btn.disabled:hover{transform:none;border-color:rgba(148,163,184,.4);box-shadow:none;}
 .play-record-sub{font-size:.58rem;letter-spacing:.1em;color:rgba(156,163,175,.72);position:relative;z-index:1;}
 
 /* ── Rank progression card ── */
@@ -1750,6 +1766,43 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 .gc-send-btn:disabled{ opacity:.4;cursor:not-allowed; }
 .gc-disabled-note{ padding:14px;font-size:.68rem;color:var(--txt-muted);text-align:center;line-height:1.5; }
+
+/* ── CHAT IMAGES ──────────────────────────────────────── */
+.chat-image-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);color:#e9d5ff;font-size:.95rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center; flex:0 0 34px;transition:background .15s,border-color .15s;
+}
+.chat-image-btn:hover{ background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.4); }
+.chat-image-msg{ max-width:180px;max-height:180px;border-radius:8px;display:block;border:1px solid rgba(255,255,255,.1);cursor:default; }
+.chat-image-missing{ font-size:.66rem;color:rgba(156,163,175,.8);font-style:italic; }
+.chat-image-picker-overlay{
+  position:fixed;inset:0;background:rgba(2,2,8,.72);z-index:3000;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.chat-image-picker-modal{
+  width:min(420px,92vw);max-height:76vh;display:flex;flex-direction:column;
+  background:#0a0a18;border:1px solid rgba(139,92,246,.35);border-radius:12px;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.chat-image-picker-header{
+  display:flex;align-items:center;justify-content:space-between;padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.08);font-family:'Cinzel',serif;font-weight:800;
+  font-size:.78rem;letter-spacing:.06em;color:#e9d5ff;text-transform:uppercase;
+}
+.chat-image-picker-close{ background:none;border:none;color:rgba(255,255,255,.6);font-size:.9rem;cursor:pointer;padding:2px 6px; }
+.chat-image-picker-close:hover{ color:#fff; }
+.chat-image-picker-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;
+  padding:14px;overflow-y:auto;
+}
+.chat-image-picker-item{
+  aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.03);transition:border-color .15s,transform .12s;
+}
+.chat-image-picker-item:hover{ border-color:rgba(139,92,246,.6);transform:scale(1.04); }
+.chat-image-picker-item img{ width:100%;height:100%;object-fit:cover;display:block; }
+.chat-image-picker-empty{ padding:24px 10px;text-align:center;font-size:.7rem;color:rgba(156,163,175,.8);grid-column:1/-1; }
 @media (max-width:640px){
   .gc-panel{ width:82vw;height:56vh; }
   #global-chat.gc-collapsed{ transform:translateX(calc(100% - 30px)); }
@@ -1950,9 +2003,26 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="gc-empty-note">No messages yet — say hi to your opponent!</div>
     </div>
     <form id="gc-form" class="gc-input-row" onsubmit="return sendGlobalChat(event)">
+      <button type="button" class="chat-image-btn" title="Send an image" onclick="openChatImagePicker(GlobalChat.mode==='battle'?'battle':'global')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
       <input id="gc-input" maxlength="300" placeholder="Say something…" autocomplete="off"/>
       <button type="submit" class="gc-send-btn" title="Send">➤</button>
     </form>
+  </div>
+</div>
+
+<!-- ══════ CHAT IMAGE PICKER ══════
+     Shared by every chat surface (global, battle, guild, DM). Picking a
+     thumbnail sends the plain-text token `{image:<id>}` through that chat's
+     own normal send path — no image bytes ever go over the wire or through
+     Supabase, every client resolves the token against its own local copy
+     of chat-images/image.json. -->
+<div id="chat-image-picker-overlay" class="chat-image-picker-overlay" style="display:none;" onclick="if(event.target===this)closeChatImagePicker();">
+  <div class="chat-image-picker-modal">
+    <div class="chat-image-picker-header">
+      <span>Send an image</span>
+      <button type="button" class="chat-image-picker-close" onclick="closeChatImagePicker()">✕</button>
+    </div>
+    <div id="chat-image-picker-grid" class="chat-image-picker-grid"></div>
   </div>
 </div>
 
@@ -2341,6 +2411,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
                 <div class="gc-empty-note">No messages yet — say hello to your guild!</div>
               </div>
               <form id="guild-chat-form" class="gc-input-row" onsubmit="return sendGuildChat(event)">
+                <button type="button" class="chat-image-btn" title="Send an image" onclick="openChatImagePicker('guild')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
                 <input id="guild-chat-input" class="gc-input" maxlength="300" placeholder="Say something…" autocomplete="off">
                 <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
               </form>
@@ -3630,6 +3701,7 @@ const Elements={
  * you're playing with the server's real numbers, or the hash check at auth
  * time refuses to let you queue at all. */
 let CardDB=[];
+let CardById={}; // id -> def, rebuilt alongside CardDB whenever the library (re)loads
 let CardLibraryHash=null;
 
 /* ── GAME STATE ───────────────────────────────────────── */
@@ -3981,6 +4053,19 @@ function rarityCardStyle(rarity){
   return `--rarity-color:${rcfg.color};--rarity-glow:${hexToRgba(rcfg.color,.45)};--rarity-glow-strong:${hexToRgba(rcfg.color,.85)};`;
 }
 
+/* ── CARD SETS: display-only bar ──────────────────────────
+ * A card's `set` field (copied straight through on display-only cards via
+ * defToDisplayCard, but absent on live match instances — those only carry
+ * `baseId`) just needs a name to show; the actual +150/+150 bonus this
+ * unlocks is entirely server-side (see applySetBonuses in game-engine.js).
+ * This bar is purely informational and shows on every set card regardless
+ * of whether the set is currently complete in any particular deck. */
+function cardSetBarHtml(card){
+  const setName=card.set||(CardById[card.baseId||card.id]||{}).set;
+  if(!setName) return '';
+  return `<div class="card-set-bar">${escapeHtml(setName)} Set</div>`;
+}
+
 function renderEquipCard(card,interactable,index=-1,extraClass=''){
   if(!card)return'';
   const onclick=interactable?`onclick="inspectCard(${index})"`:'';
@@ -3992,9 +4077,21 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   const typeLabel=isWpn?'WEAPON':'DEFENSE';
   const bonusLabel=isWpn?'DMG +':'DEF ';
   const effName=t=>Effects[t]?.name||t;
-  const ampBits=card.ampEffects?Object.entries(card.ampEffects).map(([t,d])=>`${effName(t)} amplified to ${d}/turn`):[];
+  // sleep/paralyze/confusion are pure chance effects (skip-turn or miss-your-attack
+  // rolls) — their amp/damp numbers are percentage POINTS. Everything else here is a
+  // damage-over-time tick, where the number is flat bonus/penalty damage per turn.
+  // (shock/soak/cryo carry both a dmg tick and a chance roll server-side, but no
+  // shipped card amplifies/dampens those yet, so the damage phrasing is the sane
+  // default until one does.)
+  const CHANCE_EFFECT_TYPES=new Set(['sleep','paralyze','confusion']);
+  const ampBits=card.ampEffects?Object.entries(card.ampEffects).map(([t,d])=>
+    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance +${d}%` : `${effName(t)} damage +${d}/turn`
+  ):[];
+  const dampBits=card.dampEffects?Object.entries(card.dampEffects).map(([t,d])=>
+    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance -${d}%` : `${effName(t)} damage -${d}/turn`
+  ):[];
   const addBits=(card.addEffects||[]).map(e=>`+${effName(e.type)} (${e.duration>=9999?'permanent':e.duration+' turns'}) on every hit`);
-  const customSfx=[...ampBits,...addBits].join(' · ');
+  const customSfx=[...ampBits,...dampBits,...addBits].join(' · ');
   return`<div class="card ${ic} ${extraClass}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
@@ -4011,6 +4108,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
       <div class="eff-sfx">Durability: ${card.currentDurability} / ${card.maxDurability} attacks</div>
       ${customSfx?`<div class="eff-sfx">${customSfx}</div>`:''}
     </div>
+    ${cardSetBarHtml(card)}
   </div>`;
 }
 
@@ -4055,6 +4153,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
       <div class="card-eff-row atk"><span class="eff-label">ATK</span><span class="eff-name">${ba.name}</span>${elemBadge(ba.element)}<span class="eff-val">${ba.damage}</span></div>
       ${baSfx?`<div class="eff-sfx">+ ${baSfx}</div>`:''}
     </div>
+    ${cardSetBarHtml(card)}
   </div>`;
 }
 
@@ -4257,6 +4356,100 @@ const ICON_SVGS = {
  * template string (the Social panel's friend/request rows). */
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ── CHAT IMAGES ───────────────────────────────────────────────────
+ * A small, purely local image catalog for chat, loaded from
+ * chat-images/image.json (a flat {id: "filename.png"} map) with the actual
+ * files living alongside it in chat-images/. Sending a picked image just
+ * sends the plain-text token `{image:<id>}` through whichever chat's
+ * ordinary text pipeline (WebSocket or Supabase) is already in use for
+ * that surface — no image bytes are ever uploaded, relayed, or stored
+ * anywhere but this client's own local copy of the catalog. Every viewer
+ * resolves the token against their own local files; if their catalog
+ * doesn't have that id (different build, catalog out of sync), they just
+ * see a plain "image unavailable" note instead of the picture. */
+let ChatImageCatalog={}; // id -> filename
+async function loadChatImageCatalog(){
+  try{
+    const res=await fetch('chat-images/image.json');
+    if(!res.ok) return;
+    const data=await res.json();
+    if(data && typeof data==='object' && !Array.isArray(data)) ChatImageCatalog=data;
+  }catch(e){ console.warn('[chat-images] catalog failed to load',e); }
+}
+
+const CHAT_IMAGE_TOKEN_RE=/^\{image:([a-zA-Z0-9_-]{1,64})\}$/;
+function chatImageTokenId(text){
+  if(typeof text!=='string') return null;
+  const m=text.trim().match(CHAT_IMAGE_TOKEN_RE);
+  return m?m[1]:null;
+}
+/** Small inline "broken image" glyph — reused for both the missing-image
+ * fallback below and (via CSS) nowhere else; kept as an SVG rather than an
+ * emoji to match the rest of the UI's iconography. */
+function chatImageMissingHtml(){
+  return `<span class="chat-image-missing"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:3px;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>image unavailable</span>`;
+}
+/** Renders a chat message body as safe HTML: an <img> if the message is
+ * exactly a recognized `{image:id}` token, otherwise escaped plain text —
+ * identical behavior to before this feature existed. */
+function renderChatBody(text){
+  const id=chatImageTokenId(text);
+  if(id){
+    const file=ChatImageCatalog[id];
+    if(file) return `<img class="chat-image-msg" src="${escapeHtml('chat-images/'+file)}" alt="${escapeHtml(id)}" loading="lazy" onerror="this.outerHTML=chatImageMissingHtml()">`;
+    return chatImageMissingHtml();
+  }
+  return escapeHtml(text||'');
+}
+
+let ChatImagePickerKind=null; // 'global' | 'battle' | 'guild' | 'dm' — which send path the picker's open for
+function openChatImagePicker(kind){
+  ChatImagePickerKind=kind;
+  const grid=document.getElementById('chat-image-picker-grid');
+  const ids=Object.keys(ChatImageCatalog);
+  grid.innerHTML=ids.length
+    ? ids.map(id=>`<div class="chat-image-picker-item" title="${escapeHtml(id)}" onclick="sendChatImageToken('${id.replace(/'/g,"\\'")}')"><img src="${escapeHtml('chat-images/'+ChatImageCatalog[id])}" alt="${escapeHtml(id)}" loading="lazy"></div>`).join('')
+    : '<div class="chat-image-picker-empty">No images available yet.</div>';
+  document.getElementById('chat-image-picker-overlay').style.display='flex';
+}
+function closeChatImagePicker(){
+  document.getElementById('chat-image-picker-overlay').style.display='none';
+  ChatImagePickerKind=null;
+}
+/** Routes the picked image into whichever chat opened the picker, reusing
+ * that surface's exact normal send path (and rate limits) — the image
+ * token is just the message text as far as any of these are concerned. */
+function sendChatImageToken(imageId){
+  const kind=ChatImagePickerKind;
+  const token=`{image:${imageId}}`;
+  if(kind==='battle'){
+    if(!State.mp){ showToast("You're not in a match."); return; }
+    const now=Date.now();
+    if(now-BattleChat.lastSentAt<400) return;
+    BattleChat.lastSentAt=now;
+    Net.send({type:'battle_chat', text:token});
+  } else if(kind==='global'){
+    if(!GlobalChat.enabled){ showToast("Global chat isn't configured on this deployment."); return; }
+    const now=Date.now();
+    if(now-GlobalChat.lastSentAt<1200){ showToast('Slow down a little!'); return; }
+    GlobalChat.lastSentAt=now;
+    const me=ensureChatIdentity();
+    GlobalChat.sb.from('global_chat_messages').insert({
+      sender_id:me.id, sender_name:me.name, sender_icon:me.icon, sender_banner:me.banner, sender_bio:me.bio,
+      sender_wins:me.wins, sender_losses:me.losses, sender_cards_count:me.cardsCount, sender_favorite_cards:me.favoriteCards,
+      message:token,
+    }).then(({error})=>{ if(error){ console.warn('[chat] image send failed',error); showToast("Message didn't send — try again"); } });
+  } else if(kind==='guild'){
+    Net.send({type:'guild_chat_send', message:token});
+  } else if(kind==='dm'){
+    if(!BazaarState.dmActiveUserId) return;
+    const req={type:'dm_send', toId:BazaarState.dmActiveUserId, text:token};
+    if(BazaarState.dmActiveListingId) req.listingId=BazaarState.dmActiveListingId;
+    Net.send(req);
+  }
+  closeChatImagePicker();
 }
 
 function renderIcon(id,size=20){
@@ -4670,6 +4863,20 @@ function refreshMenuUI(){
   if(ew)ew.textContent=Player.wins;if(el)el.textContent=Player.losses;
   if(ewr)ewr.textContent=`${winRate}%`;
   renderPlayRankCard(Player.rank);
+  updatePlayDeckReadiness();
+}
+
+/** Reflects deck readiness on the Play tab's battle button itself — greyed
+ * out and relabeled when the deck isn't a legal DECK_SIZE, so the player
+ * sees before clicking, not after a round trip to the server. */
+function updatePlayDeckReadiness(){
+  const btn=document.getElementById('play-battle-btn');
+  const labelEl=document.getElementById('play-battle-btn-label');
+  if(!btn||!labelEl) return;
+  const size=(Player.deck||[]).length;
+  const ready=size===DECK_SIZE;
+  btn.classList.toggle('disabled', !ready);
+  labelEl.textContent=ready?(PlayMode==='casual'?'Find Casual Match':'Find Ranked Match'):`Deck Not Ready (${size}/${DECK_SIZE})`;
 }
 
 /* ── PLAY TAB: rank progression card ─────────────────────
@@ -4719,8 +4926,7 @@ function setPlayMode(mode){
   document.querySelectorAll('#play-mode-toggle .play-mode-btn').forEach(btn=>{
     btn.classList.toggle('active',btn.dataset.mode===PlayMode);
   });
-  const labelEl=document.getElementById('play-battle-btn-label');
-  if(labelEl)labelEl.textContent=PlayMode==='casual'?'Find Casual Match':'Find Ranked Match';
+  updatePlayDeckReadiness(); // re-derives the button label (mode name, or "deck not ready") from current state
   const noteEl=document.getElementById('play-mode-note');
   if(noteEl)noteEl.style.display=PlayMode==='casual'?'block':'none';
 }
@@ -5067,7 +5273,7 @@ function guildChatMessageHtml(m){
         <span class="gc-msg-name" onclick="viewPlayerProfile('${m.userId}')" style="cursor:pointer;">${escapeHtml(m.username)}</span>
         <span class="gc-msg-time">${formatChatTime(m.createdAt)}</span>
       </div>
-      <div class="gc-msg-text">${escapeHtml(m.message)}</div>
+      <div class="gc-msg-text">${renderChatBody(m.message)}</div>
     </div>
   </div>`;
 }
@@ -7309,6 +7515,7 @@ function applyCardLibraryText(rawText,hash){
   const parsed=JSON.parse(rawText);
   if(!Array.isArray(parsed)||!parsed.length) throw new Error('cards.json was empty/invalid');
   CardDB=parsed;
+  CardById=Object.fromEntries(CardDB.map(c=>[c.id,c]));
   CardLibraryHash=hash;
 }
 
@@ -7755,7 +7962,7 @@ function renderDMThread(){
           : `<div class="dm-offer-status">${m.offerStatus==='accepted'?'Offer accepted — sale complete':m.offerStatus==='declined'?'Offer declined':'Offer expired'}</div>`}
       </div>`;
     }
-    return `<div class="dm-bubble ${m.fromId===Net.userId?'mine':'theirs'}">${escapeHtml(m.message)}</div>`;
+    return `<div class="dm-bubble ${m.fromId===Net.userId?'mine':'theirs'}">${renderChatBody(m.message)}</div>`;
   }).join('');
   thread.innerHTML=`
     <div class="dm-thread-messages" id="dm-thread-messages">${bubbles || '<div class="dm-thread-empty">Say hello — you can also send a price offer below.</div>'}</div>
@@ -7765,6 +7972,7 @@ function renderDMThread(){
       <button class="bazaar-btn bid" onclick="sendDMOffer()">Send Offer</button>
     </div>
     <form class="dm-thread-input-row" onsubmit="return sendDMMessageForm(event)">
+      <button type="button" class="chat-image-btn" title="Send an image" onclick="openChatImagePicker('dm')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
       <input class="gc-input" id="dm-text-input" maxlength="300" placeholder="Message…" autocomplete="off">
       <button type="submit" class="gc-send-btn" title="Send"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M13 5l7 7-7 7"/></svg></button>
     </form>`;
@@ -8138,6 +8346,13 @@ const Net={
             hideConnectingOverlay();
           }
           showToast('⚠ Your game files are out of date — please hard-refresh (Ctrl/Cmd+Shift+R) and try again.', 6000);
+        } else if(msg.reason==='invalid_deck'){
+          hideQueueOverlay();
+          const size=msg.deckSize??0, need=msg.requiredSize??DECK_SIZE;
+          showToast(`⚠ Your deck isn't ready — ${size}/${need} cards. Build a legal deck first.`, 4000);
+          switchMenuTab('deck');
+        } else if(msg.reason==='invalid_chat_image'){
+          showToast("⚠ That image isn't in the official catalog — message blocked.", 3600);
         } else if(msg.reason==='deck_wrong_size'){
           showToast(`⚠ Deck must be exactly ${DECK_SIZE} cards.`);
         } else if(msg.reason==='deck_composition_invalid'){
@@ -8707,6 +8922,15 @@ function hideQueueOverlay(){
 }
 
 function startMultiplayerGame(){
+  // Instant client-side check for the common case (deck not filled out yet) so
+  // the player doesn't have to wait on a round-trip to find out. The server
+  // still re-validates full deck legality (composition, not just count) before
+  // ever handing out a match — this is just faster feedback, not the real gate.
+  if(!Player.deck || Player.deck.length!==DECK_SIZE){
+    showToast(`⚠ Your deck isn't ready — ${Player.deck?Player.deck.length:0}/${DECK_SIZE} cards. Build a legal deck first.`, 4000);
+    switchMenuTab('deck');
+    return;
+  }
   beginServerWait(()=>{
     showQueueOverlay();
     Net.send({type:'queue_join', mode:PlayMode});
@@ -9108,7 +9332,7 @@ function renderChatMessage(row,opts={}){
       <div class="gc-msg-text"></div>
     </div>`;
   wrap.querySelector('.gc-msg-name').textContent=row.sender_name||'Pestmaster';
-  wrap.querySelector('.gc-msg-text').textContent=row.message||'';
+  wrap.querySelector('.gc-msg-text').innerHTML=renderChatBody(row.message||'');
   if(!isOwn){
     wrap.querySelector('.gc-msg-avatar').addEventListener('click',e=>{
       if(isUserInMatch(row.sender_id)){ e.stopPropagation(); spectateUser(row.sender_id); }
@@ -9171,7 +9395,7 @@ function handleBattleChatMessage(msg){
       <div class="gc-msg-text"></div>
     </div>`;
   wrap.querySelector('.gc-msg-name').textContent=isOwn?(Player.name||'You'):(msg.name||State.opponentName||'Opponent');
-  wrap.querySelector('.gc-msg-text').textContent=msg.text||'';
+  wrap.querySelector('.gc-msg-text').innerHTML=renderChatBody(msg.text||'');
   wrap.addEventListener('click',()=>{ viewPlayerProfile(msg.from); });
   list.appendChild(wrap);
   const shouldStick=list.scrollTop+list.clientHeight>=list.scrollHeight-40;
@@ -9321,6 +9545,7 @@ window.onload=()=>{
   // Prefetch quietly in the background so it's likely ready by the time the player
   // presses Enter — but Enter Arena/Find Match/pack purchases all await this same
   // promise themselves too, showing their own loading UI if it isn't done yet.
+  loadChatImageCatalog(); // independent of card library/auth — chat images just need to be fetched once, in the background
   ensureCardLibrary().then(loadPlayer).then(initGlobalChat);
 };
 </script>
