@@ -21,12 +21,35 @@
  * compat (some support abilities still top it up cosmetically) but nothing
  * in the engine ever checks it to decide a match's outcome anymore.
  *
- * Death is permanent — a dead creature never returns to the deck — with one
- * exception: a card whose top effect is a `revive` ability (instead of an
- * `attack`) can be activated as that card's turn action to bring back any
- * one creature from its own side's graveyard, player's choice, at a
- * fraction of its max HP (see `executeRevive`). Like an attack, this uses up
- * that slot's action for the turn — no free/automatic revives of any kind.
+ * Death is permanent — a dead creature never returns to the deck — with two
+ * exceptions, both driven entirely by `topEffect` data:
+ *
+ *  1. An `ability`-type top effect carrying a `revive` block (instead of an
+ *     `attack`) can be activated as that card's turn action to bring back
+ *     any one creature from its own side's graveyard, player's choice, at a
+ *     fraction of its max HP (see `executeRevive`). Like an attack, this
+ *     uses up that slot's action for the turn — a deliberate player choice,
+ *     never automatic.
+ *  2. A `passive`-type top effect carrying a `revive` block instead grants
+ *     the CARD IT'S ON (and only that card) a self-revive on its own death —
+ *     no turn action, no player choice, no graveyard trip at all; it just
+ *     comes right back in its own slot (see `tryPassiveRevive`, called from
+ *     `killCard`). This is the only kind of "free"/automatic revive in the
+ *     game, and it's strictly self-only — it can never bring back anything
+ *     else. `revive.guaranteed` banks N always-succeeds revives (tracked per
+ *     live card instance), `revive.chance` is a 0–1 roll attempted after any
+ *     guaranteed revives are exhausted (or from the very first death if
+ *     there's no `guaranteed` at all), and `revive.healPercent` controls how
+ *     much HP each revive restores (defaults to 1.0 — full HP — since this
+ *     is a much narrower effect than the active ability's).
+ *  3. The REVIVE QUEUE (see `processReviveQueue`) is a third, independent
+ *     path back from the graveyard — automatic like the passive self-revive,
+ *     but classification-driven and NOT self-only: killing an enemy PESTS,
+ *     BOSS, or OVERLORD credits your side with revive charges, which are
+ *     then spent oldest-to-newest against your own graveyard (which doubles
+ *     as this queue) to bring dead creatures back to hand. Entirely separate
+ *     currency and trigger from the two revive mechanisms above — a card
+ *     can be brought back by whichever of the three gets there first.
  */
 
 const crypto = require('crypto');
@@ -77,29 +100,153 @@ function applySetBonuses(cards, ids) {
   return cards;
 }
 
-const RARITY_ORDER = ['common','uncommon','rare','epic','legendary','mythic'];
+const RARITY_ORDER = ['common','uncommon','rare','epic','legendary','mythic','fabled'];
 const rarityRank = r => RARITY_ORDER.indexOf(r);
 
 /* ── PACK DEFINITIONS (verbatim from client) ──────────────────────── */
 const PACK_DEFS = [
   {id:'basic',    currency:'gold', size:3, cost:80,
-   weights:{common:74,uncommon:23,rare:3,epic:0,legendary:0,mythic:0}, guarantees:[], filter:null},
+   weights:{common:50,uncommon:35,rare:15,epic:0,legendary:0,mythic:0,fabled:0}, guarantees:[], filter:null},
   {id:'standard', currency:'gold', size:5, cost:200,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2}, guarantees:[], filter:null},
+   weights:{common:30,uncommon:32,rare:25,epic:10,legendary:3,mythic:0,fabled:0}, guarantees:[], filter:null},
   {id:'mob',      currency:'gold', size:4, cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2}, guarantees:[], filter:c=>c.types?.includes('mob')},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0}, guarantees:[], filter:c=>c.types?.includes('mob')},
   {id:'dragon',   currency:'gold', size:4, cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2}, guarantees:[], filter:c=>c.types?.includes('dragon')},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0}, guarantees:[], filter:c=>c.types?.includes('dragon')},
   {id:'wizard',   currency:'gold', size:4, cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2}, guarantees:[], filter:c=>c.types?.includes('wizard')},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0}, guarantees:[], filter:c=>c.types?.includes('wizard')},
+  // Armory can only give weapons/defenses, and is capped at Legendary — no Mythic weapons/defenses exist, so mythic stays at 0.
   {id:'armory',   currency:'gold', size:5, cost:220,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2}, guarantees:[], filter:c=>c.cardType==='weapon'||c.cardType==='defense'},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:6,mythic:0,fabled:0}, guarantees:[], filter:c=>c.cardType==='weapon'||c.cardType==='defense'},
   {id:'boss',     currency:'gems', size:7, cost:150,
-   weights:{common:28,uncommon:32,rare:26,epic:10,legendary:3,mythic:1}, guarantees:['rare'], filter:null},
+   weights:{common:0,uncommon:15,rare:32,epic:30,legendary:17,mythic:4,fabled:2}, guarantees:['rare'], filter:null},
   {id:'overlord', currency:'gems', size:7, cost:250,
-   weights:{common:0,uncommon:14,rare:42,epic:30,legendary:10,mythic:4}, guarantees:['epic'], filter:null},
+   weights:{common:0,uncommon:0,rare:30,epic:30,legendary:23,mythic:10,fabled:7}, guarantees:['epic'], filter:null},
 ];
 const PackById = Object.fromEntries(PACK_DEFS.map(p => [p.id, p]));
+
+/* ══════════════════════════════════════════════════════════════════════
+ * QUEST SYSTEM — pure data + pure helpers only. All progress is tracked,
+ * persisted, and verified server-side (see server.js's player_quest_progress
+ * / player_quest_bars tables + recordQuestEvent/addQuestBarPoints) — the
+ * client is only ever told the result, never trusted to report it, same
+ * spirit as everything else in this file.
+ *
+ * Three scopes:
+ *   daily      — resets every UTC day (see dailyPeriodKey). Completing one
+ *                awards `points` (10 or 20) onto that day's Daily Quest Bar.
+ *   weekly     — resets every ISO week (see weeklyPeriodKey). Same idea,
+ *                onto that week's Weekly Quest Bar.
+ *   permanent  — never resets, completes once, ever. Pays its `reward`
+ *                (currency now; `banner`/`icon` fields are placeholders for
+ *                a future cosmetic-unlock system — currently a no-op if set)
+ *                immediately on completion, no bar involved.
+ *
+ * Each quest def's `track` is a string key that server.js's game-event hooks
+ * (a match win, a pack purchase, a tournament join, a global chat message,
+ * a profile edit, ...) call recordQuestEvent(userId, track, amount) with —
+ * every currently-active quest (any scope) listening on that track gets
+ * `amount` added to its progress, clamped at `target`. Adding a new quest is
+ * just adding an entry below; if nothing currently listens on a track yet
+ * (see the commented-out examples), calling recordQuestEvent for it is a
+ * harmless no-op, so hooks can be wired up ahead of the quests that use them.
+ *
+ * Only 2 daily + 2 weekly + 1 permanent are filled in for now, per spec —
+ * the shape supports as many as needed later. */
+const QUEST_TRACK = {
+  MATCH_WIN: 'match_win',
+  PACK_BUY: 'pack_buy',
+  TOURNAMENT_JOIN: 'tournament_join',
+  CHAT_MESSAGE: 'chat_message',
+  PROFILE_CUSTOMIZE: 'profile_customize',
+};
+
+const QUEST_DEFS = [
+  // ── DAILY ── (2, per spec)
+  { id:'daily_win_3',      scope:'daily', track:QUEST_TRACK.MATCH_WIN,  target:3, points:20,
+    title:'Win 3 Games',   desc:'Win 3 matches today.' },
+  { id:'daily_buy_pack_1', scope:'daily', track:QUEST_TRACK.PACK_BUY,   target:1, points:10,
+    title:'Open a Pack',   desc:'Buy 1 card pack today.' },
+
+  // ── WEEKLY ── (2, per spec)
+  { id:'weekly_win_15',       scope:'weekly', track:QUEST_TRACK.MATCH_WIN,       target:15, points:20,
+    title:'Win 15 Games',        desc:'Win 15 matches this week.' },
+  { id:'weekly_tournament_2', scope:'weekly', track:QUEST_TRACK.TOURNAMENT_JOIN, target:2,  points:20,
+    title:'Enter 2 Tournaments', desc:'Register for 2 tournaments this week.' },
+
+  // ── PERMANENT ── (1 active for now, per spec — reward.banner/reward.icon
+  // are placeholders for the future cosmetic-unlock system mentioned in the
+  // spec; they currently do nothing on top of the immediate currency).
+  { id:'permanent_chat_50', scope:'permanent', track:QUEST_TRACK.CHAT_MESSAGE, target:50,
+    title:'Say Hello', desc:'Send 50 messages in global chat.',
+    reward:{ gold:200, gems:0, banner:null, icon:null } },
+
+  // Scaffolded, not active — same system, just more examples of what can
+  // slot in later without any further engine changes:
+  // { id:'permanent_customize_profile', scope:'permanent', track:QUEST_TRACK.PROFILE_CUSTOMIZE, target:1,
+  //   title:'Make It Yours', desc:'Customize your profile.', reward:{ gold:100, gems:0 } },
+];
+const QuestById = Object.fromEntries(QUEST_DEFS.map(q => [q.id, q]));
+const questDefsForTrack = track => QUEST_DEFS.filter(q => q.track === track);
+const questDefsForScope = scope => QUEST_DEFS.filter(q => q.scope === scope);
+
+/** The bar fills from 0–100 via each completed daily/weekly quest's
+ * `points`, paying out a (placeholder, tunable) currency reward every time
+ * it crosses one of these milestones — weekly pays more than daily since
+ * its quests are harder. */
+const QUEST_BAR_MILESTONES = [20, 40, 60, 80, 100];
+const QUEST_BAR_MILESTONE_REWARDS = {
+  daily:  { 20:{gold:25}, 40:{gold:25}, 60:{gold:35}, 80:{gold:35}, 100:{gold:75,  gems:2} },
+  weekly: { 20:{gold:60}, 40:{gold:60}, 60:{gold:80}, 80:{gold:80}, 100:{gold:200, gems:8} },
+};
+
+/** UTC calendar day, e.g. '2026-08-13' — the daily reset boundary. A new
+ * key each day means a brand-new progress/bar row is simply created fresh;
+ * nothing needs to explicitly "reset" the old one. */
+function dailyPeriodKey(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+/** ISO-8601 week key, e.g. '2026-W33' — the weekly reset boundary (Monday
+ * start, first week of a year is the one containing that year's first
+ * Thursday). Same "new key = fresh row" reasoning as dailyPeriodKey. */
+function weeklyPeriodKey(now = new Date()) {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
+  d.setUTCDate(d.getUTCDate() - dayNum + 3); // shift to this ISO week's Thursday
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+/** Permanent quests never reset, so they always live under this one
+ * constant "period" rather than a rolling date/week key. */
+const PERMANENT_PERIOD_KEY = 'permanent';
+function periodKeyForScope(scope, now = new Date()) {
+  if (scope === 'daily') return dailyPeriodKey(now);
+  if (scope === 'weekly') return weeklyPeriodKey(now);
+  return PERMANENT_PERIOD_KEY;
+}
+
+/** Given a bar's already-claimed milestone list and its new point total,
+ * returns the milestones newly crossed (each only once, ever, per bar
+ * period — diffing against `claimedMilestones` rather than an old/new
+ * point delta makes this safe to call however/whenever, not just exactly
+ * once per point-add) and the combined reward to pay out for them. Does
+ * NOT mutate its inputs — the caller persists the returned claimed list. */
+function resolveBarMilestoneCrossings(scope, points, claimedMilestones) {
+  const claimed = new Set(claimedMilestones || []);
+  const rewardTable = QUEST_BAR_MILESTONE_REWARDS[scope] || {};
+  const newlyCrossed = [];
+  let reward = { gold: 0, gems: 0 };
+  for (const m of QUEST_BAR_MILESTONES) {
+    if (points >= m && !claimed.has(m)) {
+      newlyCrossed.push(m);
+      claimed.add(m);
+      const r = rewardTable[m] || {};
+      reward = { gold: reward.gold + (r.gold || 0), gems: reward.gems + (r.gems || 0) };
+    }
+  }
+  return { newlyCrossed, reward, claimedMilestones: [...claimed].sort((a, b) => a - b) };
+}
 
 function rollRarityFromWeights(weights) {
   const total = Object.values(weights).reduce((s, w) => s + w, 0);
@@ -176,7 +323,7 @@ const Effects = {
   strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'strongPoison',50), 'strongPoison');} },
   mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'mythicPoison',75), 'mythicPoison');} },
   curse:        { trigger:'onTurnStart', logic(){} },
-  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.5) x.cancelAttack = true; } }, // its amp/damp-aware miss roll lives inline in performHit, alongside shock/soak — see missChanceFor
+  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.125) x.cancelAttack = true; } }, // its amp/damp-aware miss roll lives inline in performHit, alongside shock/soak — see missChanceFor
   sleep:        { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'sleep',ed,match); } },
   paralyze:     { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'paralyze',ed,match); } },
   burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'burn',10), 'burn');} },
@@ -190,7 +337,7 @@ function dot(card, ctx, dmg, type) {
   ctx.events.push({ t:'dot', side: ctx.side, slot: ctx.slot, card:card.instanceId, dmg, effect:type });
 }
 function rollSkip(card, ctx, type, ed, match) {
-  const chance = chanceFor(match, ctx.side, ed, type, .5);
+  const chance = chanceFor(match, ctx.side, ed, type, .125);
   if (Math.random() < chance) {
     ctx.skipTurn = true;
     ctx.events.push({ t:'status', side: ctx.side, slot: ctx.slot, card:card.instanceId, effect:type, hit:true });
@@ -224,41 +371,81 @@ function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e
  * attacker's weapon and a -10 damp from the defender's own defense nets
  * out to +15 over baseline, and the total damage/chance never goes below
  * zero. Either one disappears the instant its gear isn't active anymore. */
-function currentAmpValue(match, ed, type) {
+/** Some status effects tick damage AND roll a percentage-based chance in the
+ * same effect (cryo: dmg + skip-turn chance; shock: dmg + miss-attack
+ * chance). For these, a gear's `ampEffects`/`dampEffects` entry must say
+ * which dimension it's boosting/reducing — `'damage'` or `'chance'` — via
+ * the object form `{ value: N, target: 'damage'|'chance' }`, since a bare
+ * number would be ambiguous. Effects with only one dimension (bleed,
+ * poison, burn, ... are damage-only; sleep, paralyze, confusion are
+ * chance-only) never need `target` — a bare number just applies to that
+ * effect's one dimension, and an object form's `target` is ignored. */
+const MULTI_DIMENSION_EFFECTS = new Set(['cryo', 'shock']);
+/** `soak` is the odd one out: it rolls TWO different percentages (the
+ * chance its own carrier whiffs their attack, and the % it reduces
+ * incoming damage by) but, unlike cryo/shock, they aren't a damage+chance
+ * pair you can target independently — they're both percentages. So a
+ * single ampEffects/dampEffects.soak value (bare number OR object form —
+ * `target` is ignored) is applied to BOTH of soak's percentages at once. */
+const DUAL_PERCENT_EFFECTS = new Set(['soak']);
+/** Pulls the raw ampEffects/dampEffects entry for `type` (bare number,
+ * `{value,target}` object, or undefined if that gear doesn't touch it) and
+ * resolves it down to a plain number for the dimension being asked about
+ * (`'damage'` or `'chance'`) — or `undefined` if this entry doesn't apply
+ * to that dimension at all (e.g. a shock amp targeting 'chance' has no
+ * effect on shock's damage tick). */
+function resolveAmpDamp(entry, type, dimension) {
+  if (entry == null) return undefined;
+  const isObj = typeof entry === 'object';
+  const value = isObj ? entry.value : entry;
+  if (value == null) return undefined;
+  if (DUAL_PERCENT_EFFECTS.has(type)) return value; // applies to both of soak's percentages regardless of target
+  if (!MULTI_DIMENSION_EFFECTS.has(type)) return value; // single-dimension effect: no target needed
+  // Multi-dimension (cryo/shock): a bare number defaults to 'damage' (matching
+  // ampEffects' original damage-only behavior); an object must match `dimension`.
+  const target = isObj ? entry.target : 'damage';
+  return target === dimension ? value : undefined;
+}
+function currentAmpValue(match, ed, type, dimension) {
   if (!match || !ed || ed.ampSide == null || !ed.ampKind) return undefined;
   const gearSide = match.sides[ed.ampSide];
   const gear = ed.ampKind === 'weapon' ? (gearSide && gearSide.weaponCard) : (gearSide && gearSide.defenseCard);
-  return gear && gear.ampEffects && gear.ampEffects[type] != null ? gear.ampEffects[type] : undefined;
+  return resolveAmpDamp(gear && gear.ampEffects && gear.ampEffects[type], type, dimension);
 }
-function currentDampValue(match, side, type) {
+function currentDampValue(match, side, type, dimension) {
   if (!match || side == null) return undefined;
   const gearSide = match.sides[side];
   const gear = gearSide && gearSide.defenseCard;
-  return gear && gear.dampEffects && gear.dampEffects[type] != null ? gear.dampEffects[type] : undefined;
+  return resolveAmpDamp(gear && gear.dampEffects && gear.dampEffects[type], type, dimension);
 }
 /** Damage-type effects (bleed, poison, burn, shock, cryo, ...): amp adds
  * to the effect's baseline tick damage, damp subtracts from it — e.g.
  * baseline 10, ampEffects:{burn:25} while equipped -> 35, and if the
  * affected side's own defense also carries dampEffects:{burn:5} while
- * equipped -> 30. Never drops below 0. `side` is whichever side owns the
+ * equipped -> 30. For cryo/shock, only an amp/damp entry targeting
+ * `'damage'` (or a bare number) applies here — one targeting `'chance'`
+ * is skipped. Never drops below 0. `side` is whichever side owns the
  * card the effect is ticking on (i.e. the potential dampener). */
 function effectiveDmg(match, side, ed, type, baseDmg) {
-  const amp = currentAmpValue(match, ed, type);
-  const damp = currentDampValue(match, side, type);
+  const amp = currentAmpValue(match, ed, type, 'damage');
+  const damp = currentDampValue(match, side, type, 'damage');
   let dmg = baseDmg;
   if (amp != null) dmg += amp;
   if (damp != null) dmg -= damp;
   return Math.max(0, dmg);
 }
 /** Chance-type effects (sleep, paralyze, confusion, shock/soak's miss
- * roll, ...): ampEffects/dampEffects values are 0–100 percentage POINTS
- * added to/subtracted from the effect's baseline chance — e.g. baseline
- * 50%, ampEffects:{paralyze:25} while equipped -> 75%, and if the
- * affected side's defense carries dampEffects:{paralyze:20} while
- * equipped -> 55%. Clamped to the 0–100% range either way. */
+ * roll, cryo's skip-turn roll, ...): ampEffects/dampEffects values are
+ * 0–100 percentage POINTS added to/subtracted from the effect's baseline
+ * chance — e.g. baseline 12.5%, ampEffects:{paralyze:25} while equipped
+ * -> 37.5%, and if the affected side's defense carries
+ * dampEffects:{paralyze:10} while equipped -> 27.5%. For cryo/shock, only
+ * an amp/damp entry targeting `'chance'` applies here — a bare number (or
+ * one targeting `'damage'`) is skipped, since it's boosting the DOT tick
+ * instead. Clamped to the 0–100% range either way. */
 function chanceFor(match, side, ed, type, baseChance) {
-  const amp = currentAmpValue(match, ed, type);
-  const damp = currentDampValue(match, side, type);
+  const amp = currentAmpValue(match, ed, type, 'chance');
+  const damp = currentDampValue(match, side, type, 'chance');
   let pct = baseChance * 100;
   if (amp != null) pct += amp;
   if (damp != null) pct -= damp;
@@ -403,41 +590,178 @@ function processEffects(match, entity, trigger, ctx, side) {
 
 /** Kills whatever creature is sitting in `match.sides[side][slotKey]`:
  * removes it from the active slot and pushes it onto that side's graveyard,
- * permanently, unless and until that side spends a `revive` ability's turn
- * action to bring it back (see `executeRevive`). There is no automatic or
- * banked revive of any kind — every revival is a deliberate player choice
- * that costs a card's action, same as an attack would. */
+ * permanently, unless and until that side spends an `ability`-type revive's
+ * turn action to bring it back (see `executeRevive`) — or unless the dying
+ * card itself carries a self-revive `passive` (see `tryPassiveRevive`),
+ * checked first, right here, before any death actually lands. Aside from
+ * that self-revive passive, there is no automatic or banked revive of any
+ * kind — every other revival is a deliberate player choice that costs a
+ * card's action, same as an attack would.
+ * Returns `true` if the card actually died (graveyard, slot cleared), or
+ * `false` if a self-revive passive saved it — callers that were about to
+ * treat this as a kill (stopping a multi-attack sequence, clearing a slot,
+ * etc.) should check this before assuming the card is gone. */
 function killCard(match, side, slotKey, events) {
   const entity = match.sides[side];
   const card = cardInSlot(entity, slotKey);
-  if (!card) return;
+  if (!card) return true;
+  if (tryPassiveRevive(card, events, side, slotKey)) return false;
   events.push({ t:'death', side, slot: slotKey, card:card.instanceId, name:card.name });
   if (entity.activeCard === card) entity.activeCard = null;
   else if (entity.activeCard2 === card) entity.activeCard2 = null;
-  entity.graveyard.push(card);
+  entity.graveyard.push(card); // joins the back of the Revive Queue — see processReviveQueue
+
+  // ── Revive Queue (classification-based, automatic) ──────────────────
+  // Whichever side didn't just lose this creature is credited with its
+  // classification's revive charges (0 for a Normal/unclassified kill —
+  // see reviveClassFor) — this covers every death path uniformly
+  // (attack, curse recoil, DOT, rocks), crediting the "other side" of
+  // whoever died in every case. Both sides' queues are then re-checked:
+  // the dying side's because it just gained a new entry that a
+  // previously-unspendable held charge might now afford, the credited
+  // side's because it may have just gained enough to clear something.
+  const otherSide = side === 0 ? 1 : 0;
+  const base = CardById[card.baseId];
+  grantReviveCharges(match, otherSide, base && base.classification, events);
+  processReviveQueue(match, otherSide, events);
+  processReviveQueue(match, side, events);
+  return true;
 }
 
-/** Activates a `revive` top-effect ability as `slotKey`'s action for the
- * turn: the acting card must be alive, unacted-this-turn, and have
- * `topEffect.type === 'revive'`; `deadInstanceId` must name a creature
- * currently in this side's graveyard (the caller's choice — earliest,
- * latest, whichever they want). The revived creature returns to hand at
- * `topEffect.healPercent` of its max HP (50% if unspecified) with all
- * lingering statuses cleared, and this consumes the acting card's turn
- * exactly like an attack would. */
+/** ── REVIVE QUEUE ─────────────────────────────────────────────────────
+ * A side's `graveyard` array doubles as its Revive Queue: pushes at death
+ * time, so index 0 is always the oldest death and the array is already in
+ * the right order to scan front-to-back — no separate structure needed.
+ *
+ * Classification -> { cost, charge } (cards.json's `"classification"` field
+ * — `"normal"` is a real, explicit value here, not just "no classification"):
+ *   normal:   cost 1 to revive, grants 0 charges when killed.
+ *   pests:    cost 1 to revive, grants 1 charge when killed.
+ *   boss:     cost 2 to revive, grants 2 charges when killed.
+ *   overlord: cost 2 to revive, grants 2 charges when killed.
+ * Killing an ENEMY creature credits YOUR side with its `charge` value;
+ * reviving one of YOUR OWN dead creatures spends its `cost` from your
+ * side's `reviveCharges` bank. Anything missing/unrecognized falls back to
+ * the `normal` row, so a stray/legacy unclassified card doesn't crash. */
+const REVIVE_CLASS_TABLE = {
+  normal:   { cost: 1, charge: 0 },
+  pests:    { cost: 1, charge: 1 },
+  boss:     { cost: 2, charge: 2 },
+  overlord: { cost: 2, charge: 2 },
+};
+function reviveClassFor(classification) {
+  return REVIVE_CLASS_TABLE[classification] || REVIVE_CLASS_TABLE.normal;
+}
+/** Credits `side` with the revive charges earned for killing an enemy
+ * creature of `classification` — a no-op (0 charges) for a Normal kill. */
+function grantReviveCharges(match, side, classification, events) {
+  const { charge } = reviveClassFor(classification);
+  if (charge <= 0) return;
+  match.sides[side].reviveCharges += charge;
+  events.push({ t:'revive_charge_gain', side, amount: charge, classification, total: match.sides[side].reviveCharges });
+}
+/** Placeholder heal fraction applied to a creature the Revive Queue brings
+ * back — freely tunable, nothing else depends on this number. */
+const REVIVE_QUEUE_HEAL_PERCENT = 1;
+/** Walks `side`'s graveyard/Revive Queue oldest -> newest, reviving (back
+ * to hand) every entry `side.reviveCharges` can fully afford and skipping
+ * — never partially paying toward — any it can't, per the "no partial
+ * progress on a BOSS/OVERLORD" rule. A successful revive removes that
+ * entry and restarts the scan from the front, since spending charges (and
+ * the queue shrinking) can change what else is now reachable; charges
+ * that can't fully afford anything currently in the queue are simply left
+ * sitting on `side.reviveCharges` untouched — there's nothing extra to do
+ * to "hold" them, since holding is just what happens when nothing gets
+ * spent. That's also why this only needs to run after (a) a kill grants
+ * new charges, and (b) a new death joins the queue — both are the only
+ * moments that can change what's affordable. */
+function processReviveQueue(match, side, events) {
+  const entity = match.sides[side];
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    for (let i = 0; i < entity.graveyard.length; i++) {
+      const card = entity.graveyard[i];
+      const base = CardById[card.baseId];
+      const { cost } = reviveClassFor(base && base.classification);
+      if (entity.reviveCharges < cost) continue; // can't fully afford it — skip in place, no partial spend
+      entity.graveyard.splice(i, 1);
+      entity.reviveCharges -= cost;
+      card.currentHp = Math.max(1, Math.round(card.maxHp * REVIVE_QUEUE_HEAL_PERCENT));
+      card.activeEffects = [];
+      entity.hand.push(card);
+      events.push({ t:'queue_revive', side, card: card.instanceId, name: card.name, hp: card.currentHp, maxHp: card.maxHp, cost, chargesLeft: entity.reviveCharges });
+      progressed = true;
+      break; // queue + charges both changed — rescan from the front
+    }
+  }
+}
+
+/** Checks `card` for a self-revive `passive` (`topEffect.type === 'passive'`
+ * with a `topEffect.revive` block) and, if it grants a revive right now,
+ * applies it in place: heals the SAME card back up (never leaves its slot,
+ * never touches the graveyard) and clears its lingering status effects,
+ * same cleanup a normal revive gets. This is self-only by design — it never
+ * revives anything else, and other creatures can't trigger it for it.
+ *
+ * `revive.guaranteed` (if present) is a bank of always-succeeds revives,
+ * tracked per LIVE CARD INSTANCE in `card.reviveState.guaranteedLeft`
+ * (seeded once at `createCard` time, so it's per-match and doesn't leak
+ * between games). The guaranteed bank is always drained before any
+ * `revive.chance` roll is attempted — so "N guaranteed, then a chance after
+ * that" spends the guaranteed pool down first, and only starts rolling once
+ * it's empty. A card with only `chance` (no `guaranteed`) rolls every single
+ * death, forever, with no free revives at all.
+ *
+ * Returns true if the card was revived (caller must NOT proceed with the
+ * kill), false if no self-revive passive applies here, or this particular
+ * death rolled unlucky. */
+function tryPassiveRevive(card, events, side, slotKey) {
+  const te = card.topEffect;
+  if (!te || te.type !== 'passive' || !te.revive) return false;
+  const rv = te.revive;
+  let revived = false;
+  if (card.reviveState && card.reviveState.guaranteedLeft > 0) {
+    card.reviveState.guaranteedLeft--;
+    revived = true;
+  } else if (rv.chance) {
+    revived = Math.random() < rv.chance;
+  }
+  if (!revived) return false;
+  const healPercent = rv.healPercent != null ? rv.healPercent : 1;
+  card.currentHp = Math.max(1, Math.round(card.maxHp * healPercent));
+  card.activeEffects = [];
+  events.push({ t:'passive_revive', side, slot: slotKey, card: card.instanceId, name: card.name, hp: card.currentHp, maxHp: card.maxHp });
+  return true;
+}
+
+/** Activates an `ability` top-effect's `revive` block as `slotKey`'s action
+ * for the turn: the acting card must be alive, unacted-this-turn, and have
+ * `topEffect.type === 'ability'` with a `topEffect.revive` block present
+ * (this is what distinguishes an active revive ability from an ordinary
+ * on-deploy `ability` like a curse or a heal); `deadInstanceId` must name a
+ * creature currently in this side's graveyard (the caller's choice —
+ * earliest, latest, whichever they want). The revived creature returns to
+ * hand at `topEffect.revive.healPercent` of its max HP (50% if unspecified)
+ * with all lingering statuses cleared, and this consumes the acting card's
+ * turn exactly like an attack would.
+ *
+ * This is unrelated to (and can't trigger) a `passive`-type self-revive —
+ * see `tryPassiveRevive` — which is automatic, self-only, and never costs a
+ * turn action. */
 function executeRevive(match, side, slotKey, deadInstanceId) {
   const entity = match.sides[side];
   const events = [];
   if (match.actedThisTurn[side].has(slotKey)) return { ok:false, reason:'already_acted', events };
   const actingCard = cardInSlot(entity, slotKey);
   if (!actingCard) return { ok:false, reason:'no_card_in_slot', events };
-  if (!actingCard.topEffect || actingCard.topEffect.type !== 'revive') return { ok:false, reason:'no_revive_ability', events };
+  if (!actingCard.topEffect || actingCard.topEffect.type !== 'ability' || !actingCard.topEffect.revive) return { ok:false, reason:'no_revive_ability', events };
 
   const idx = entity.graveyard.findIndex(c => c.instanceId === deadInstanceId);
   if (idx === -1) return { ok:false, reason:'invalid_target', events };
   const [card] = entity.graveyard.splice(idx, 1);
 
-  const healPercent = actingCard.topEffect.healPercent != null ? actingCard.topEffect.healPercent : 0.5;
+  const healPercent = actingCard.topEffect.revive.healPercent != null ? actingCard.topEffect.revive.healPercent : 0.5;
   card.currentHp = Math.max(1, Math.round(card.maxHp * healPercent));
   card.activeEffects = [];
   entity.hand.push(card);
@@ -503,6 +827,11 @@ function createCard(baseId) {
   if (base.topEffect.type === 'passive' && base.topEffect.effects.length > 0) {
     base.topEffect.effects.forEach(e => card.activeEffects.push({ type: e.type, duration: e.duration }));
   }
+  if (base.topEffect.type === 'passive' && base.topEffect.revive) {
+    // Per-live-instance revive bank — freshly seeded every time a deck is
+    // built, so it's per-match and never leaks a spent revive between games.
+    card.reviveState = { guaranteedLeft: base.topEffect.revive.guaranteed || 0 };
+  }
   return card;
 }
 
@@ -565,7 +894,12 @@ function deckClassificationOk(defs) {
 }
 
 function generateDeck(n) {
-  const normals = CardDB.filter(c => !c.cardType && c.classification === 'pests');
+  // "Normal" and "PESTS" are both unrestricted filler classifications (see
+  // deckClassificationOk — only boss/overlord counts are capped), so both
+  // pool together here. cards.json is currently all placeholder data using
+  // only 'pests'; 'normal' is included too so real cards using that
+  // classification (see REVIVE_CLASS_TABLE) slot in without further changes.
+  const normals = CardDB.filter(c => !c.cardType && (c.classification === 'pests' || c.classification === 'normal'));
   const bosses = CardDB.filter(c => !c.cardType && c.classification === 'boss');
   const overlords = CardDB.filter(c => !c.cardType && c.classification === 'overlord');
   const equipment = CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense');
@@ -629,7 +963,8 @@ function freshSide(deck) {
     hp: 100, maxHp: 100, // cosmetic only — see module doc; never decides the match anymore
     activeCard: null, activeCard2: null, weaponCard: null, defenseCard: null,
     deck: d, hand: d.splice(0, 4),
-    graveyard: [], // permanently-dead creatures, until/unless a revive ability brings one back
+    graveyard: [], // doubles as the Revive Queue — oldest death first (see processReviveQueue)
+    reviveCharges: 0, // spent oldest-to-newest against the graveyard/Revive Queue
   };
 }
 
@@ -702,9 +1037,9 @@ function performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side) {
  *    whatever the attack itself already applies. A weapon's addEffects land on the
  *    target being hit; a defense's addEffects land back on the attacker (thorns). */
 function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events) {
-  if (hasEffect(ac, 'confusion') && Math.random() < missChanceFor(ac,'confusion',match,side,.5)) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
-  if (hasEffect(ac, 'shock') && Math.random() < missChanceFor(ac,'shock',match,side,.5))         { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
-  if (hasEffect(ac, 'soak') && Math.random() < missChanceFor(ac,'soak',match,side,.5))           { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false }; }
+  if (hasEffect(ac, 'confusion') && Math.random() < missChanceFor(ac,'confusion',match,side,.125)) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
+  if (hasEffect(ac, 'shock') && Math.random() < missChanceFor(ac,'shock',match,side,.125))         { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
+  if (hasEffect(ac, 'soak') && Math.random() < missChanceFor(ac,'soak',match,side,.125))           { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false }; }
 
   if (atkDef.heal) return performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side);
 
@@ -726,7 +1061,7 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   }
 
   let dmg = atkDef.damage + wBonus + (ac.synergyDamageBonus || 0);
-  if (hasEffect(ac, 'burn')) { dmg = Math.floor(dmg * .5); events.push({t:'burn_penalty', side, slot:atkSlotKey}); }
+  if (hasEffect(ac, 'burn')) { dmg = Math.floor(dmg * .75); events.push({t:'burn_penalty', side, slot:atkSlotKey}); }
 
   if (!targetCard) {
     // No player HP anymore — a "direct hit" into an empty slot is a no-op,
@@ -737,7 +1072,12 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
 
   const tgtSlotKey = slotOfCard(defEntity, targetCard);
 
-  if (hasEffect(targetCard, 'soak')) { dmg = Math.floor(dmg * .5); events.push({t:'soak_reduce', side:defSide, slot:tgtSlotKey}); }
+  if (hasEffect(targetCard, 'soak')) {
+    const soakEd = targetCard.activeEffects.find(e => e.type === 'soak');
+    const reduction = chanceFor(match, defSide, soakEd, 'soak', .25); // same amp/damp value as soak's miss-attack roll, per DUAL_PERCENT_EFFECTS
+    dmg = Math.floor(dmg * (1 - reduction));
+    events.push({t:'soak_reduce', side:defSide, slot:tgtSlotKey});
+  }
   const pr = targetCard.topEffect && targetCard.topEffect.type === 'passive' ? targetCard.topEffect.passiveReduction : null;
   if (pr) {
     const bypassed = pr.exceptElements && pr.exceptElements.includes(atkDef.element);
@@ -775,13 +1115,13 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
     const r = Math.floor(dmg * .25); ac.currentHp -= r;
     events.push({ t:'curse_recoil', side, slot:atkSlotKey, card:ac.instanceId, dmg:r });
     if (ac.currentHp <= 0) {
-      killCard(match, side, atkSlotKey, events);
-      return { stop:true };
+      const died = killCard(match, side, atkSlotKey, events);
+      if (died) return { stop:true };
     }
   }
   if (targetCard.currentHp <= 0) {
-    killCard(match, defSide, tgtSlotKey, events);
-    return { stop:true };
+    const died = killCard(match, defSide, tgtSlotKey, events);
+    if (died) return { stop:true };
   }
   return { stop:false };
 }
@@ -847,16 +1187,18 @@ function finishAttack(match, side, atkSlotKey, events) {
  * processEffects/decayHandEffects) and can fire again on every subsequent
  * swap for as long as it's still active, in or out of hand.
  * `slotKey` is whichever active slot the card is (about to be, or just was)
- * sitting in. Returns false if the card died from this hit (caller should
- * treat the slot as cleared already — killCard has handled that), true
- * otherwise (including when there was no 'rocks' effect to trigger at all). */
+ * sitting in. Returns false if the card actually died from this hit (caller
+ * should treat the slot as cleared already — killCard has handled that),
+ * true otherwise — including when there was no 'rocks' effect to trigger at
+ * all, AND when the card had lethal rocks damage but self-revived via a
+ * `passive` revive block instead of dying (see `tryPassiveRevive`). */
 function applyRocksOnSwap(match, side, slotKey, events) {
   const entity = match.sides[side];
   const card = cardInSlot(entity, slotKey);
   if (!card || card.cardType || !hasEffect(card, 'rocks')) return true;
   card.currentHp -= 50;
   events.push({ t:'rocks', side, slot: slotKey, card: card.instanceId, name: card.name, dmg: 50 });
-  if (card.currentHp <= 0) { killCard(match, side, slotKey, events); return false; }
+  if (card.currentHp <= 0) { const died = killCard(match, side, slotKey, events); return !died; }
   return true;
 }
 
@@ -908,8 +1250,12 @@ module.exports = {
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
   executeAttack, applyRocksOnSwap, isMatchOver, applyDeployAbility,
   killCard, executeRevive, applySynergies, attackDefFor, aliveCreatureCount,
+  reviveClassFor, grantReviveCharges, processReviveQueue, REVIVE_CLASS_TABLE,
   applySetBonuses, CARD_SET_MEMBERS, SET_STAT_BONUS,
   openPack, rollRarityFromWeights, pickCardOfRarity, generatePackCards,
+  QUEST_TRACK, QUEST_DEFS, QuestById, questDefsForTrack, questDefsForScope,
+  QUEST_BAR_MILESTONES, QUEST_BAR_MILESTONE_REWARDS, PERMANENT_PERIOD_KEY,
+  dailyPeriodKey, weeklyPeriodKey, periodKeyForScope, resolveBarMilestoneCrossings,
   DECK_SIZE, MAX_CREATURES, deckClassificationOk,
   RANK_TIERS, RANK_SUBS, RANK_POINTS_PER_SUB, RANK_POINTS_PER_TIER, RANK_MAX_POINTS, getRank,
 };
