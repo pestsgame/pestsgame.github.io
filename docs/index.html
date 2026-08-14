@@ -295,12 +295,6 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .avatar-player{ background:#0a1a2e;color:#93c5fd;border-color:#1e40af;}
 .hp-display{display:flex;flex-direction:column;gap:2px;}
 .hp-label{font-size:0.56rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--txt-dim);}
-.graveyard-badge{
-  display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 6px;border-radius:9px;
-  font-size:0.56rem;font-weight:800;letter-spacing:0.02em;text-transform:none;
-  background:rgba(148,163,184,0.16);color:#cbd5e1;border:1px solid rgba(148,163,184,0.4);
-  vertical-align:middle;
-}
 .rank-badge{
   display:inline-flex;align-items:center;gap:2px;margin-left:6px;
   vertical-align:middle; white-space:nowrap; line-height:1;
@@ -391,7 +385,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 ══════════════════════════════════════ */
 .card{
   width:144px;height:214px;flex-shrink:0;border-radius:8px;overflow:hidden;
-  border:2px solid var(--rarity-color,#28284a);position:relative;cursor:default;
+  border:2px solid var(--rarity-color,#28284a);position:relative;cursor:default;z-index:0;
   display:flex;flex-direction:column;
   transition:transform 0.18s,box-shadow 0.18s,border-color 0.18s;
   background:linear-gradient(170deg,#0c0c20 0%,#080814 50%,#0b0b1c 100%);
@@ -503,7 +497,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .eff-val.b{color:#93c5fd;}
 .eff-val.p{color:#c4b5fd;}
 .eff-sfx{font-size:0.34rem;line-height:1.25;color:#e2e8f0;padding:1px 6px 2px;font-style:italic;}
-.elem-badge{font-size:0.32rem;font-weight:700;padding:1px 4px;border-radius:3px;letter-spacing:0.05em;text-transform:uppercase;flex-shrink:0;opacity:1;margin-left:8px;margin-right:6px;}
+.elem-badge{font-size:0.28rem;font-weight:700;padding:1px 3px;border-radius:3px;letter-spacing:0.03em;text-transform:uppercase;flex-shrink:0;opacity:1;margin-left:3px;margin-right:3px;}
 
 /* attack picker overlay */
 .atk-picker{position:absolute;inset:0;background:rgba(4,4,16,0.93);border-radius:8px;
@@ -876,29 +870,23 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 /* deck builder */
 .deckbuilder-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;display:flex;flex-direction:column;}
 .card-grid-small{display:flex;flex-wrap:wrap;gap:10px;}
-.db-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
+.db-card-slot{cursor:pointer;position:relative;isolation:isolate;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
 .db-card-slot .card{cursor:pointer;}
 .db-card-slot:hover{transform:translateY(-4px);border-color:rgba(139,92,246,.45);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
 .db-card-slot.in-deck{border-color:#60a5fa;box-shadow:0 0 14px rgba(59,130,246,.35);}
-.db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.5);}
-.dup-count-bubble{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:50%;background:linear-gradient(135deg,#facc15,#d97706);border:2px solid rgba(10,8,20,.9);color:#1a1206;font-family:'Cinzel',serif;font-size:.62rem;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.6);line-height:1;}
+.db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:6px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.5);}
+.dup-count-bubble{position:absolute;top:2px;right:2px;min-width:20px;height:20px;padding:0 5px;border-radius:50%;background:linear-gradient(135deg,#facc15,#d97706);border:2px solid rgba(10,8,20,.9);color:#1a1206;font-family:'Cinzel',serif;font-size:.62rem;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.6);line-height:1;}
 .deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;width:100%;}
 .deck-save-btn:hover{background:linear-gradient(135deg,#1a3460,#1d4ed8);border-color:rgba(99,160,255,.7);box-shadow:0 0 18px rgba(59,130,246,.3);}
 
 /* deck section — the main focus, pinned to the top of the panel */
 .db-deck-section{padding:20px;display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25);}
 .db-deck-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-.db-page-tabs{display:flex;gap:6px;}
-.db-page-tab{font-family:'Cinzel',serif;font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(196,181,253,.6);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 16px;cursor:pointer;transition:all .16s;display:flex;flex-direction:column;align-items:center;gap:1px;}
-.db-page-tab:hover{border-color:rgba(139,92,246,.35);color:#e9d5ff;}
-.db-page-tab.active{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.55);color:#fff;}
-.db-page-tab-range{font-size:.5rem;font-weight:600;color:rgba(156,163,175,.65);letter-spacing:.04em;}
-.db-page-tab.active .db-page-tab-range{color:rgba(196,181,253,.8);}
 .db-deck-slot-grid{display:grid;grid-template-columns:repeat(4,144px);gap:12px;justify-content:center;}
-.db-deck-card-slot{position:relative;}
+.db-deck-card-slot{position:relative;isolation:isolate;}
 .db-deck-card-slot .card{cursor:pointer;}
 .db-deck-empty-slot{width:144px;height:214px;border-radius:8px;border:2px dashed rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.16);font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;line-height:1.6;}
-.db-deck-remove-x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
+.db-deck-remove-x{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
 .db-deck-remove-x:hover{transform:scale(1.15);}
 
 /* collection browser — search + filters, then the results grid */
@@ -1117,14 +1105,17 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 /* ══════════════════════════════════════
    RARITY SYSTEM
 ══════════════════════════════════════ */
-.rarity-common   {background:rgba(156,163,175,.15);color:#d1d5db;border:1px solid rgba(156,163,175,.3);}
-.rarity-uncommon {background:rgba(52,211,153,.13);color:#6ee7b7;border:1px solid rgba(52,211,153,.3);}
-.rarity-rare     {background:rgba(129,140,248,.18);color:#a5b4fc;border:1px solid rgba(129,140,248,.35);}
-.rarity-epic     {background:rgba(245,158,11,.16);color:#fde68a;border:1px solid rgba(245,158,11,.32);}
-.rarity-legendary{background:rgba(239,68,68,.18);color:#fca5a5;border:1px solid rgba(239,68,68,.35);}
-.rarity-mythic   {background:rgba(217,70,239,.22);color:#f5d0fe;border:1px solid rgba(217,70,239,.45);position:relative;overflow:hidden;}
+.rarity-common   {background:rgba(156,163,175,.15);color:#9ca3af;border:1px solid rgba(156,163,175,.3);}
+.rarity-uncommon {background:rgba(52,211,153,.13);color:#34d399;border:1px solid rgba(52,211,153,.3);}
+.rarity-rare     {background:rgba(129,140,248,.18);color:#818cf8;border:1px solid rgba(129,140,248,.35);}
+.rarity-epic     {background:rgba(245,158,11,.16);color:#f59e0b;border:1px solid rgba(245,158,11,.32);}
+.rarity-legendary{background:rgba(239,68,68,.18);color:#ef4444;border:1px solid rgba(239,68,68,.35);}
+.rarity-mythic   {background:rgba(217,70,239,.22);color:#d946ef;border:1px solid rgba(217,70,239,.45);position:relative;overflow:hidden;}
 @keyframes mythicShimmer{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
 .rarity-mythic{background:linear-gradient(90deg,rgba(217,70,239,.22),rgba(99,102,241,.22),rgba(217,70,239,.22));background-size:200% 100%;animation:mythicShimmer 2.2s linear infinite;}
+.rarity-fabled   {background:rgba(34,211,238,.22);color:#22d3ee;border:1px solid rgba(34,211,238,.5);position:relative;overflow:hidden;}
+@keyframes fabledShimmer{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+.rarity-fabled{background:linear-gradient(90deg,rgba(34,211,238,.24),rgba(217,70,239,.2),rgba(250,204,21,.2),rgba(34,211,238,.24));background-size:300% 100%;animation:fabledShimmer 1.8s linear infinite;}
 
 
 
@@ -1277,6 +1268,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pk-top.flipped.r-epic .pk-card-face .card{animation:epicShine 1.8s ease-in-out infinite;}
 @keyframes mythicPulse{0%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 16px var(--rarity-glow,transparent),0 0 0 2px var(--rarity-color,transparent);}50%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 46px var(--rarity-glow-strong,transparent),0 0 0 3px var(--rarity-color,transparent);}100%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 16px var(--rarity-glow,transparent),0 0 0 2px var(--rarity-color,transparent);}}
 .pk-top.flipped.r-mythic .pk-card-face .card{animation:mythicPulse 1.2s ease-in-out infinite;}
+@keyframes fabledPulse{0%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 18px var(--rarity-glow,transparent),0 0 0 2px var(--rarity-color,transparent);}50%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 60px var(--rarity-glow-strong,transparent),0 0 0 4px var(--rarity-color,transparent);}100%{box-shadow:0 3px 12px rgba(0,0,0,.7),0 0 18px var(--rarity-glow,transparent),0 0 0 2px var(--rarity-color,transparent);}}
+.pk-top.flipped.r-fabled .pk-card-face .card{animation:fabledPulse 1s ease-in-out infinite;}
 
 /* Spread row — shown after all cards seen */
 #pack-spread-row{
@@ -1294,6 +1287,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .spread-card-slot.r-legendary .card{animation:legendaryPulse 1.5s ease-in-out infinite;}
 .spread-card-slot.r-mythic .card{animation:mythicPulse 1.2s ease-in-out infinite;}
 .spread-card-slot.r-epic .card{animation:epicShine 1.8s ease-in-out infinite;}
+.spread-card-slot.r-fabled .card{animation:fabledPulse 1s ease-in-out infinite;}
 
 .pack-new-badge{
   position:absolute;top:-8px;left:-8px;background:#10b981;
@@ -1629,6 +1623,252 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .gconfirm-actions{display:flex;gap:10px;}
 .gconfirm-actions .pf-btn{flex:1;}
 .pf-btn-danger{background:linear-gradient(135deg,#5c1414,#dc2626);border-color:#991b1b;}
+
+/* ══════════════════════════════════════
+   INFORMATION LOGBOOK
+   Full-screen reference modal: a scrollable tab rail down the left side
+   (many tabs expected — swap mechanics, classifications, card anatomy,
+   equipment, shop, tournaments, guild/social, win condition, revive
+   system, status effects, and the Replay Tutorial launcher), a scrollable
+   content pane on the right. All section bodies are placeholder copy —
+   see LOGBOOK_SECTIONS in the JS — swap in the real text later.
+══════════════════════════════════════ */
+#logbook-overlay{
+  display:none;position:fixed;inset:0;z-index:1200;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#logbook-overlay.open{display:flex;}
+.lb-modal{
+  width:min(980px,95vw);height:min(720px,88vh);
+  background:var(--panel);border:1px solid rgba(139,92,246,.25);border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:scale(.94) translateY(10px);opacity:0;transition:transform .28s cubic-bezier(.34,1.44,.64,1),opacity .2s;
+}
+#logbook-overlay.open .lb-modal{transform:scale(1) translateY(0);opacity:1;}
+.lb-header{
+  height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;background:rgba(6,6,16,.9);border-bottom:1px solid rgba(139,92,246,.18);
+}
+.lb-header-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#e9d5ff;display:flex;align-items:center;gap:9px;}
+.lb-header-title svg{color:#a78bfa;}
+.lb-close-x{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;flex-shrink:0;}
+.lb-close-x:hover{background:rgba(255,255,255,.12);}
+.lb-body{flex:1;display:flex;overflow:hidden;min-height:0;}
+
+/* Left tab rail — vertical scroll, many entries expected */
+.lb-rail{
+  width:230px;flex-shrink:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;
+  background:rgba(0,0,0,.22);border-right:1px solid rgba(255,255,255,.06);
+  padding:10px;display:flex;flex-direction:column;gap:3px;
+}
+.lb-tab{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;
+  background:transparent;border:1px solid transparent;cursor:pointer;text-align:left;
+  color:var(--txt-dim);font-family:'Rajdhani',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.02em;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.lb-tab:hover{background:rgba(255,255,255,.05);color:var(--txt);}
+.lb-tab.active{background:rgba(139,92,246,.16);border-color:rgba(139,92,246,.4);color:#e9d5ff;}
+.lb-tab-icon{width:15px;height:15px;flex-shrink:0;opacity:.85;}
+.lb-rail-divider{height:1px;background:rgba(255,255,255,.08);margin:8px 4px;flex-shrink:0;}
+.lb-tab.lb-tab-featured{background:rgba(217,119,6,.12);border-color:rgba(217,119,6,.35);color:#fcd34d;}
+.lb-tab.lb-tab-featured:hover{background:rgba(217,119,6,.2);}
+
+/* Right content pane */
+.lb-content{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;padding:26px 30px;}
+.lb-content-title{font-family:'Cinzel',serif;font-size:1.05rem;font-weight:900;color:#fff;letter-spacing:.03em;margin-bottom:4px;}
+.lb-content-sub{font-size:.68rem;color:var(--txt-muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:18px;}
+.lb-content-body{font-size:.85rem;line-height:1.7;color:var(--txt);}
+.lb-content-body p{margin:0 0 12px;}
+.lb-content-body p:last-child{margin-bottom:0;}
+.lb-placeholder-tag{display:inline-block;font-size:.58rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#fcd34d;background:rgba(217,119,6,.15);border:1px solid rgba(217,119,6,.35);border-radius:6px;padding:2px 8px;margin-bottom:14px;}
+
+/* Replay Tutorial tab — same button treatment tut-launch-btn had in the
+ * Play panel, just relocated here. */
+.lb-tut-launch{margin-top:6px;}
+.topbar-icon-btn{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  background:rgba(255,255,255,.05);border:1px solid rgba(139,92,246,.25);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:#c4b5fd;
+  transition:background .15s,border-color .15s;
+}
+.topbar-icon-btn:hover{background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.45);}
+.topbar-icon-btn.has-quest-glow{border-color:rgba(251,191,36,.5);box-shadow:0 0 0 rgba(251,191,36,.5);animation:questBtnPulse 2.2s ease-in-out infinite;}
+@keyframes questBtnPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.35);}
+  50%{box-shadow:0 0 10px 2px rgba(251,191,36,.45);}
+}
+
+/* ══════════════════════════════════════
+   QUEST JOURNAL
+   Daily/Weekly/Permanent quest list + the two "quest bars" (0-100, filled
+   by completed daily/weekly quest points, paying out at every 20-point
+   milestone). Rewards are already credited server-side the instant a
+   quest/milestone completes (see server.js recordQuestEvent) — the "Claim"
+   button here is a satisfying reveal/collect moment for the player, not a
+   trust boundary; nothing it does talks to the server.
+══════════════════════════════════════ */
+#quest-overlay{
+  display:none;position:fixed;inset:0;z-index:1200;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#quest-overlay.open{display:flex;}
+.qj-modal{
+  width:min(640px,95vw);height:min(760px,90vh);
+  background:var(--panel);border:1px solid rgba(251,191,36,.22);border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:scale(.94) translateY(10px);opacity:0;transition:transform .28s cubic-bezier(.34,1.44,.64,1),opacity .2s;
+}
+#quest-overlay.open .qj-modal{transform:scale(1) translateY(0);opacity:1;}
+.qj-header{
+  height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;background:rgba(6,6,16,.9);border-bottom:1px solid rgba(251,191,36,.18);
+}
+.qj-header-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#fde68a;display:flex;align-items:center;gap:9px;}
+.qj-header-title svg{color:#fbbf24;}
+.qj-close-x{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;flex-shrink:0;}
+.qj-close-x:hover{background:rgba(255,255,255,.12);}
+.qj-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(251,191,36,.3) transparent;padding:22px 22px 30px;}
+
+.qj-section{margin-bottom:30px;}
+.qj-section:last-child{margin-bottom:0;}
+.qj-section-head{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.qj-section-head svg{color:#fbbf24;flex-shrink:0;}
+.qj-section-title{font-family:'Cinzel',serif;font-size:.82rem;font-weight:900;letter-spacing:.06em;color:#fff;text-transform:uppercase;}
+.qj-section-sub{font-size:.62rem;color:var(--txt-muted);letter-spacing:.04em;margin-left:auto;}
+
+/* ── Quest bar (Daily / Weekly) ── */
+.qbar-wrap{
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;
+  padding:16px 18px 22px;margin-bottom:16px;position:relative;overflow:hidden;
+}
+.qbar-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
+.qbar-label{font-family:'Cinzel',serif;font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#e8e8f4;}
+.qbar-points{font-size:.7rem;font-weight:800;color:#fbbf24;font-variant-numeric:tabular-nums;}
+.qbar-track{
+  position:relative;height:16px;border-radius:9px;background:rgba(0,0,0,.4);
+  border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 2px 6px rgba(0,0,0,.5);
+  margin:0 9px; /* leaves room for milestone diamonds to sit centered on the 0/100 edges */
+}
+.qbar-fill{
+  position:absolute;top:0;left:0;bottom:0;border-radius:9px;
+  background:linear-gradient(90deg,#b45309,#f59e0b 55%,#fde047);
+  box-shadow:0 0 12px rgba(251,191,36,.55);
+  transition:width .7s cubic-bezier(.22,.9,.35,1);
+  overflow:hidden;
+}
+.qbar-fill::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 46%,rgba(255,255,255,.55) 52%,transparent 68%);
+  background-size:220% 100%;animation:qbarSheen 3.4s linear infinite;
+}
+@keyframes qbarSheen{0%{background-position:120% 0;}100%{background-position:-120% 0;}}
+.qbar-milestones{position:absolute;top:50%;left:9px;right:9px;transform:translateY(-50%);pointer-events:none;}
+.qbar-milestone{
+  position:absolute;top:50%;width:13px;height:13px;transform:translate(-50%,-50%) rotate(45deg);
+  background:#1a1a26;border:2px solid rgba(255,255,255,.22);border-radius:3px;
+  transition:background .3s,border-color .3s,box-shadow .3s;
+}
+.qbar-milestone.reached{background:#fbbf24;border-color:#fde68a;box-shadow:0 0 10px rgba(251,191,36,.8);}
+.qbar-milestone.reached{pointer-events:auto;}
+.qbar-milestone.qbar-collectible{cursor:pointer;pointer-events:auto;animation:qMilestoneInvite 1.1s ease-in-out infinite;}
+@keyframes qMilestoneInvite{0%,100%{box-shadow:0 0 10px rgba(251,191,36,.8);}50%{box-shadow:0 0 18px 5px rgba(253,230,138,1);}}
+.qbar-milestone-tag{
+  position:absolute;top:20px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  font-size:.56rem;font-weight:800;color:var(--txt-muted);letter-spacing:.02em;
+  display:flex;align-items:center;gap:2px;
+}
+.qbar-milestone.reached .qbar-milestone-tag{color:#fde68a;}
+
+/* ── Quest cards ── */
+.qcard{
+  display:flex;align-items:center;gap:13px;padding:13px 14px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);margin-bottom:10px;
+  transition:border-color .2s,background .2s;
+}
+.qcard:last-child{margin-bottom:0;}
+.qcard.completed{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.05);}
+.qcard-icon{
+  width:38px;height:38px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:#fbbf24;
+}
+.qcard.completed .qcard-icon{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.35);color:#34d399;}
+.qcard-mid{flex:1;min-width:0;}
+.qcard-title{font-size:.78rem;font-weight:800;color:var(--txt);letter-spacing:.01em;}
+.qcard-desc{font-size:.66rem;color:var(--txt-muted);margin-top:1px;}
+.qcard-progress-row{display:flex;align-items:center;gap:8px;margin-top:7px;}
+.qcard-progress-track{flex:1;height:6px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden;}
+.qcard-progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width .5s ease;}
+.qcard.completed .qcard-progress-fill{background:linear-gradient(90deg,#059669,#34d399);}
+.qcard-progress-num{font-size:.6rem;font-weight:700;color:var(--txt-muted);font-variant-numeric:tabular-nums;flex-shrink:0;}
+.qcard-right{flex-shrink:0;display:flex;align-items:center;gap:8px;}
+.qcard-points-pill{
+  display:flex;align-items:center;gap:3px;font-size:.62rem;font-weight:800;color:#fbbf24;
+  background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:20px;padding:3px 9px;
+}
+.qcard-reward-pill{
+  display:flex;align-items:center;gap:4px;font-size:.64rem;font-weight:800;color:#fde68a;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:3px 9px;
+}
+.qcard-reward-pill img{width:12px;height:12px;}
+.qcard-done-badge{display:flex;align-items:center;gap:5px;color:#34d399;font-size:.64rem;font-weight:800;letter-spacing:.02em;}
+.qcard-claim-btn{
+  display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#241a04;font-family:'Rajdhani',sans-serif;
+  font-size:.68rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  box-shadow:0 0 0 rgba(251,191,36,.5);animation:qClaimPulse 1.8s ease-in-out infinite;
+  transition:transform .12s;
+}
+.qcard-claim-btn:hover{transform:scale(1.05);}
+.qcard-claim-btn:active{transform:scale(.96);}
+@keyframes qClaimPulse{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.5);}50%{box-shadow:0 0 14px 3px rgba(251,191,36,.55);}}
+
+/* ── Reward burst celebration (spawned at a target element on milestone /
+ * quest-claim, auto-removes itself — see spawnRewardBurst in JS) ── */
+.reward-burst{position:fixed;z-index:1400;pointer-events:none;left:0;top:0;width:0;height:0;}
+.rb-ring{
+  position:absolute;left:0;top:0;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;
+  border:2px solid #fbbf24;opacity:.9;animation:rbRing .8s ease-out forwards;
+}
+@keyframes rbRing{0%{transform:scale(.2);opacity:.9;}100%{transform:scale(2.6);opacity:0;}}
+.rb-glow{
+  position:absolute;left:0;top:0;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+  background:radial-gradient(circle,rgba(253,230,138,.95),rgba(251,191,36,0) 70%);
+  animation:rbGlow .9s ease-out forwards;
+}
+@keyframes rbGlow{0%{transform:scale(.5);opacity:1;}100%{transform:scale(9);opacity:0;}}
+.rb-ray{
+  position:absolute;left:0;top:0;width:3px;height:24px;margin:-12px 0 0 -1.5px;border-radius:2px;
+  background:linear-gradient(#fde68a,transparent);transform-origin:50% 100%;
+  animation:rbRay .7s ease-out forwards;
+}
+@keyframes rbRay{0%{transform:rotate(var(--ang)) translateY(0) scaleY(1);opacity:1;}100%{transform:rotate(var(--ang)) translateY(-34px) scaleY(.3);opacity:0;}}
+.rb-spark{
+  position:absolute;left:0;top:0;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;background:#fde68a;
+  animation:rbSpark .8s cubic-bezier(.2,.8,.3,1) forwards;
+}
+@keyframes rbSpark{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0;}}
+.rb-float{
+  position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;
+  display:flex;align-items:center;gap:4px;font-family:'Cinzel',serif;font-weight:900;font-size:1rem;
+  color:#fde68a;text-shadow:0 0 10px rgba(251,191,36,.7),0 2px 3px rgba(0,0,0,.6);
+  animation:rbFloat 1.3s ease-out forwards;
+}
+.rb-float img{width:17px;height:17px;}
+@keyframes rbFloat{
+  0%{transform:translate(-50%,-50%) scale(.5);opacity:0;}
+  15%{transform:translate(-50%,-50%) scale(1.15);opacity:1;}
+  30%{transform:translate(-50%,-50%) scale(1);opacity:1;}
+  100%{transform:translate(-50%,-160%) scale(1);opacity:0;}
+}
+
+/* Milestone-crossing full-bar shimmer sweep, added briefly to .qbar-fill */
+.qbar-fill.qbar-celebrate{animation:qbarSheen 3.4s linear infinite, qbarCelebrateFlash .9s ease-out 1;}
+@keyframes qbarCelebrateFlash{0%{filter:brightness(1);}30%{filter:brightness(1.9);}100%{filter:brightness(1);}}
 
 /* ══════════════════════════════════════
    PROFILE VIEW MODAL (read-only)
@@ -1978,6 +2218,106 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   .bazaar-detail-top{gap:10px;}
 }
 </style>
+<style>
+/* ══════════════════════════════════════
+   THE SIMGA'S TUTORIAL
+══════════════════════════════════════ */
+.tut-glow{
+  /* legacy no-op hook — highlighting now happens via top-level, fixed-
+     position .tut-spotlight-ring elements (see below) so a ring can never
+     be clipped or covered by an ancestor's overflow/stacking context. */
+}
+@keyframes tut-pulse{
+  0%,100%{box-shadow:0 0 0 6px rgba(251,191,36,.22),0 0 22px rgba(251,191,36,.5);}
+  50%{box-shadow:0 0 0 10px rgba(251,191,36,.1),0 0 38px rgba(251,191,36,.85);}
+}
+.tut-spotlight-ring{
+  position:fixed;display:none;pointer-events:none;
+  border:3px solid #fbbf24;
+  border-radius:12px;
+  box-shadow:0 0 0 6px rgba(251,191,36,.22),0 0 22px rgba(251,191,36,.5);
+  animation:tut-pulse 1.3s ease-in-out infinite;
+  z-index:2100;
+  transition:left .12s ease-out,top .12s ease-out,width .12s ease-out,height .12s ease-out;
+}
+
+#tut-vn{
+  position:fixed;left:14px;bottom:14px;
+  transform:translateY(140%);
+  width:min(500px,90vw);
+  z-index:2150;
+  transition:transform .38s cubic-bezier(.22,1,.36,1);
+  pointer-events:none;
+}
+#tut-vn.open{transform:translateY(0);pointer-events:auto;}
+#tut-vn-inner{
+  background:linear-gradient(180deg,rgba(15,12,28,.97),rgba(8,6,18,.98));
+  border:1px solid rgba(167,139,250,.55);
+  border-radius:14px;
+  box-shadow:0 -6px 20px rgba(0,0,0,.5),0 0 40px rgba(109,40,217,.25),inset 0 1px 0 rgba(255,255,255,.06);
+  padding:14px 18px 16px;
+  cursor:pointer;
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.tut-vn-head{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+  font-family:'Cinzel',serif;
+}
+.tut-vn-glyph{color:#fbbf24;font-size:.95rem;filter:drop-shadow(0 0 6px rgba(251,191,36,.6));}
+.tut-vn-name{
+  color:#e9d5ff;font-weight:900;font-size:.8rem;letter-spacing:.16em;text-transform:uppercase;
+  text-shadow:0 0 12px rgba(167,139,250,.5);
+}
+.tut-vn-step{
+  margin-left:auto;color:#8b7bb8;font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;
+  font-family:'Rajdhani',sans-serif;font-weight:600;white-space:nowrap;
+}
+.tut-vn-exit{
+  background:none;border:1px solid rgba(148,163,184,.35);color:#94a3b8;
+  border-radius:6px;padding:3px 9px;font-size:.6rem;letter-spacing:.05em;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:600;transition:border-color .15s,color .15s;flex-shrink:0;
+}
+.tut-vn-exit:hover{border-color:#ef4444;color:#fca5a5;}
+.tut-vn-body{
+  font-family:'Rajdhani',sans-serif;font-size:.98rem;font-weight:500;line-height:1.45;color:#e2e8f0;
+  min-height:2.7em;white-space:pre-wrap;transition:color .2s;
+}
+.tut-vn-body.tut-nudge{color:#fbbf24;}
+.tut-vn-foot{
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px;min-height:30px;
+}
+.tut-vn-continue{
+  font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.1em;color:#a78bfa;
+  animation:tut-bounce 1.1s ease-in-out infinite;user-select:none;
+}
+@keyframes tut-bounce{0%,100%{transform:translateY(0);opacity:.7;}50%{transform:translateY(3px);opacity:1;}}
+.tut-vn-action{
+  font-family:'Cinzel',serif;font-weight:700;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;
+  color:#e9d5ff;background:linear-gradient(135deg,rgba(60,10,100,.75),rgba(109,40,217,.6));
+  border:1px solid rgba(139,92,246,.75);border-radius:8px;padding:8px 18px;cursor:pointer;
+  box-shadow:0 0 16px rgba(109,40,217,.35);transition:transform .15s,box-shadow .15s;
+}
+.tut-vn-action:hover{transform:translateY(-2px);box-shadow:0 0 24px rgba(139,92,246,.55);}
+
+.tut-launch-btn{
+  margin-top:10px;width:100%;font-family:'Cinzel',serif;font-size:.66rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:#c4b5fd;cursor:pointer;
+  background:rgba(109,40,217,.14);border:1px solid rgba(167,139,250,.4);border-radius:8px;
+  padding:11px 20px;transition:border-color .15s,background .15s,transform .15s;
+}
+.tut-launch-btn:hover{border-color:rgba(196,181,253,.85);background:rgba(109,40,217,.26);transform:translateY(-1px);}
+
+#main.tut-active #btn-battle{display:none!important;}
+
+@media (max-width:640px){
+  #tut-vn{width:min(330px,76vw);left:8px;bottom:6px;}
+  #tut-vn-inner{padding:11px 14px 13px;}
+  .tut-vn-body{font-size:.88rem;min-height:3.4em;}
+  .tut-vn-name{font-size:.72rem;}
+  .tut-vn-step{display:none;}
+}
+</style>
 </head>
 <body>
 
@@ -2059,6 +2399,12 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     </div>
     <div class="topbar-center">Arena of Pests</div>
     <div class="currency-section">
+      <button class="topbar-icon-btn" id="quest-topbar-btn" onclick="openQuestJournal()" title="Quest Journal" aria-label="Quest Journal">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h10.5A1.5 1.5 0 0 1 18 5v16l-6-3-6 3V5A1.5 1.5 0 0 1 7.5 3.5z"/><path d="M9 8.2l1.6 1.6L14 6.4"/></svg>
+      </button>
+      <button class="topbar-icon-btn" onclick="openLogbook()" title="Information Logbook" aria-label="Information Logbook">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
       <div class="currency-pill gold">
         <img src="coin.png" class="currency-pill-icon" alt="Gold">
         <div class="currency-col">
@@ -2205,19 +2551,15 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="menu-panel" id="menu-panel-deck">
         <div class="panel-topbar">
           <div class="panel-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><rect x="7" y="2" width="12" height="16" rx="2"/><rect x="3" y="6" width="12" height="16" rx="2"/></svg>Deck Builder</div>
-          <div class="panel-meta" id="menu-deck-count">0 / 16 cards in deck</div>
+          <div class="panel-meta" id="menu-deck-count">0 / 12 cards in deck</div>
         </div>
         <div class="deckbuilder-body">
-          <!-- YOUR DECK — the main focus. 16 slots split across 2 pages of 8;
-               the page split is purely visual, both pages read/write the same
-               underlying _dbDeck array. -->
+          <!-- YOUR DECK — the main focus. 12 slots in one grid, always in
+               sync with the underlying _dbDeck array (no pagination to
+               drift out of sync with). -->
           <div class="db-deck-section">
             <div class="db-deck-section-head">
-              <div class="subscreen-section-label" style="margin-bottom:0;">Your Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/16</span></div>
-              <div class="db-page-tabs" id="db-page-tabs">
-                <button class="db-page-tab active" onclick="dbSetPage(0)">Page 1<span class="db-page-tab-range">1–8</span></button>
-                <button class="db-page-tab" onclick="dbSetPage(1)">Page 2<span class="db-page-tab-range">9–16</span></button>
-              </div>
+              <div class="subscreen-section-label" style="margin-bottom:0;">Your Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/12</span></div>
             </div>
             <div class="db-deck-slot-grid" id="db-deck-slot-grid"></div>
             <button class="deck-save-btn" onclick="saveDeck()">Save Deck</button>
@@ -2582,7 +2924,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="avatar-row">
       <div class="avatar-circle avatar-enemy" id="enemy-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label" id="enemy-hp-label">Enemy Creatures <span class="graveyard-badge" id="enemy-graveyard-badge" style="display:none"></span></div>
+        <div class="hp-label" id="enemy-hp-label">Enemy Creatures</div>
         <div class="hp-bar-wrap hp-bar-enemy">
           <div class="hp-bar-fill" id="enemy-hp-fill" style="width:100%"></div>
           <div class="hp-bar-text" id="enemy-hp-text">12 / 12</div>
@@ -2625,7 +2967,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="avatar-row">
       <div class="avatar-circle avatar-player" id="player-avatar-circle"></div>
       <div class="hp-display">
-        <div class="hp-label">Your Creatures <span class="graveyard-badge" id="player-graveyard-badge" style="display:none"></span></div>
+        <div class="hp-label">Your Creatures</div>
         <div class="hp-bar-wrap hp-bar-player">
           <div class="hp-bar-fill" id="player-hp-fill" style="width:100%"></div>
           <div class="hp-bar-text" id="player-hp-text">12 / 12</div>
@@ -2737,6 +3079,46 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div id="pack-spread-row" style="display:none;"></div>
     <div id="pack-deck-hint"></div>
     <button id="pack-collect-btn" class="hidden" onclick="closePack()">Collect Cards</button>
+  </div>
+</div>
+
+<!-- ══════ QUEST JOURNAL ══════
+     Content is entirely rebuilt by renderQuestJournal() from the server's
+     'quest_state' response — see JS. Rewards are already credited the
+     instant a quest/milestone completes; the Claim button here is a
+     client-side reveal/collect moment (burst animation + counter tick-up),
+     not a round-trip to the server. -->
+<div id="quest-overlay" onclick="handleQuestBackdrop(event)">
+  <div class="qj-modal" onclick="event.stopPropagation()">
+    <div class="qj-header">
+      <div class="qj-header-title">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h10.5A1.5 1.5 0 0 1 18 5v16l-6-3-6 3V5A1.5 1.5 0 0 1 7.5 3.5z"/><path d="M9 8.2l1.6 1.6L14 6.4"/></svg>
+        Quest Journal
+      </div>
+      <div class="qj-close-x" onclick="closeQuestJournal()">✕</div>
+    </div>
+    <div class="qj-body" id="qj-body"><!-- injected by renderQuestJournal() --></div>
+  </div>
+</div>
+
+<!-- ══════ INFORMATION LOGBOOK ══════
+     Tab list is rendered from LOGBOOK_SECTIONS (see JS) — the rail (.lb-rail)
+     scrolls vertically since there are a lot of entries. The Replay Tutorial
+     tab is pinned last with a divider and gets special content (a launch
+     button instead of body copy), since it's a live action, not just text. -->
+<div id="logbook-overlay" onclick="handleLogbookBackdrop(event)">
+  <div class="lb-modal" onclick="event.stopPropagation()">
+    <div class="lb-header">
+      <div class="lb-header-title">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Information Logbook
+      </div>
+      <div class="lb-close-x" onclick="closeLogbook()">✕</div>
+    </div>
+    <div class="lb-body">
+      <div class="lb-rail" id="lb-rail"><!-- tab buttons injected by JS from LOGBOOK_SECTIONS --></div>
+      <div class="lb-content" id="lb-content"><!-- active section body injected by JS --></div>
+    </div>
   </div>
 </div>
 
@@ -3195,6 +3577,23 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <div id="hand-tray">
   <div id="hand-tray-inner">
     <!-- cards injected by JS -->
+  </div>
+</div>
+
+<!-- ══════ THE SIMGA'S TUTORIAL — VN DIALOGUE BOX ══════ -->
+<div id="tut-vn" onclick="Tutorial.onBoxTap()">
+  <div id="tut-vn-inner">
+    <div class="tut-vn-head">
+      <span class="tut-vn-glyph">✦</span>
+      <span class="tut-vn-name">The Simga</span>
+      <span class="tut-vn-step" id="tut-vn-step"></span>
+      <button class="tut-vn-exit" onclick="event.stopPropagation();Tutorial.confirmExit();">✕ Exit</button>
+    </div>
+    <div class="tut-vn-body" id="tut-vn-body"></div>
+    <div class="tut-vn-foot">
+      <div class="tut-vn-continue" id="tut-vn-continue" style="display:none;">▼ tap to continue</div>
+      <button class="tut-vn-action" id="tut-vn-action" style="display:none;"></button>
+    </div>
   </div>
 </div>
 
@@ -3683,6 +4082,7 @@ const Effects = {
 
 /* ── ELEMENT REGISTRY ─────────────────────────────────── */
 const Elements={
+  physical:  {color:'#a8a8a8',label:'Physical'},
   fire:      {color:'#f97316',label:'Fire'},
   water:     {color:'#38bdf8',label:'Water'},
   lightning: {color:'#facc15',label:'Lightning'},
@@ -3841,7 +4241,12 @@ function initHandTray(){
     if(nearBottom||overTray){clearTimeout(_handHideTimer);showHandTray();}
     else if(_handVisible){hideHandTray();}
   });
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeInspect(); });
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    closeInspect();
+    const lb=document.getElementById('logbook-overlay');
+    if(lb&&lb.classList.contains('open'))closeLogbook();
+  });
 }
 
 function readyToBattle(){
@@ -3865,7 +4270,7 @@ function attackTarget(targetSlot){
   const atkCard=State.selectedSlot==='slot1'?State.player.activeCard:State.player.activeCard2;
   if(!atkCard||State.actedThisTurn.has(State.selectedSlot))return;
   // store target and show attack picker (top button is auto-disabled for
-  // non-attack top effects like 'revive' — see renderPlayerSlot's picker)
+  // non-attack top effects like a revive `ability` — see renderPlayerSlot's picker)
   State.pendingRevive=null;
   State.pendingTarget=targetSlot;
   updateUI();
@@ -3877,7 +4282,7 @@ function attackTarget(targetSlot){
 function openRevivePicker(slot){
   if(State.turn!=='PLAYER'||State.phase!=='MAIN')return;
   const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
-  if(!card||card.topEffect?.type!=='revive'||State.actedThisTurn.has(slot))return;
+  if(!card||card.topEffect?.type!=='ability'||!card.topEffect?.revive||State.actedThisTurn.has(slot))return;
   State.pendingTarget=null;
   State.pendingRevive=slot;
   updateUI();
@@ -4169,13 +4574,6 @@ function updateUI(){
   };
   setCreatures('player-hp-fill','player-hp-text',State.player.creaturesLeft,State.player._maxSeenCreatures);
   setCreatures('enemy-hp-fill', 'enemy-hp-text', State.enemy.creaturesLeft, State.enemy._maxSeenCreatures);
-  const setGraveyardBadge=(id,count)=>{
-    const el=document.getElementById(id); if(!el)return;
-    if(count>0){ el.style.display='inline-flex'; el.innerHTML=`&#128128; ${count} in graveyard`; }
-    else{ el.style.display='none'; }
-  };
-  setGraveyardBadge('player-graveyard-badge',(State.player.graveyard||[]).length);
-  setGraveyardBadge('enemy-graveyard-badge',State.enemy.graveyardCount||0);
 
   // Battlefield
   const canAct=State.turn==='PLAYER'&&State.phase==='MAIN';
@@ -4213,9 +4611,10 @@ function updateUI(){
       // wrap card in relative container so picker overlays it
       el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
     }
-    // A revive-ability card doesn't need an enemy target at all — offer the
-    // ability the moment it's selected, as an alternative to attacking.
-    else if(sel===slot&&State.pendingTarget===null&&card.topEffect?.type==='revive'&&State.pendingRevive!==slot){
+    // A revive-ability card (an `ability` topEffect with a `revive` block)
+    // doesn't need an enemy target at all — offer the ability the moment
+    // it's selected, as an alternative to attacking.
+    else if(sel===slot&&State.pendingTarget===null&&card.topEffect?.type==='ability'&&card.topEffect?.revive&&State.pendingRevive!==slot){
       const graveyard=State.player.graveyard||[];
       const btn=graveyard.length
         ?`<button class="atk-pick-btn" onclick="openRevivePicker('${slot}')">${card.topEffect.name}<span class="pick-dmg">Revive</span></button>`
@@ -4226,7 +4625,7 @@ function updateUI(){
     // Graveyard picker — choose which of your own dead creatures to revive.
     else if(State.pendingRevive===slot){
       const graveyard=State.player.graveyard||[];
-      const healPct=card.topEffect?.healPercent!=null?card.topEffect.healPercent:0.5;
+      const healPct=card.topEffect?.revive?.healPercent!=null?card.topEffect.revive.healPercent:0.5;
       const rows=graveyard.map(g=>`<button class="atk-pick-btn" onclick="chooseReviveTarget('${slot}','${g.instanceId}')">${escapeHtml(g.name)}<span class="pick-dmg">&#8594; ${Math.max(1,Math.round(g.maxHp*healPct))}/${g.maxHp} HP</span></button>`).join('');
       const picker=`<div class="atk-picker"><div class="atk-picker-title">Revive which creature?</div>${rows||'<div class="atk-picker-title">No dead cards</div>'}<button class="atk-pick-cancel" onclick="cancelPending()">Cancel</button></div>`;
       el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
@@ -4502,6 +4901,61 @@ function renderBazaarTabIcon(size=14){
 function renderTourneyTabIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3.5 3.5 0 0 0 3.5 3.5M17 4h3v2a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 12v3.5M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3s2.5 1 2.5 3"/></svg>`;
 }
+/** Bookmarked-scroll-with-checkmark glyph used for the Quest Journal
+ * (topbar button, panel header) — a quest log you check things off in,
+ * no emoji, ever. */
+function renderQuestTabIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M6 3.5h10.5A1.5 1.5 0 0 1 18 5v16l-6-3-6 3V5A1.5 1.5 0 0 1 7.5 3.5z"/><path d="M9 8.2l1.6 1.6L14 6.4"/></svg>`;
+}
+/** Speech-bubble glyph used for the chat-message quest track. */
+function renderChatBubbleIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5z"/></svg>`;
+}
+/** Infinity-loop glyph used for the Permanent quest section — these never
+ * reset, unlike the daily/weekly cycle icons. */
+function renderInfinityIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M6.5 8.5a3.5 3.5 0 1 0 0 7c2 0 3-1.2 5.5-4.5 2.5-3.3 3.5-4.5 5.5-4.5a3.5 3.5 0 1 1 0 7c-2 0-3-1.2-5.5-4.5-2.5-3.3-3.5-4.5-5.5-4.5z"/></svg>`;
+}
+/** Maps a quest's `track` to the icon shown on its card — reuses existing
+ * feature icons where the semantics line up (winning -> duel blades,
+ * buying a pack -> shop box, tournaments -> trophy) rather than inventing
+ * new glyphs for the same concepts. */
+function questTrackIconSvg(track, size=18){
+  switch(track){
+    case 'match_win': return renderDuelIcon(size);
+    case 'pack_buy': return renderShopTabIcon(size);
+    case 'tournament_join': return renderTourneyTabIcon(size);
+    case 'chat_message': return renderChatBubbleIcon(size);
+    case 'profile_customize': return renderFriendIcon(size);
+    default: return renderQuestTabIcon(size);
+  }
+}
+/** Three ascending bars glyph — used for the Card Classifications logbook
+ * tab (Normal/PESTS/BOSS/OVERLORD is a tiered system). */
+function renderTiersIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 20v-4M4 16h3v4H4z"/><path d="M10.5 20V11M10.5 11h3v9h-3z"/><path d="M17 20V6M17 6h3v14h-3z"/></svg>`;
+}
+/** Rectangle-with-stat-lines glyph — used for the Card Structure logbook
+ * tab (HP / ability / attack layout). */
+function renderCardStructureIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M7 7.5h6M7 11.5h10M7 15.5h10M7 19h6"/></svg>`;
+}
+/** Clawed pawprint glyph — used for the Creature Cards logbook tab. */
+function renderCreatureIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><ellipse cx="12" cy="16" rx="5.5" ry="4.2"/><ellipse cx="6" cy="8.5" rx="1.8" ry="2.3"/><ellipse cx="11" cy="5.8" rx="1.8" ry="2.3"/><ellipse cx="16" cy="5.8" rx="1.8" ry="2.3"/><ellipse cx="18.5" cy="8.5" rx="1.8" ry="2.3"/></svg>`;
+}
+/** Planted-flag glyph — used for the Win Condition logbook tab. */
+function renderFlagIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M5 21V3"/><path d="M5 4h13l-3 4 3 4H5"/></svg>`;
+}
+/** Heartbeat-pulse glyph — used for the Revive System logbook tab. */
+function renderReviveIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M2.5 13h4l2-5 3 10 2.5-13 2 8h5.5"/></svg>`;
+}
+/** Shield-with-spark glyph — used for the Status Effects logbook tab. */
+function renderStatusEffectIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M12 2.6l7 2.9v5.1c0 4.9-3 8.6-7 10.3-4-1.7-7-5.4-7-10.3V5.5z"/><path d="M12.8 8l-2.6 4.4h2.2l-1 3.6 3.4-4.6h-2.2z"/></svg>`;
+}
 /** Small calendar glyph used for tournament start-time displays. */
 function renderCalendarIcon(size=12){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>`;
@@ -4649,7 +5103,9 @@ function renderProfileFavGrid(){
   const hint=document.getElementById('pf-fav-hint');
   hint.textContent=`${_pfEditFavorites.length} / 3 selected`;
   grid.innerHTML='';
-  const owned=Player.collection.length?Player.collection:CardDB.map(c=>c.id);
+  // Only cards actually owned can be showcased — an empty collection means
+  // an empty grid (with the message below), never "show the whole game".
+  const owned=Player.collection||[];
   const uniqueOwned=[...new Set(owned)];
   if(!uniqueOwned.length){
     grid.innerHTML='<div style="color:var(--txt-muted);font-size:.7rem;">No cards owned yet — open a pack first!</div>';
@@ -4802,6 +5258,347 @@ function closeProfileView(){
 
 function handleProfileViewBackdrop(e){
   if(e.target===document.getElementById('profile-view-overlay')) closeProfileView();
+}
+
+/* ══════════════════════════════════════
+   INFORMATION LOGBOOK
+   All section bodies below are placeholder copy — swap in the real text
+   whenever it's ready, the rendering/tab logic doesn't need to change.
+   Replay Tutorial is intentionally last + visually separated (lb-rail-divider
+   + lb-tab-featured): it launches an action (startTutorial) instead of just
+   showing text, and used to live as its own button in the Play panel.
+══════════════════════════════════════ */
+const LOGBOOK_SECTIONS=[
+  {id:'swap',        label:'Swap Mechanics',        icon:renderSwapIcon(15), sub:'Field control',
+   body:`<p>Placeholder — explain how swapping an active card in/out of a slot works, any cooldowns or turn costs, and how effects like Rocks interact with swapping.</p>
+         <p>Placeholder — cover the two-slot layout and any rules around swapping into an empty vs. occupied slot.</p>`},
+  {id:'classes',     label:'Card Classifications', icon:renderTiersIcon(15), sub:'Normal · Pests · Boss · Overlord',
+   body:`<p>Placeholder — define Normal, PESTS, BOSS, and OVERLORD classifications, what makes a creature count as each, and how deck-building rules (at most one Boss/Overlord, Overlord decks going solo) work.</p>`},
+  {id:'structure',   label:'Card Structure',       icon:renderCardStructureIcon(15), sub:'HP · Ability/Passive · Attack',
+   body:`<p>Placeholder — break down a creature card's anatomy: HP pool, the top slot (ability or passive), the bottom attack, and how types/elements factor in.</p>`},
+  {id:'creatures',   label:'Creature Cards',       icon:renderCreatureIcon(15), sub:'Mobs · Dragons · Wizards',
+   body:`<p>Placeholder — explain the creature card types (mob/dragon/wizard), how they differ mechanically (if at all) and thematically.</p>`},
+  {id:'equipment',   label:'Equipment Cards',      icon:renderDuelIcon(15), sub:'Weapons & Defenses',
+   body:`<p>Placeholder — explain weapon/defense cards: flat bonus, durability, amp/damp effect customization, and how they're equipped.</p>`},
+  {id:'shop',        label:'Shop & Market',        icon:renderShopTabIcon(15), sub:'Packs · Trading',
+   body:`<p>Placeholder — explain gold vs. gems, the different pack tiers and their odds, and how the player-to-player market/trading works.</p>`},
+  {id:'tournaments', label:'Tournaments',          icon:renderTourneyTabIcon(15), sub:'Competitive play',
+   body:`<p>Placeholder — explain how tournaments are structured, entry requirements, brackets, and rewards.</p>`},
+  {id:'guild',       label:'Guild & Friends',      icon:renderGuildTabIcon(15), sub:'Social features',
+   body:`<p>Placeholder — explain guilds (joining, chat, roles) and the friends list/social features.</p>`},
+  {id:'wincon',      label:'Win Condition',        icon:renderFlagIcon(15), sub:'How a match ends',
+   body:`<p>Placeholder — explain total creature destruction as the win condition, and any draw scenarios.</p>`},
+  {id:'revive',      label:'Revive System',        icon:renderReviveIcon(15), sub:'The Revive Queue',
+   body:`<p>Placeholder — explain the Revive Queue: classification-based costs/charges, oldest-to-newest processing, and the "no partial progress" rule for expensive revives.</p>`},
+  {id:'statuses',    label:'Status Effects',       icon:renderStatusEffectIcon(15), sub:'Detailed overview',
+   body:`<p>Placeholder — go through every status effect (bleed, poison, burn, cryo, shock, soak, sleep, paralyze, confusion, curse, rocks, etc.) in detail: what each does, base values, and how amp/damp gear customization affects them.</p>`},
+];
+const LOGBOOK_TUTORIAL_TAB={id:'tutorial', label:'Replay Tutorial', icon:renderPlayTabIcon(15), sub:"The Simga's Tutorial"};
+let _lbActiveTab=LOGBOOK_SECTIONS[0].id;
+
+function renderLogbookRail(){
+  const rail=document.getElementById('lb-rail');
+  const tabBtn=(sec,featured)=>`
+    <button class="lb-tab${sec.id===_lbActiveTab?' active':''}${featured?' lb-tab-featured':''}" onclick="switchLogbookTab('${sec.id}')">
+      <span class="lb-tab-icon">${sec.icon}</span>
+      <div class="menu-tab-text">
+        <span class="menu-tab-label">${sec.label}</span>
+        <span class="menu-tab-sub">${sec.sub}</span>
+      </div>
+    </button>`;
+  rail.innerHTML=LOGBOOK_SECTIONS.map(sec=>tabBtn(sec,false)).join('')
+    +`<div class="lb-rail-divider"></div>`
+    +tabBtn(LOGBOOK_TUTORIAL_TAB,true);
+}
+
+function switchLogbookTab(id){
+  _lbActiveTab=id;
+  renderLogbookRail();
+  const content=document.getElementById('lb-content');
+  if(id==='tutorial'){
+    content.innerHTML=`
+      <div class="lb-content-title">${LOGBOOK_TUTORIAL_TAB.label}</div>
+      <div class="lb-content-sub">${LOGBOOK_TUTORIAL_TAB.sub}</div>
+      <div class="lb-content-body">
+        <p>Placeholder — a short description of what the tutorial covers goes here.</p>
+        <button class="tut-launch-btn lb-tut-launch" onclick="closeLogbook();startTutorial();">${renderPlayTabIcon(13)} Learn to Play — The Simga's Tutorial</button>
+      </div>`;
+    return;
+  }
+  const sec=LOGBOOK_SECTIONS.find(s=>s.id===id);
+  if(!sec)return;
+  content.innerHTML=`
+    <div class="lb-content-title">${sec.label}</div>
+    <div class="lb-content-sub">${sec.sub}</div>
+    <span class="lb-placeholder-tag">Placeholder content</span>
+    <div class="lb-content-body">${sec.body}</div>`;
+}
+
+function openLogbook(){
+  renderLogbookRail();
+  switchLogbookTab(_lbActiveTab);
+  document.getElementById('logbook-overlay').classList.add('open');
+}
+
+function closeLogbook(){
+  document.getElementById('logbook-overlay').classList.remove('open');
+}
+
+function handleLogbookBackdrop(e){
+  if(e.target===document.getElementById('logbook-overlay')) closeLogbook();
+}
+
+/* ══════════════════════════════════════
+   QUEST JOURNAL
+   State comes entirely from the server's 'quest_state' response (see
+   Net.handle's 'quest_state' case) — this file never invents or adjusts
+   progress client-side. The "Claim" interaction (on a completed quest
+   card, or on a reached quest-bar milestone diamond) is a purely local
+   reveal/collect flourish: the reward was already credited the instant
+   the server saw the quest/milestone complete, so clicking Claim here
+   just plays the burst animation, ticks the currency display, and
+   remembers (in localStorage) that this player has now "seen" it so the
+   glowing invite doesn't show again for the same quest/milestone.
+══════════════════════════════════════ */
+let QuestState=null;
+
+function questSeenStorageKey(){ return 'aop_quest_seen_v1'; }
+function loadQuestSeenStore(){
+  try{ return JSON.parse(localStorage.getItem(questSeenStorageKey()))||{quests:{},milestones:{}}; }
+  catch{ return {quests:{},milestones:{}}; }
+}
+function saveQuestSeenStore(store){
+  try{ localStorage.setItem(questSeenStorageKey(), JSON.stringify(store)); }catch{}
+}
+function isQuestSeen(questId, periodKey){
+  return !!loadQuestSeenStore().quests[`${questId}|${periodKey}`];
+}
+function markQuestSeen(questId, periodKey){
+  const store=loadQuestSeenStore();
+  store.quests[`${questId}|${periodKey}`]=true;
+  saveQuestSeenStore(store);
+}
+function isMilestoneSeen(scope, periodKey, milestone){
+  const list=loadQuestSeenStore().milestones[`${scope}|${periodKey}`]||[];
+  return list.includes(milestone);
+}
+function markMilestoneSeen(scope, periodKey, milestone){
+  const store=loadQuestSeenStore();
+  const key=`${scope}|${periodKey}`;
+  const list=store.milestones[key]||[];
+  if(!list.includes(milestone)) list.push(milestone);
+  store.milestones[key]=list;
+  saveQuestSeenStore(store);
+}
+
+/** True if anything in `state` is completed-but-uncollected — drives the
+ * gentle pulse on the topbar Quest Journal button so players notice there's
+ * something waiting without needing to open the panel first. */
+function questStateHasUnclaimed(state){
+  if(!state) return false;
+  const anyQuest=(state.quests||[]).some(q=>q.completed && !isQuestSeen(q.id, q.periodKey));
+  const anyMilestone=['dailyBar','weeklyBar'].some(k=>{
+    const bar=state[k]; if(!bar) return false;
+    return (bar.claimedMilestones||[]).some(m=>!isMilestoneSeen(k==='dailyBar'?'daily':'weekly', bar.periodKey, m));
+  });
+  return anyQuest||anyMilestone;
+}
+function updateQuestBadge(state){
+  document.getElementById('quest-topbar-btn')?.classList.toggle('has-quest-glow', questStateHasUnclaimed(state));
+}
+
+function openQuestJournal(){
+  document.getElementById('quest-overlay').classList.add('open');
+  Net.send({type:'quest_state'});
+}
+function closeQuestJournal(){
+  document.getElementById('quest-overlay').classList.remove('open');
+}
+function handleQuestBackdrop(e){
+  if(e.target===document.getElementById('quest-overlay')) closeQuestJournal();
+}
+/** Called from Net.handle's 'quest_state' case — the single source of
+ * truth for anything rendered in the panel. */
+function applyQuestState(state){
+  QuestState=state;
+  updateQuestBadge(state);
+  if(document.getElementById('quest-overlay').classList.contains('open')) renderQuestJournal(state);
+}
+
+function renderQuestBar(scope, bar){
+  const label=scope==='daily'?'Daily Quest Bar':'Weekly Quest Bar';
+  const claimed=new Set(bar.claimedMilestones||[]);
+  const marks=(bar.milestones||[20,40,60,80,100]).map(m=>{
+    const reached=claimed.has(m);
+    const collectible=reached && !isMilestoneSeen(scope, bar.periodKey, m);
+    const reward=(bar.rewards&&bar.rewards[m])||null;
+    const rewardHtml=reward?rewardTagHtml(reward):'';
+    return `<div class="qbar-milestone${reached?' reached':''}${collectible?' qbar-collectible':''}"
+                 style="left:${m}%" data-scope="${scope}" data-milestone="${m}" data-period="${escapeHtml(bar.periodKey)}"
+                 onclick="collectMilestone(this)" title="${m} pts${reward?' — '+rewardPlainText(reward):''}">
+              <span class="qbar-milestone-tag">${rewardHtml||m}</span>
+            </div>`;
+  }).join('');
+  return `
+    <div class="qbar-wrap">
+      <div class="qbar-top">
+        <span class="qbar-label">${label}</span>
+        <span class="qbar-points">${bar.points} / 100</span>
+      </div>
+      <div class="qbar-track">
+        <div class="qbar-fill" id="qbar-fill-${scope}" style="width:${bar.points}%"></div>
+        <div class="qbar-milestones">${marks}</div>
+      </div>
+    </div>`;
+}
+function rewardTagHtml(reward){
+  const parts=[];
+  if(reward.gold) parts.push(`${currencyIcon('gold')}${reward.gold}`);
+  if(reward.gems) parts.push(`${currencyIcon('gems')}${reward.gems}`);
+  return parts.join(' ');
+}
+function rewardPlainText(reward){
+  const parts=[];
+  if(reward.gold) parts.push(`${reward.gold} gold`);
+  if(reward.gems) parts.push(`${reward.gems} gems`);
+  return parts.join(', ');
+}
+
+function renderQuestCard(q){
+  const pct=q.target?Math.min(100,Math.round(100*q.progress/q.target)):0;
+  const needsClaim=q.completed && !isQuestSeen(q.id, q.periodKey);
+  let rightHtml;
+  if(needsClaim){
+    rightHtml=`<button class="qcard-claim-btn" onclick="claimQuest('${q.id}')">${renderCheckIcon(12)} Claim</button>`;
+  }else if(q.completed){
+    rightHtml=`<span class="qcard-done-badge">${renderCheckIcon(13)} Completed</span>`;
+  }else if(q.scope==='permanent'&&q.reward){
+    rightHtml=rewardTagHtml(q.reward).split(' ').map(p=>`<span class="qcard-reward-pill">${p}</span>`).join('');
+  }else if(q.points){
+    rightHtml=`<span class="qcard-points-pill">+${q.points} QP</span>`;
+  }else{
+    rightHtml='';
+  }
+  return `
+    <div class="qcard${q.completed?' completed':''}" id="qcard-${q.id}">
+      <div class="qcard-icon">${questTrackIconSvg(q.track,18)}</div>
+      <div class="qcard-mid">
+        <div class="qcard-title">${escapeHtml(q.title)}</div>
+        <div class="qcard-desc">${escapeHtml(q.desc)}</div>
+        <div class="qcard-progress-row">
+          <div class="qcard-progress-track"><div class="qcard-progress-fill" style="width:${pct}%"></div></div>
+          <div class="qcard-progress-num">${q.progress}/${q.target}</div>
+        </div>
+      </div>
+      <div class="qcard-right">${rightHtml}</div>
+    </div>`;
+}
+
+function renderQuestJournal(state){
+  const body=document.getElementById('qj-body');
+  const byScope=s=>(state.quests||[]).filter(q=>q.scope===s);
+  body.innerHTML=`
+    <div class="qj-section">
+      <div class="qj-section-head">${renderCalendarIcon(15)}<span class="qj-section-title">Daily Quests</span></div>
+      ${renderQuestBar('daily', state.dailyBar)}
+      ${byScope('daily').map(renderQuestCard).join('')}
+    </div>
+    <div class="qj-section">
+      <div class="qj-section-head">${renderRefreshIcon(15)}<span class="qj-section-title">Weekly Quests</span></div>
+      ${renderQuestBar('weekly', state.weeklyBar)}
+      ${byScope('weekly').map(renderQuestCard).join('')}
+    </div>
+    <div class="qj-section">
+      <div class="qj-section-head">${renderInfinityIcon(15)}<span class="qj-section-title">Permanent Quests</span></div>
+      ${byScope('permanent').map(renderQuestCard).join('')}
+    </div>`;
+}
+
+function claimQuest(questId){
+  if(!QuestState) return;
+  const def=(QuestState.quests||[]).find(q=>q.id===questId);
+  if(!def) return;
+  markQuestSeen(def.id, def.periodKey);
+  const card=document.getElementById(`qcard-${questId}`);
+  const anchor=card?.querySelector('.qcard-claim-btn')||card;
+  if(def.scope==='permanent'&&def.reward){
+    bumpCurrencyDisplay(def.reward);
+    spawnRewardBurst(anchor, def.reward);
+  }else{
+    spawnRewardBurst(anchor, null, def.points);
+  }
+  if(card) card.querySelector('.qcard-right').innerHTML=`<span class="qcard-done-badge">${renderCheckIcon(13)} Completed</span>`;
+  updateQuestBadge(QuestState);
+}
+
+function collectMilestone(el){
+  if(!el.classList.contains('qbar-collectible')) return;
+  const scope=el.dataset.scope, milestone=Number(el.dataset.milestone), periodKey=el.dataset.period;
+  markMilestoneSeen(scope, periodKey, milestone);
+  const bar=QuestState&&(scope==='daily'?QuestState.dailyBar:QuestState.weeklyBar);
+  const reward=bar&&bar.rewards&&bar.rewards[milestone];
+  if(reward) bumpCurrencyDisplay(reward);
+  spawnRewardBurst(el, reward||null);
+  el.classList.remove('qbar-collectible');
+  const fill=document.getElementById(`qbar-fill-${scope}`);
+  if(fill){ fill.classList.add('qbar-celebrate'); setTimeout(()=>fill.classList.remove('qbar-celebrate'),1000); }
+  updateQuestBadge(QuestState);
+}
+
+/** Briefly ticks the topbar gold/gems numbers up to their new total and
+ * flashes the pill — used only by the quest-claim flourish above; ordinary
+ * profile syncs elsewhere still just set the number directly. */
+function bumpCurrencyDisplay(reward){
+  if(!reward) return;
+  const bump=(elId, pillSelector, amount)=>{
+    if(!amount) return;
+    const el=document.getElementById(elId);
+    if(!el) return;
+    const start=parseInt(el.textContent.replace(/[^0-9]/g,''),10)||0;
+    const end=start+amount;
+    const dur=600, t0=performance.now();
+    function step(t){
+      const p=Math.min(1,(t-t0)/dur);
+      el.textContent=Math.round(start+(end-start)*p).toLocaleString();
+      if(p<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+    document.querySelector(pillSelector)?.classList.add('qbar-celebrate');
+  };
+  bump('menu-gold','.currency-pill.gold',reward.gold||0);
+  bump('menu-gems','.currency-pill.gems',reward.gems||0);
+}
+
+/** Spawns a short-lived celebration burst (ring pulse, glow, radiating
+ * rays, a scatter of sparks, and floating reward text) centered on
+ * `targetEl`. `reward` is {gold,gems} for a currency payout, or omitted;
+ * `points` shows "+N QP" instead when this is a daily/weekly quest claim
+ * (those pay quest-bar points, not currency, directly). Removes its own
+ * DOM nodes once the animation finishes — nothing here persists. */
+function spawnRewardBurst(targetEl, reward, points){
+  if(!targetEl) return;
+  const rect=targetEl.getBoundingClientRect();
+  const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+  const wrap=document.createElement('div');
+  wrap.className='reward-burst';
+  wrap.style.left=cx+'px'; wrap.style.top=cy+'px';
+  let html=`<div class="rb-ring"></div><div class="rb-glow"></div>`;
+  for(let i=0;i<10;i++){
+    html+=`<div class="rb-ray" style="--ang:${i*36}deg"></div>`;
+  }
+  for(let i=0;i<14;i++){
+    const ang=Math.random()*Math.PI*2, dist=30+Math.random()*46;
+    html+=`<div class="rb-spark" style="--dx:${Math.cos(ang)*dist}px;--dy:${Math.sin(ang)*dist}px;animation-delay:${Math.random()*0.15}s"></div>`;
+  }
+  const floats=[];
+  if(reward){
+    if(reward.gold) floats.push(`<div class="rb-float" style="animation-delay:.05s">+${reward.gold}${currencyIcon('gold')}</div>`);
+    if(reward.gems) floats.push(`<div class="rb-float" style="animation-delay:.2s">+${reward.gems}${currencyIcon('gems')}</div>`);
+  }
+  if(points) floats.push(`<div class="rb-float" style="animation-delay:.05s">+${points} QP</div>`);
+  wrap.innerHTML=html+floats.join('');
+  document.body.appendChild(wrap);
+  setTimeout(()=>wrap.remove(),1500);
 }
 
 function editProfileFromView(){
@@ -5982,6 +6779,12 @@ function enterArena(){
   window._stopRuneEngine&&window._stopRuneEngine();
   beginServerWait(()=>{
     document.getElementById('start-screen').style.display='none';
+    // First time anyone's opened the arena on this browser: get them
+    // oriented with the tutorial instead of dropping them straight into
+    // an empty menu. The tutorial needs no deck and no live match, so
+    // there's nothing else to wait on here — the flag is set the instant
+    // the tutorial actually opens, so this only ever fires once.
+    if(!aopHasSeenTutorial()){ startTutorial(); return; }
     showMenu();
   });
 }
@@ -6011,8 +6814,8 @@ function openMarket(){
 function closeMarket(){ showMenu(); }
 
 /* ── DECK BUILDER ─────────────────────────────────────── */
-const DECK_SIZE=16; // must match Engine.DECK_SIZE on the server
-const MAX_CREATURES=12; // must match Engine.MAX_CREATURES on the server — creature-type cap per deck
+const DECK_SIZE=12; // must match Engine.DECK_SIZE on the server
+const MAX_CREATURES=8; // must match Engine.MAX_CREATURES on the server — creature-type cap per deck
 
 /** Mirrors the server's game-engine.js deckClassificationOk() rule:
  * at most MAX_CREATURES creature-type cards total, at most one
@@ -6059,7 +6862,6 @@ function canAddCardToDeck(id){
 }
 
 let _dbDeck=[]; // working copy
-let _dbPage=0;  // 0 or 1 — which 8-slot page of the SAME 16-card deck is shown; visual only
 const DB_CLASS_OPTIONS=['pests','boss','overlord'];
 let _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
 
@@ -6070,8 +6872,13 @@ function dbTypeOptions(){
 }
 
 function refreshDeckBuilder(){
-  _dbDeck=[...Player.deck];
-  _dbPage=0;
+  // Start from whatever was last saved, but drop anything that's no longer
+  // legitimate to have in there — an unknown id, or one no longer owned
+  // (e.g. traded away since this deck was saved). Without this, a stale
+  // deck can look "full" while saveDeck() (which re-validates the same
+  // way) keeps rejecting it, with no obvious reason why on screen.
+  const ownedSet=new Set(Player.collection||[]);
+  _dbDeck=[...Player.deck].filter(id=>CardDB.find(c=>c.id===id) && ownedSet.has(id));
   dbRenderFilterChips();
   renderDBDeckSlots();
   renderDBCollection();
@@ -6144,7 +6951,11 @@ function renderDBCollection(){
   const grid=document.getElementById('db-collection-grid');
   if(!grid)return;
   grid.innerHTML='';
-  const owned=Player.collection.length?Player.collection:CardDB.map(c=>c.id);
+  // Only cards actually owned (at least 1 copy) can appear here at all —
+  // an empty collection means an empty grid, never a silent "show every
+  // card in the game" fallback (that let people deck out with cards they
+  // don't own, and even ones that never dropped for anyone at all).
+  const owned=Player.collection||[];
   const uniqueOwned=[...new Set(owned)]; // one real card per owned id — duplicates don't add extra deck slots
   const dupCounts={};
   owned.forEach(id=>{dupCounts[id]=(dupCounts[id]||0)+1;});
@@ -6153,7 +6964,9 @@ function renderDBCollection(){
     return def && cardMatchesFilters(def);
   });
   if(!filtered.length){
-    grid.innerHTML='<div class="db-empty-results">No cards match these filters.</div>';
+    grid.innerHTML=owned.length
+      ?'<div class="db-empty-results">No cards match these filters.</div>'
+      :'<div class="db-empty-results">No cards owned yet — open a pack first!</div>';
     return;
   }
   filtered.forEach(id=>{
@@ -6168,19 +6981,19 @@ function renderDBCollection(){
   });
 }
 
-/** Renders 8 slots for whichever page is active. Slot index `i` maps
- * directly onto _dbDeck[i] — the page split is purely a viewport choice,
- * there's exactly one 16-card deck underneath either page. */
+/** Renders all DECK_SIZE slots in one grid — small enough now (12) that
+ * pagination just added a way for the visible slots and the real _dbDeck
+ * array to quietly drift apart, which is exactly what made a deck that
+ * *looked* full still get rejected as "not DECK_SIZE cards" with no
+ * visible reason why. One grid, one array, always in sync. */
 function renderDBDeckSlots(){
   const grid=document.getElementById('db-deck-slot-grid');
   if(!grid)return;
   const counterText=`${_dbDeck.length}/${DECK_SIZE} (${deckCreatureCount(_dbDeck)}/${MAX_CREATURES} creatures)`;
   const counter=document.getElementById('db-deck-count'); if(counter)counter.textContent=counterText;
   const topbarMeta=document.getElementById('menu-deck-count'); if(topbarMeta)topbarMeta.textContent=`${_dbDeck.length} / ${DECK_SIZE} cards · ${deckCreatureCount(_dbDeck)} / ${MAX_CREATURES} creatures`;
-  document.querySelectorAll('#db-page-tabs .db-page-tab').forEach((el,idx)=>el.classList.toggle('active',idx===_dbPage));
   grid.innerHTML='';
-  const start=_dbPage*8;
-  for(let i=start;i<start+8;i++){
+  for(let i=0;i<DECK_SIZE;i++){
     if(i<_dbDeck.length){
       const def=CardDB.find(c=>c.id===_dbDeck[i]);
       if(!def){ grid.innerHTML+=`<div class="db-deck-empty-slot">Slot ${i+1}<br>Unknown</div>`; continue; }
@@ -6195,11 +7008,6 @@ function renderDBDeckSlots(){
   }
 }
 
-function dbSetPage(p){
-  _dbPage=p;
-  renderDBDeckSlots();
-}
-
 function dbToggleCard(id){
   const idx=_dbDeck.indexOf(id);
   if(idx!==-1){
@@ -6208,15 +7016,14 @@ function dbToggleCard(id){
     renderDBDeckSlots();
     return;
   }
+  const ownedCount=(Player.collection||[]).filter(cid=>cid===id).length;
+  if(ownedCount<1){ showToast("⚠ You don't own that card yet."); return; }
   if(_dbDeck.length>=DECK_SIZE){ showToast(`Deck is full! Remove a card first (max ${DECK_SIZE}).`); return; }
   const check=canAddCardToDeck(id);
   if(!check.ok){ showToast(`⚠ ${check.reason}`); return; }
   _dbDeck.push(id);
   renderDBCollection();
-  // jump to whichever page the newly-added card actually landed on, so
-  // filling page 1 and adding an 9th card doesn't add a card you can't see
-  const landedPage=Math.floor((_dbDeck.length-1)/8);
-  if(landedPage!==_dbPage) dbSetPage(landedPage); else renderDBDeckSlots();
+  renderDBDeckSlots();
 }
 
 function dbRemoveCard(i){
@@ -6249,15 +7056,16 @@ function saveDeck(){
 
 /* ── SHOP & PACK SYSTEM ───────────────────────────────── */
 const RARITY_CONFIG={
-  common:   {label:'Common',   weight:56,color:'#d1d5db'},
-  uncommon: {label:'Uncommon', weight:27,color:'#6ee7b7'},
-  rare:     {label:'Rare',     weight:13,color:'#a5b4fc'},
-  epic:     {label:'Epic',     weight:3,  color:'#fde68a'},
-  legendary:{label:'Legendary',weight:0.8,color:'#fca5a5'},
-  mythic:   {label:'Mythic',   weight:0.2,color:'#f5d0fe'},
+  common:   {label:'Common',   weight:50,  color:'#9ca3af'},
+  uncommon: {label:'Uncommon', weight:27,  color:'#34d399'},
+  rare:     {label:'Rare',     weight:15,  color:'#818cf8'},
+  epic:     {label:'Epic',     weight:6,   color:'#f59e0b'},
+  legendary:{label:'Legendary',weight:1.5, color:'#ef4444'},
+  mythic:   {label:'Mythic',   weight:0.4, color:'#d946ef'},
+  fabled:   {label:'Fabled',   weight:0.1, color:'#22d3ee'},
 };
 
-const RARITY_ORDER=['common','uncommon','rare','epic','legendary','mythic'];
+const RARITY_ORDER=['common','uncommon','rare','epic','legendary','mythic','fabled'];
 function rarityRank(r){return RARITY_ORDER.indexOf(r);}
 
 /* SVG art per pack theme — no emojis, pure SVG */
@@ -6381,44 +7189,44 @@ const FEATURED_SVG=`<svg width="90" height="90" viewBox="0 0 64 64" fill="none" 
 const PACK_DEFS=[
   {id:'basic',    currency:'gold', theme:'basic',    artH:110, badge:'Basic',    name:'Basic Pack',
    size:3,  cost:80,
-   weights:{common:74,uncommon:23,rare:3,epic:0,legendary:0,mythic:0},
+   weights:{common:50,uncommon:35,rare:15,epic:0,legendary:0,mythic:0,fabled:0},
    guarantees:[], filter:null,
    desc:'A humble bundle. Solid odds on commons with a small shot at uncommon.'},
   {id:'standard', currency:'gold', theme:'standard', artH:110, badge:'Standard', name:'Standard Pack',
    size:5,  cost:200,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2},
+   weights:{common:30,uncommon:32,rare:25,epic:10,legendary:3,mythic:0,fabled:0},
    guarantees:[], filter:null,
    desc:'Balanced odds across all rarities. Real chance at something powerful.'},
   {id:'mob',      currency:'gold', theme:'mob',      artH:110, badge:'Mob',      name:'Mob Pack',
    size:4,  cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('mob'),
    desc:'Mob creatures only. Standard rarity rates across four draws.'},
   {id:'dragon',   currency:'gold', theme:'dragon',   artH:110, badge:'Dragon',   name:'Dragon Pack',
    size:4,  cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('dragon'),
    desc:'Dragon-type cards only. Standard rates across four slots.'},
   {id:'wizard',   currency:'gold', theme:'wizard',   artH:110, badge:'Wizard',   name:'Wizard Pack',
    size:4,  cost:180,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('wizard'),
    desc:'Wizard cards only. Harness the arcane across four draws.'},
   {id:'armory',   currency:'gold', theme:'armory',   artH:110, badge:'Armory',   name:'Armory Pack',
    size:5,  cost:220,
-   weights:{common:56,uncommon:27,rare:13,epic:3,legendary:0.8,mythic:0.2},
+   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:6,mythic:0,fabled:0},
    guarantees:[], filter:c=>c.cardType==='weapon'||c.cardType==='defense',
-   desc:'Weapons and defenses only. Five equipment draws.'},
+   desc:'Weapons and defenses only. Five equipment draws. Capped at Legendary — no Mythic gear exists.'},
   {id:'boss',     currency:'gems', theme:'boss',     artH:150, badge:'Boss',     name:'Boss Pack',
    size:7,  cost:150,
-   weights:{common:28,uncommon:32,rare:26,epic:10,legendary:3,mythic:1},
+   weights:{common:0,uncommon:15,rare:32,epic:30,legendary:17,mythic:4,fabled:2},
    guarantees:['rare'], filter:null,
    desc:'Guaranteed at least one Rare card across 7 powerful draws.'},
   {id:'overlord', currency:'gems', theme:'overlord', artH:150, badge:'Overlord', name:"Overlord's Hoard",
    size:7,  cost:250,
-   weights:{common:0,uncommon:14,rare:42,epic:30,legendary:10,mythic:4},
+   weights:{common:0,uncommon:0,rare:30,epic:30,legendary:23,mythic:10,fabled:7},
    guarantees:['epic'], filter:null,
-   desc:'Guaranteed Epic+. No commons. Mythic is within reach.'},
+   desc:'Guaranteed Epic+. No commons. Fabled is within reach.'},
 ];
 
 function oddsHtml(weights){
@@ -6551,6 +7359,7 @@ const RARITY_PARTICLE={
   epic:     {core:'#fde68a',outer:'#f59e0b',glow:'rgba(245,158,11,.9)'},
   legendary:{core:'#fca5a5',outer:'#ef4444',glow:'rgba(239,68,68,.95)'},
   mythic:   {core:'#f5d0fe',outer:'#d946ef',glow:'rgba(217,70,239,1)'},
+  fabled:   {core:'#a5f3fc',outer:'#22d3ee',glow:'rgba(34,211,238,1)'},
 };
 
 function buildPackSVG(packDef){
@@ -7118,6 +7927,8 @@ const IMPACT_CFG={
     starColor:'#fff3e0', starGlow:'#f59e0b', starGlow2:'#ef4444', starSpeed:760, starAccel:2200, blackoutMs:420, coreSize:8,  sparkle:false},
   mythic:    {shakeAmp:30, zoom:true,  color:'#d946ef', colorRgb:'217,70,239',
     starColor:'#fdf4ff', starGlow:'#e879f9', starGlow2:'#7c3aed', starSpeed:640, starAccel:2800, blackoutMs:560, coreSize:10, sparkle:true},
+  fabled:    {shakeAmp:40, zoom:true,  color:'#22d3ee', colorRgb:'34,211,238',
+    starColor:'#ecfeff', starGlow:'#67e8f9', starGlow2:'#22d3ee', starSpeed:560, starAccel:3200, blackoutMs:640, coreSize:12, sparkle:true},
 };
 
 const PK_SCALE=1.85; // must match #pack-deck-scene-inner's base CSS scale
@@ -8090,6 +8901,7 @@ const Net={
         // Presence starts here — the moment the player is actually "on,"
         // never before (not during load, not before auth completes).
         startPresenceHeartbeat();
+        this.send({type:'quest_state'}); // populates the topbar Quest Journal badge on load
         break;
       case 'profile': hideBazaarLoading(); applyServerProfile(msg.profile); break;
       case 'player_profile':
@@ -8123,6 +8935,7 @@ const Net={
       case 'battle_chat': handleBattleChatMessage(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
+      case 'quest_state': applyQuestState(msg); break;
       case 'friends_list':
         (msg.friends||[]).forEach(f=>{ if(f.userId) applyMatchPresence([f.userId], !!f.inMatch); });
         renderSocial(msg);
@@ -8286,6 +9099,7 @@ const Net={
         applyServerProfile(msg.profile);
         showToast("Registered! Be online when it starts, or you'll be disqualified.", 3600, renderCheckIcon(13));
         Net.send({type:'tournament_list'});
+        Net.send({type:'quest_state'}); // may have just completed the enter-tournaments weekly quest
         break;
       case 'tournament_left':
         clearTourneyActionLoading();
@@ -8992,7 +9806,7 @@ function beginMultiplayerMatch(msg){
     document.getElementById('enemy-avatar-circle').innerHTML=renderIcon(State.opponentIcon||'star',26);
     document.getElementById('player-avatar-circle').innerHTML=renderIcon(Player.icon||'star',26);
     const enemyLabel=document.getElementById('enemy-hp-label');
-    if(enemyLabel) enemyLabel.innerHTML=`${escapeHtml(State.opponentName||'Enemy')}'s Creatures ${renderRankBadge(State.opponentRank)}<span class="graveyard-badge" id="enemy-graveyard-badge" style="display:none"></span>`;
+    if(enemyLabel) enemyLabel.innerHTML=`${escapeHtml(State.opponentName||'Enemy')}'s Creatures ${renderRankBadge(State.opponentRank)}`;
     showScreen('game');
     initHandTray();
     setTimeout(showHandTray,400);
@@ -9115,6 +9929,11 @@ function playSingleEvent(e){
         if(slotId) Anim.deathAnim(slotId,card);
         break;
       }
+      case 'passive_revive': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusFloat(slotId,`REVIVED! +${e.hp}`,'#10b981');
+        break;
+      }
       case 'curse_recoil': {
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusFloat(slotId,`CURSE  -${e.dmg}`,'#a78bfa');
@@ -9164,6 +9983,7 @@ function handleMatchOver(msg){
   State._mpOver=true; State.mp=false;
   applyServerProfile(msg.profile);
   const won=msg.result==='win';
+  if(won) Net.send({type:'quest_state'}); // may have just completed/progressed a win-X-games quest
   document.getElementById('game-over').style.display='flex';
   const el=document.getElementById('game-over-text');
   el.innerText=won?'VICTORY':'DEFEAT';
@@ -9196,6 +10016,7 @@ function handleMatchOver(msg){
 function handlePackResult(msg){
   const packDef=PACK_DEFS.find(p=>p.id===msg.packId);
   if(!packDef)return;
+  Net.send({type:'quest_state'}); // may have just completed the buy-a-pack daily quest
   if(msg.currency==='gems')Player.gems=msg.newBalance; else Player.gold=msg.newBalance;
   savePlayer();
   const gEl=document.getElementById('menu-gold'), mEl=document.getElementById('menu-gems');
@@ -9535,6 +10356,864 @@ function gcDragEnd(e){
     toggleGlobalChat();
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE SIMGA'S TUTORIAL
+   ══════════════════════════════════════════════════════════════════════
+   A self-contained, VN-style walkthrough of Arena of Pests. It never
+   touches the network — it reuses the exact same State object, renderCard/
+   renderEquipCard, updateUI, hand tray, inspect overlay and Anim/event
+   pipeline that real multiplayer matches use, by patching Net.send() and
+   inspectCard() to route through a small local rules engine (TutEngine)
+   instead of the WebSocket while a tutorial is active. Nothing outside
+   this block is modified.
+
+   TUTORIAL_CARDS is the ONLY place with card content. It uses the exact
+   same shape as cards.json, so real cards can be dropped in later just by
+   replacing these objects. */
+
+/* ── CARD CONTENT (swap these out for real cards whenever) ───────────── */
+const TUTORIAL_CARDS = {
+  // Step 2–4: your very first card. A blunt, honest mob — one big hit,
+  // one simple passive. Nothing to overwhelm a first-timer with.
+  tut_mob_a: {
+    id:'tut_mob_a', name:'Grudge, the Tuskbreaker', rarity:'common',
+    types:['mob'], classification:'pests', hp:90, image:'',
+    topEffect:{ type:'passive', name:'Thick Hide', value:0, effects:[],
+      passiveReduction:{ flat:8 }, description:'\u2212 8 flat damage taken from every hit.' },
+    bottomAttack:{ name:'Skullcrusher Slam', damage:55, element:'physical', effects:[] },
+  },
+  // Step 4: intentionally weak — meant to die in one hit.
+  tut_weak_enemy: {
+    id:'tut_weak_enemy', name:'Mite, the Feeble Pestling', rarity:'common',
+    types:['mob'], classification:'pests', hp:30, image:'',
+    topEffect:{ type:'passive', name:'Fragile', value:0, effects:[],
+      passiveReduction:null, description:'No defensive traits \u2014 an easy target.' },
+    bottomAttack:{ name:'Nibble', damage:6, element:'physical', effects:[] },
+  },
+  // Step 5–7: the second hand card, swapped in, then tests fangs on it.
+  tut_swap_card: {
+    id:'tut_swap_card', name:'Skitter, the Nimble Weevil', rarity:'common',
+    types:['mob'], classification:'pests', hp:65, image:'',
+    topEffect:{ type:'passive', name:'Evasive Carapace', value:0, effects:[],
+      passiveReduction:{ percent:0.2 }, description:'\u2212 20% incoming damage.' },
+    bottomAttack:{ name:'Quick Snap', damage:22, element:'physical', effects:[] },
+  },
+  // Step 5: a quiet second recruit that just holds Slot 2 so a real swap
+  // (both slots full) is possible to demonstrate — never fought, never named.
+  tut_filler_ally: {
+    id:'tut_filler_ally', name:'Stray Recruit', rarity:'common',
+    types:['mob'], classification:'pests', hp:40, image:'',
+    topEffect:{ type:'passive', name:'Keeping Watch', value:0, effects:[],
+      passiveReduction:null, description:'No defensive traits.' },
+    bottomAttack:{ name:'Poke', damage:4, element:'physical', effects:[] },
+  },
+  // Step 5-7: a mid-tier opponent that sticks around for a few steps.
+  tut_enemy_2: {
+    id:'tut_enemy_2', name:'Ravel, the Bone Picker', rarity:'common',
+    types:['mob'], classification:'pests', hp:60, image:'',
+    topEffect:{ type:'passive', name:'Carrion Instinct', value:0, effects:[],
+      passiveReduction:null, description:'No defensive traits.' },
+    bottomAttack:{ name:'Bone Rake', damage:18, element:'physical', effects:[{ type:'bleed', duration:3 }] },
+  },
+  // Step 6 & 9: the weapon at the heart of the "aha" moment.
+  tut_weapon: {
+    id:'tut_weapon', name:'Cinderfang Blade', rarity:'epic',
+    cardType:'weapon', flatBonus:15, maxDurability:3, image:'',
+    ampEffects:{ burn:25 },
+    description:'+15 dmg. While equipped, any Burn you inflict deals 25 extra damage per turn.',
+  },
+  // Step 6: armour, shown alongside the weapon for a full equipment beat.
+  tut_defense: {
+    id:'tut_defense', name:'Bramshell Ward', rarity:'uncommon',
+    cardType:'defense', flatBonus:12, maxDurability:3, image:'',
+    description:'\u2212 12 flat damage taken.',
+  },
+  // Step 8 & 9: the wizard whose hex sets up the finale.
+  tut_wizard: {
+    id:'tut_wizard', name:'Nyxa, the Cinderborn Hex', rarity:'uncommon',
+    types:['wizard'], classification:'pests', hp:70, image:'',
+    topEffect:{ type:'ability', name:'Cinderborn Hex', element:'fire', value:0,
+      effects:[{ type:'burn', duration:2 }], description:'On deploy: the enemy is set ablaze with Burn.' },
+    bottomAttack:{ name:'Flame Lash', damage:20, element:'fire', effects:[{ type:'burn', duration:2 }] },
+  },
+  // Step 8 & 9: the dragon/boss shown in the gallery, then the finale opponent.
+  tut_dragon: {
+    id:'tut_dragon', name:'Vorrax, the Ember-Scaled', rarity:'epic',
+    types:['dragon'], classification:'boss', hp:140, image:'',
+    topEffect:{ type:'attack', name:'Wing Buffet', value:25, element:'wind', effects:[] },
+    bottomAttack:{ name:'Molten Bite', damage:35, element:'fire', effects:[{ type:'burn', duration:2 }] },
+  },
+  // Step 8: display-only mythic overlord, for the classification gallery.
+  tut_overlord: {
+    id:'tut_overlord', name:'Nyxrot, the Infinite Swarm', rarity:'mythic',
+    types:['mob','wizard','dragon'], classification:'overlord', hp:260, image:'',
+    topEffect:{ type:'passive', name:'Endless Hunger', value:0, effects:[],
+      passiveReduction:{ percent:0.3, flat:10 }, description:'\u2212 30%, then \u2212 10 flat damage taken.' },
+    bottomAttack:{ name:'World Devourer', damage:70, element:'shadow', effects:[{ type:'bleed', duration:3 }] },
+  },
+};
+
+/* ── CARD / INSTANCE FACTORY ──────────────────────────────────────────── */
+let _tutUidN=0;
+function tutUid(){ return 'tut_'+(++_tutUidN)+'_'+Date.now().toString(36); }
+
+function tutCreateCard(baseId){
+  const base=TUTORIAL_CARDS[baseId];
+  if(!base) throw new Error('Unknown tutorial card: '+baseId);
+  if(base.cardType==='weapon'||base.cardType==='defense'){
+    return {
+      instanceId:tutUid(), baseId, id:base.id, name:base.name, rarity:base.rarity||'common',
+      cardType:base.cardType, flatBonus:base.flatBonus, maxDurability:base.maxDurability,
+      currentDurability:base.maxDurability, image:base.image||'',
+      ampEffects:base.ampEffects?{...base.ampEffects}:null,
+      dampEffects:base.dampEffects?{...base.dampEffects}:null,
+      addEffects:base.addEffects?base.addEffects.map(e=>({...e})):null,
+      description:base.description||'',
+    };
+  }
+  const card={
+    instanceId:tutUid(), baseId, id:base.id, name:base.name, rarity:base.rarity||'common',
+    types:[...base.types], classification:base.classification, image:base.image||'',
+    maxHp:base.hp, currentHp:base.hp,
+    topEffect:JSON.parse(JSON.stringify(base.topEffect)),
+    bottomAttack:JSON.parse(JSON.stringify(base.bottomAttack)),
+    activeEffects:[],
+  };
+  return card;
+}
+
+/* ── LOCAL RULES ENGINE ───────────────────────────────────────────────
+   Mirrors server/game-engine.js closely enough to teach the mechanics
+   accurately: deploy (incl. auto-swap-into-slot1 + Rocks), attack
+   resolution (weapon/defense bonuses + durability, passive reduction,
+   effect application incl. weapon-amplified DoTs), and onTurnStart
+   ticking. Side 0 is always the player, side 1 the enemy. */
+const TutEngine=(()=>{
+  function entityOf(side){ return side===0?State.player:State.enemy; }
+
+  function killCard(side,slotKey,events){
+    const entity=entityOf(side);
+    const card=slotKey==='slot1'?entity.activeCard:entity.activeCard2;
+    if(!card)return true;
+    events.push({ t:'death', side, slot:slotKey, card:card.instanceId, name:card.name });
+    if(entity.activeCard===card) entity.activeCard=null;
+    else if(entity.activeCard2===card) entity.activeCard2=null;
+    entity.graveyard=entity.graveyard||[];
+    entity.graveyard.push(card);
+    if(side===0){ entity.creaturesLeft=Math.max(0,(entity.creaturesLeft||0)-1); }
+    else{ entity.creaturesLeft=Math.max(0,(entity.creaturesLeft||0)-1); entity.graveyardCount=(entity.graveyardCount||0)+1; }
+    return true;
+  }
+
+  function applyEffectToCard(target,effectDef,ampSource){
+    const ex=target.activeEffects.find(e=>e.type===effectDef.type);
+    if(ex){
+      if(ex.duration<9999) ex.duration=Math.min(9999,ex.duration+effectDef.duration);
+      if(ampSource){ ex.ampSide=ampSource.side; ex.ampKind=ampSource.kind; }
+    } else {
+      target.activeEffects.push({
+        type:effectDef.type, duration:effectDef.duration,
+        ampSide:ampSource?ampSource.side:undefined, ampKind:ampSource?ampSource.kind:undefined,
+      });
+    }
+  }
+
+  function applyDeployAbility(side,card,events){
+    if(!card.topEffect||card.topEffect.type!=='ability')return;
+    const oppSide=side===0?1:0, opp=entityOf(oppSide);
+    const target=opp.activeCard||opp.activeCard2;
+    if(target&&card.topEffect.effects&&card.topEffect.effects.length){
+      card.topEffect.effects.forEach(eff=>applyEffectToCard(target,eff,null));
+      events.push({ t:'ability', card:card.instanceId, target:target.instanceId });
+    }
+  }
+
+  function applyRocksOnSwap(side,slotKey,events){
+    const entity=entityOf(side);
+    const card=slotKey==='slot1'?entity.activeCard:entity.activeCard2;
+    if(!card||!card.activeEffects)return true;
+    const rk=card.activeEffects.find(e=>e.type==='rocks');
+    if(!rk)return true;
+    card.currentHp-=50;
+    events.push({ t:'rocks', side, slot:slotKey, card:card.instanceId, name:card.name, dmg:50 });
+    if(card.currentHp<=0) return !killCard(side,slotKey,events);
+    return true;
+  }
+
+  function deploy(side,instanceId){
+    const entity=entityOf(side);
+    const idx=entity.hand.findIndex(c=>c.instanceId===instanceId);
+    if(idx===-1)return null;
+    const card=entity.hand[idx];
+    const events=[];
+    if(card.cardType==='weapon'){
+      const old=entity.weaponCard; entity.weaponCard=card; entity.hand.splice(idx,1);
+      if(old) entity.hand.push(old);
+      events.push({ t:'deploy', side, slotType:'weapon', card });
+    } else if(card.cardType==='defense'){
+      const old=entity.defenseCard; entity.defenseCard=card; entity.hand.splice(idx,1);
+      if(old) entity.hand.push(old);
+      events.push({ t:'deploy', side, slotType:'defense', card });
+    } else if(!entity.activeCard){
+      entity.activeCard=card; entity.hand.splice(idx,1);
+      events.push({ t:'deploy', side, slotType:'slot1', card, swapped:false });
+      applyDeployAbility(side,card,events);
+    } else if(!entity.activeCard2){
+      entity.activeCard2=card; entity.hand.splice(idx,1);
+      events.push({ t:'deploy', side, slotType:'slot2', card, swapped:false });
+      applyDeployAbility(side,card,events);
+    } else {
+      // both slots full — the real server always swaps into slot1, regardless
+      // of which "swap" button was clicked. We mirror that quirk exactly.
+      events.push({ t:'deploy', side, slotType:'slot1', card, swapped:true });
+      const outgoingSurvived=applyRocksOnSwap(side,'slot1',events);
+      const old=entity.activeCard;
+      entity.activeCard=card; entity.hand.splice(idx,1);
+      if(outgoingSurvived&&old) entity.hand.push(old);
+      const incomingSurvived=applyRocksOnSwap(side,'slot1',events);
+      if(incomingSurvived) applyDeployAbility(side,card,events);
+    }
+    playServerEvents(events);
+    updateUI();
+    return { events };
+  }
+
+  function effectiveDmg(afflictedSide,ed,type,baseDmg){
+    let dmg=baseDmg;
+    if(ed.ampSide!=null&&ed.ampKind){
+      const gearSide=entityOf(ed.ampSide);
+      const gear=ed.ampKind==='weapon'?gearSide.weaponCard:gearSide.defenseCard;
+      if(gear&&gear.ampEffects&&gear.ampEffects[type]!=null) dmg+=gear.ampEffects[type];
+    }
+    const own=entityOf(afflictedSide);
+    if(own.defenseCard&&own.defenseCard.dampEffects&&own.defenseCard.dampEffects[type]!=null){
+      dmg-=own.defenseCard.dampEffects[type];
+    }
+    return Math.max(0,dmg);
+  }
+
+  function attack(side,slot,targetSlot,atkIndex){
+    const atkEntity=entityOf(side), oppSide=side===0?1:0, defEntity=entityOf(oppSide);
+    const ac=slot==='slot1'?atkEntity.activeCard:atkEntity.activeCard2;
+    if(!ac)return null;
+    const src=atkIndex===0?ac.topEffect:ac.bottomAttack;
+    const atkDef={ name:src.name, damage:(src.value!=null?src.value:src.damage), effects:src.effects||[], element:src.element };
+    const targetCard=targetSlot==='slot1'?defEntity.activeCard:defEntity.activeCard2;
+    const events=[];
+
+    let wBonus=0,weaponRef=null;
+    if(atkEntity.weaponCard){
+      weaponRef=atkEntity.weaponCard;
+      wBonus=weaponRef.flatBonus;
+      weaponRef.currentDurability--;
+      if(weaponRef.currentDurability<=0) atkEntity.weaponCard=null;
+    }
+    if(!targetCard){
+      events.push({ t:'hit', atkSide:side, atkSlot:slot, atkCard:ac.instanceId, defSide:oppSide, defSlot:null, tgtCard:null, direct:true, dmg:0, name:atkDef.name, element:atkDef.element });
+      playServerEvents(events); updateUI();
+      return { events, dmg:0, died:false };
+    }
+    let dReduce=0,defenseRef=null;
+    if(defEntity.defenseCard){
+      defenseRef=defEntity.defenseCard;
+      dReduce=defenseRef.flatBonus;
+      defenseRef.currentDurability--;
+      if(defenseRef.currentDurability<=0) defEntity.defenseCard=null;
+    }
+    let dmg=atkDef.damage+wBonus;
+    const pr=(targetCard.topEffect&&targetCard.topEffect.type==='passive')?targetCard.topEffect.passiveReduction:null;
+    if(pr){
+      const bypassed=pr.exceptElements&&pr.exceptElements.includes(atkDef.element);
+      if(!bypassed){
+        if(pr.percent) dmg=Math.floor(dmg*(1-pr.percent));
+        if(pr.flat) dmg=Math.max(0,dmg-pr.flat);
+      }
+    }
+    dmg=Math.max(0,dmg-dReduce);
+    targetCard.currentHp-=dmg;
+    const tgtSlotKey=defEntity.activeCard===targetCard?'slot1':'slot2';
+    events.push({ t:'hit', atkSide:side, atkSlot:slot, atkCard:ac.instanceId, defSide:oppSide, defSlot:tgtSlotKey, tgtCard:targetCard.instanceId, direct:false, dmg, name:atkDef.name, element:atkDef.element });
+    const weaponAmp=weaponRef?{ side, kind:'weapon' }:null;
+    (atkDef.effects||[]).forEach(eff=>applyEffectToCard(targetCard,eff,weaponAmp));
+    let died=false;
+    if(targetCard.currentHp<=0) died=killCard(oppSide,tgtSlotKey,events);
+
+    if(side===0){ State.actedThisTurn.add(slot); }
+    playServerEvents(events);
+    updateUI();
+    return { events, dmg, died };
+  }
+
+  function processTurnStart(side){
+    const entity=entityOf(side);
+    const events=[];
+    ['activeCard','activeCard2'].forEach((key,i)=>{
+      const slotKey=i===0?'slot1':'slot2';
+      const card=entity[key];
+      if(!card)return;
+      for(let j=card.activeEffects.length-1;j>=0;j--){
+        const ed=card.activeEffects[j];
+        if(ed.type==='burn'||ed.type==='bleed'||ed.type==='poison'){
+          const baseDmg=ed.type==='poison'?25:10;
+          const dmg=effectiveDmg(side,ed,ed.type,baseDmg);
+          card.currentHp-=dmg;
+          events.push({ t:'dot', side, slot:slotKey, card:card.instanceId, dmg, effect:ed.type });
+        }
+        if(ed.duration<9999){ ed.duration--; if(ed.duration<=0) card.activeEffects.splice(j,1); }
+      }
+    });
+    ['activeCard','activeCard2'].forEach((key,i)=>{
+      const slotKey=i===0?'slot1':'slot2';
+      const card=entity[key];
+      if(card&&card.currentHp<=0) killCard(side,slotKey,events);
+    });
+    return events;
+  }
+
+  function endTurn(){
+    // One click resolves a full, quiet round: the enemy's turn starts
+    // (their DoTs tick), then immediately passes back to the player's
+    // turn (the player's DoTs tick). There's no real opponent to wait on
+    // in a tutorial, so both half-turns resolve in a single call.
+    State.turn='ENEMY';
+    State.selectedSlot=null; State.pendingTarget=null; State.pendingRevive=null;
+    updateUI();
+    const evEnemy=processTurnStart(1);
+    playServerEvents(evEnemy);
+    updateUI();
+    const evPlayer=processTurnStart(0);
+    playServerEvents(evPlayer);
+    State.turn='PLAYER'; State.actedThisTurn=new Set();
+    updateUI();
+    return { evEnemy, evPlayer };
+  }
+
+  return { deploy, attack, endTurn, applyEffectToCard, killCard };
+})();
+
+/* ── VN DIALOGUE BOX ("THE SIMGA") ──────────────────────────────────── */
+const Tutorial={
+  active:false,
+  step:0,
+  totalSteps:9,
+  _typing:false,
+  _skip:false,
+  _typeTimer:null,
+  _continueResolve:null,
+  _expect:null,
+  _guard:null,
+  _guardNudge:null,
+  _highlightSel:null,
+  _nudgeTimer:null,
+  _cancelled:false,
+
+  /* -- low-level box control -- */
+  setStep(n,label){
+    this.step=n;
+    const el=document.getElementById('tut-vn-step');
+    if(el) el.textContent=n?`STEP ${n} / ${this.totalSteps}${label?' \u00b7 '+label:''}`:label||'';
+  },
+  showBox(){ document.getElementById('tut-vn').classList.add('open'); },
+  hideBox(){ document.getElementById('tut-vn').classList.remove('open'); },
+  setAction(label,fn){
+    const btn=document.getElementById('tut-vn-action');
+    if(!label){ btn.style.display='none'; btn.onclick=null; return; }
+    btn.style.display='';
+    btn.textContent=label;
+    btn.onclick=(e)=>{ e.stopPropagation(); fn(); };
+  },
+
+  onBoxTap(){
+    if(!this.active)return;
+    if(this._typing){ this._skip=true; return; }
+    if(this._continueResolve){ const r=this._continueResolve; this._continueResolve=null; r(); }
+  },
+
+  _type(text){
+    return new Promise(resolve=>{
+      const body=document.getElementById('tut-vn-body');
+      body.textContent='';
+      this._skip=false; this._typing=true;
+      let i=0;
+      const step=()=>{
+        if(this._cancelled) return;
+        if(this._skip){ body.textContent=text; this._typing=false; resolve(); return; }
+        if(i>=text.length){ this._typing=false; resolve(); return; }
+        body.textContent+=text.charAt(i++);
+        this._typeTimer=setTimeout(step,16);
+      };
+      step();
+    });
+  },
+
+  /** Speak a sequence of lines, tap-to-reveal / tap-to-advance, VN style.
+   * Locks the board first — narration is never an opportunity to act, so
+   * this also closes off any board interaction a still-open inspect
+   * overlay might otherwise let slip through mid-narration (see prompt()
+   * below for the corresponding unlock). */
+  async say(lines,opts={}){
+    if(this._cancelled)return;
+    this.lock();
+    this.showBox();
+    document.getElementById('tut-vn-continue').style.display='';
+    this.setAction(null);
+    if(opts.highlight) this.highlight(opts.highlight); else this.clearHighlight();
+    for(let i=0;i<lines.length;i++){
+      if(this._cancelled)return;
+      await this._type(lines[i]);
+      if(this._cancelled)return;
+      await new Promise(res=>{ this._continueResolve=res; });
+    }
+    document.getElementById('tut-vn-continue').style.display='none';
+  },
+
+  /** Show an instruction that STAYS on screen (no tap-to-continue) while
+   * we wait for the player to actually do the thing. Unlocks the board —
+   * this is the ONLY point in the whole tutorial where a real game action
+   * is meant to be possible; every other moment stays locked via say(). */
+  async prompt(text,opts={}){
+    if(this._cancelled)return;
+    this.showBox();
+    document.getElementById('tut-vn-continue').style.display='none';
+    await this._type(text);
+    this.unlock();
+    if(opts.highlight) this.highlight(opts.highlight);
+    if(opts.actionLabel) this.setAction(opts.actionLabel,opts.actionFn);
+    else this.setAction(null);
+  },
+
+  /** Highlighting draws one top-level, fixed-position ring per matching
+   * element, continuously re-measured via requestAnimationFrame. That's
+   * what keeps a ring from ever being clipped by an ancestor's overflow
+   * or buried under a sibling's stacking context — it isn't really "in"
+   * the board at all, it's just drawn in the same screen position as
+   * whatever it's pointing at, on its own top-level layer. Re-querying
+   * the selector every frame (cheap, only a few simple selectors, only
+   * while a tutorial is on screen) also means it survives the target
+   * being torn down and re-created by updateUI()/renderHandTray()/etc,
+   * which a cached element reference would not. */
+  _spotlightRings:[],
+  _spotlightRAF:null,
+  highlight(selector){
+    this._highlightSel=selector;
+    this._runSpotlightLoop();
+  },
+  clearHighlight(){
+    this._highlightSel=null;
+    if(this._spotlightRAF){ cancelAnimationFrame(this._spotlightRAF); this._spotlightRAF=null; }
+    document.querySelectorAll('.tut-glow').forEach(el=>el.classList.remove('tut-glow')); // legacy cleanup
+    this._spotlightRings.forEach(r=>{ r.style.display='none'; });
+  },
+  reapplyHighlight(){ /* the spotlight loop re-measures continuously — nothing to do here anymore */ },
+  _runSpotlightLoop(){
+    if(this._spotlightRAF)return; // loop is already running
+    const tick=()=>{
+      if(!this.active||!this._highlightSel){ this._spotlightRAF=null; this._spotlightRings.forEach(r=>r.style.display='none'); return; }
+      const targets=Array.from(document.querySelectorAll(this._highlightSel));
+      while(this._spotlightRings.length<targets.length){
+        const ring=document.createElement('div');
+        ring.className='tut-spotlight-ring';
+        document.body.appendChild(ring);
+        this._spotlightRings.push(ring);
+      }
+      this._spotlightRings.forEach((ring,i)=>{
+        const el=targets[i];
+        const r=el?el.getBoundingClientRect():null;
+        if(!r||(r.width===0&&r.height===0)){ ring.style.display='none'; return; }
+        ring.style.display='block';
+        ring.style.left=(r.left-6)+'px';
+        ring.style.top=(r.top-6)+'px';
+        ring.style.width=(r.width+12)+'px';
+        ring.style.height=(r.height+12)+'px';
+      });
+      this._spotlightRAF=requestAnimationFrame(tick);
+    };
+    this._spotlightRAF=requestAnimationFrame(tick);
+  },
+
+  /** A short aside that doesn't consume the current prompt — flashes,
+   * then restores whatever text was already on screen. */
+  nudge(text){
+    const body=document.getElementById('tut-vn-body');
+    const prevText=body.textContent;
+    clearTimeout(this._nudgeTimer);
+    body.classList.add('tut-nudge');
+    body.textContent=text;
+    this._nudgeTimer=setTimeout(()=>{
+      body.classList.remove('tut-nudge');
+      body.textContent=prevText;
+    },1700);
+  },
+
+  /* -- action plumbing -- */
+  waitAction(matchFn){
+    return new Promise(resolve=>{ this._expect={ matchFn, resolve }; });
+  },
+  handleIntent(obj){
+    if(State.turn!=='PLAYER'){
+      // The board is intentionally locked during narration. A still-open
+      // inspect overlay (opened earlier, before this lock kicked back in)
+      // has working Deploy/Swap/Equip buttons with no turn-check of their
+      // own, so this is the real backstop — the one choke point every
+      // actual game action funnels through, regardless of which UI path
+      // it slipped in from. deployFromInspect() always closes the overlay
+      // before this runs, so the visible result of a blocked attempt is
+      // just the overlay closing with nothing deployed — recoverable, not
+      // a soft-lock — but a quick nudge explains why.
+      this.nudge("Hold that thought \u2014 let's finish this bit first.");
+      return;
+    }
+    if(this._guard&&!this._guard(obj)){
+      if(this._guardNudge) this._guardNudge(obj);
+      return;
+    }
+    let result=null;
+    if(obj.type==='deploy') result=TutEngine.deploy(0,obj.instanceId);
+    else if(obj.type==='attack') result=TutEngine.attack(0,obj.slot,obj.target,obj.atkIndex);
+    else if(obj.type==='end_turn') result=TutEngine.endTurn();
+    this.reapplyHighlight();
+    if(this._expect&&this._expect.matchFn(obj,result)){
+      const r=this._expect.resolve; this._expect=null; r({ obj, result });
+    }
+  },
+  handleInspect(index){
+    this.reapplyHighlight();
+    if(this._expect&&this._expect.matchFn({ type:'inspect', index })){
+      const r=this._expect.resolve; this._expect=null; r({ index });
+    }
+  },
+
+  /* -- misc board helpers -- */
+  setCounts(pLeft,pMax,eLeft,eMax){
+    State.player.creaturesLeft=pLeft; State.player._maxSeenCreatures=pMax;
+    State.enemy.creaturesLeft=eLeft; State.enemy._maxSeenCreatures=eMax;
+    updateUI();
+  },
+  lock(){ State.turn='ENEMY'; State.selectedSlot=null; State.pendingTarget=null; updateUI(); },
+  unlock(){ State.turn='PLAYER'; updateUI(); },
+
+  async confirmExit(){
+    if(!this.active)return;
+    const ok=window.confirm("Leave The Simga's tutorial? Your progress here won't be saved.");
+    if(ok) this.exit();
+  },
+  exit(){
+    this._cancelled=true;
+    this.active=false;
+    clearTimeout(this._typeTimer);
+    clearTimeout(this._nudgeTimer);
+    this.clearHighlight();
+    this.hideBox();
+    document.getElementById('main').classList.remove('tut-active');
+    hideHandTray();
+    showMenu();
+  },
+};
+
+/* ── BOARD SETUP HELPERS ──────────────────────────────────────────────── */
+function tutClearBoard(){
+  // Starts locked ('ENEMY') by default — every step unlocks explicitly via
+  // Tutorial.prompt() only at the exact moment a real action is wanted, so
+  // there's never a window between a step's setup and its first say() line
+  // where a fast tap could act ahead of the script.
+  State.turn='ENEMY'; State.phase='MAIN';
+  State.selectedSlot=null; State.pendingTarget=null; State.pendingRevive=null;
+  State.actedThisTurn=new Set();
+  State.player={ hp:100,maxHp:100, hand:[], activeCard:null, activeCard2:null, weaponCard:null, defenseCard:null, deck:[], graveyard:[], creaturesLeft:0, _maxSeenCreatures:0 };
+  State.enemy = { hp:100,maxHp:100, hand:[], activeCard:null, activeCard2:null, weaponCard:null, defenseCard:null, deck:[], graveyardCount:0, creaturesLeft:0, _maxSeenCreatures:0 };
+}
+function tutSetHand(cards){
+  State.player.hand=cards;
+  renderHandTray();
+  Tutorial.reapplyHighlight();
+}
+
+/* ── THE SCRIPT ────────────────────────────────────────────────────────── */
+async function tutStepWelcome(){
+  Tutorial.setStep(1,'Welcome to the Arena');
+  await Tutorial.say([
+    "So. Another challenger crawls into the Arena.",
+    "I am The Simga \u2014 I've watched every fight fought here, and I won't watch you lose this one out of sheer ignorance.",
+  ]);
+  await Tutorial.say(["Win by wiping out every creature the enemy brings. Nothing else matters."],{highlight:'.avatar-row'});
+  await Tutorial.say(["Your side, down here. Theirs, up there."],{highlight:'#table-wrap'});
+  await Tutorial.say(["Your hand waits below the field \u2014 tap near the bottom to see it."],{highlight:'#hand-hint'});
+  await Tutorial.say(["Your active card fights here \u2014 and theirs, there."],{highlight:'#player-active-slot, #enemy-active-slot'});
+  await Tutorial.say(["This bar tracks creatures remaining \u2014 yours below, theirs above. Empty it and you win."],{highlight:'.hp-display'});
+  await Tutorial.say(["Enough talking. Let's put a mob in your hands."]);
+}
+
+let _tutGrudge=null,_tutSkitter=null,_tutWeapon=null,_tutDefense=null;
+
+async function tutStepDeployAndAnatomy(){
+  Tutorial.setStep(2,'Deploying a Card');
+  tutClearBoard();
+  _tutGrudge=tutCreateCard('tut_mob_a');
+  tutSetHand([_tutGrudge]);
+  showHandTray();
+  await Tutorial.say(["Your hand contains your available cards. Right now: one very grumpy mob."]);
+  await Tutorial.prompt("Select a card to inspect it.",{highlight:'#hand-tray-inner .card'});
+  await Tutorial.waitAction(o=>o.type==='inspect');
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+
+  Tutorial.setStep(3,'Card Anatomy');
+  await Tutorial.say(["Ninety hit points \u2014 that's how much he can take before he's finished."],{highlight:'#inspect-card-wrap .card-hp-badge'});
+  await Tutorial.say(["A Mob: the simplest kind of creature. And a Pest \u2014 low on the food chain, but plentiful."],{highlight:'#inspect-card-wrap .card-typerow'});
+  await Tutorial.say(["Thick Hide, his passive \u2014 quietly shaves eight damage off every hit he takes. No button. It just works."],{highlight:'#inspect-card-wrap .card-eff-row.psv'});
+  await Tutorial.say(["Skullcrusher Slam \u2014 fifty-five damage. That's his attack, and right now his only trick."],{highlight:'#inspect-card-wrap .card-footer .card-eff-row.atk'});
+  await Tutorial.say(["And no, there's no toll to pay \u2014 deploying costs you nothing but the turn itself."]);
+  await Tutorial.prompt("Deploy it to enter the battle.",{highlight:'#inspect-actions .inspect-btn-deploy'});
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===_tutGrudge.instanceId);
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  Tutorial.setCounts(1,1,0,0);
+}
+
+async function tutStepAttack(){
+  Tutorial.setStep(4,'Attacking');
+  const mite=tutCreateCard('tut_weak_enemy');
+  State.enemy.activeCard=mite;
+  Tutorial.setCounts(1,1,1,1);
+  updateUI();
+  await Tutorial.say(["Something crawled up to challenge you. Small. Weak. Perfect."],{highlight:'#enemy-active-slot'});
+  await Tutorial.prompt("Your Mob is ready. Attack the enemy.",{highlight:'#player-active-slot'});
+  await Tutorial.waitAction(o=>o.type==='attack');
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say([
+    "Fifty-five damage. Mite had thirty hit points \u2014 you do the math.",
+    "That's the whole loop: deploy, attack, damage \u2014 and the enemy answers by losing a creature. One down. However many to go.",
+  ]);
+  Tutorial.setCounts(1,1,0,1);
+}
+
+async function tutStepSwap(){
+  Tutorial.setStep(5,'Swapping');
+  const filler=tutCreateCard('tut_filler_ally');
+  State.player.activeCard2=filler;
+  updateUI();
+  await Tutorial.say(["A recruit's joined you in the second slot \u2014 don't mind him. Careful where you plant your feet, though: that last skirmish loosened the ground under Grudge."]);
+  _tutGrudge.activeEffects.push({ type:'rocks', duration:3 });
+  updateUI();
+  await Tutorial.say(["See that badge? Rocks. It triggers the instant a card swaps into or out of an active slot \u2014 fifty damage, no questions asked."]);
+  _tutSkitter=tutCreateCard('tut_swap_card');
+  tutSetHand([_tutSkitter]);
+  showHandTray();
+  await Tutorial.say(["Sometimes your active card isn't the best choice. You can swap it for another."]);
+  await Tutorial.prompt("Inspect Skitter, then swap him into Slot 1.",{highlight:'#hand-tray-inner .card'});
+  await Tutorial.waitAction(o=>o.type==='inspect');
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.prompt("Swap Slot 1.",{highlight:'#inspect-actions .inspect-btn-swap'});
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===_tutSkitter.instanceId);
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say([
+    "There it is \u2014 Grudge paid fifty on the way out. He'll live, but he felt that.",
+    "Skitter's active now. Swapping isn't free \u2014 now you know why you check first.",
+  ]);
+}
+
+async function tutStepEquipment(){
+  Tutorial.setStep(6,'Equipment');
+  _tutWeapon=tutCreateCard('tut_weapon');
+  _tutDefense=tutCreateCard('tut_defense');
+  tutSetHand([_tutWeapon,_tutDefense]);
+  await Tutorial.say(["Arena of Pests doesn't hand out vague buffs. You get weapons, which hit harder \u2014 and armour, which hits back less."]);
+  await Tutorial.prompt("Inspect the Cinderfang Blade, then equip it.",{highlight:'#hand-tray-inner .card'});
+  Tutorial._guard=o=>!(o.type==='deploy'&&o.instanceId===_tutDefense.instanceId);
+  Tutorial._guardNudge=()=>Tutorial.nudge('The blade first \u2014 equip the Cinderfang Blade.');
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===_tutWeapon.instanceId);
+  Tutorial._guard=null;Tutorial._guardNudge=null;
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say(["Plus fifteen damage, every hit \u2014 for as long as it holds together. Three swings before it breaks."]);
+  await Tutorial.prompt("This weapon amplifies Burn damage. Inspect the Bramshell Ward, then equip it too.",{highlight:'#hand-tray-inner .card'});
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===_tutDefense.instanceId);
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say(["Minus twelve damage taken. Weapons and armour both wear down \u2014 watch the number in the corner."]);
+}
+
+async function tutStepStatus(){
+  Tutorial.setStep(7,'Status Effects');
+  const ravel=tutCreateCard('tut_enemy_2');
+  State.enemy.activeCard=ravel;
+  Tutorial.setCounts(1,1,1,2);
+  updateUI();
+  await Tutorial.say(["Not every pest in this Arena is harmless. This one bites \u2014 and leaves something behind."],{highlight:'#enemy-active-slot'});
+  Tutorial.lock();
+  await new Promise(res=>setTimeout(res,900));
+  if(Tutorial._cancelled)return;
+  TutEngine.attack(1,'slot1','slot1',1);
+  await new Promise(res=>setTimeout(res,700));
+  Tutorial.unlock();
+  if(Tutorial._cancelled)return;
+  await Tutorial.say([
+    "That's Bleed, clinging to Skitter now \u2014 a wound that won't close.",
+    "It triggers at the start of YOUR turn \u2014 ten damage, every turn, until it runs its course.",
+    "You'll meet others out there: Poison bites harder still. Sleep and Paralyze can lock a card out of acting entirely.",
+  ]);
+  await Tutorial.prompt("End your turn \u2014 watch it take hold.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.waitAction(o=>o.type==='end_turn');
+  if(Tutorial._cancelled)return;
+  Tutorial.setAction(null);
+  await Tutorial.say(["Felt that, didn't he. That's the rhythm of a DoT \u2014 quiet, patient, relentless."]);
+}
+
+async function tutStepTypes(){
+  Tutorial.setStep(8,'Card Types');
+  tutClearBoard();
+  const gGrudge=tutCreateCard('tut_mob_a');
+  const gNyxa=tutCreateCard('tut_wizard');
+  const gVorrax=tutCreateCard('tut_dragon');
+  const gNyxrot=tutCreateCard('tut_overlord');
+  State.player.activeCard=gGrudge; State.player.activeCard2=gNyxa;
+  State.enemy.activeCard=gVorrax; State.enemy.activeCard2=gNyxrot;
+  Tutorial.setCounts(2,2,2,2);
+  updateUI();
+  await Tutorial.say(["Step back a moment. Every creature you'll face has a Type, and a Class."]);
+  await Tutorial.say(["Grudge is a Mob \u2014 common muscle. And a Pest besides: the lowest, most disposable class in the Arena."],{highlight:'#player-active-slot'});
+  await Tutorial.say(["Nyxa is a Wizard. She doesn't out-muscle anything \u2014 she out-thinks it."],{highlight:'#player-active-slot-2'});
+  await Tutorial.say(["That is Vorrax. A Dragon \u2014 and a Boss. A real step up from anything you've fought so far."],{highlight:'#enemy-active-slot'});
+  await Tutorial.say(["And that... is Nyxrot. Mob, Wizard, and Dragon all at once \u2014 and the highest class there is: Overlord. Pray you never meet one unprepared."],{highlight:'#enemy-active-slot-2'});
+  await Tutorial.say(["Type is HOW a creature fights. Class is how DANGEROUS it is. Remember both."]);
+}
+
+async function tutStepFinale(){
+  Tutorial.setStep(9,'The Combo');
+  tutClearBoard();
+  const mobA=tutCreateCard('tut_mob_a');
+  const wiz=tutCreateCard('tut_wizard');
+  const wpn=tutCreateCard('tut_weapon');
+  tutSetHand([mobA,wiz,wpn]);
+  State.enemy.activeCard=tutCreateCard('tut_dragon');
+  Tutorial.setCounts(2,2,1,1);
+  updateUI();
+  showHandTray();
+  await Tutorial.say([
+    "Last lesson. Vorrax again \u2014 and this time he isn't posing.",
+    "Look at your hand. Grudge could hit him for fifty-five right now. Tempting, isn't it.",
+    "But you've learned better tricks than brute force. Deploy Nyxa instead.",
+  ]);
+  Tutorial._guard=o=>!(o.type==='deploy'&&o.instanceId===mobA.instanceId);
+  Tutorial._guardNudge=()=>Tutorial.nudge('Not Grudge \u2014 not yet. Deploy Nyxa.');
+  await Tutorial.prompt("Inspect Nyxa, then deploy her.",{highlight:'#hand-tray-inner .card'});
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===wiz.instanceId);
+  Tutorial._guard=null;Tutorial._guardNudge=null;
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say(["Her hex catches \u2014 Vorrax is Burning. Ten damage a turn, base. Now, make it worse."]);
+  await Tutorial.prompt("Inspect the Cinderfang Blade, then equip it.",{highlight:'#hand-tray-inner .card'});
+  await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===wpn.instanceId);
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say(["This blade doesn't just cut deeper \u2014 any Burn YOU cause now scorches for twenty-five more, every turn, for as long as it's equipped."]);
+  await Tutorial.prompt("Attack with Flame Lash \u2014 relight that fire.",{highlight:'#enemy-active-slot'});
+  await Tutorial.waitAction(o=>o.type==='attack');
+  if(Tutorial._cancelled)return;
+  Tutorial.clearHighlight();
+  await Tutorial.say(["Direct hit \u2014 and the Burn catches the amplification. Ten a turn just became thirty-five."]);
+  await Tutorial.prompt("End your turn \u2014 let it feed.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.waitAction(o=>o.type==='end_turn');
+  if(Tutorial._cancelled)return;
+  Tutorial.setAction(null);
+  await Tutorial.say(["Once more."]);
+  await Tutorial.prompt("End your turn again.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.waitAction(o=>o.type==='end_turn');
+  if(Tutorial._cancelled)return;
+  Tutorial.setAction(null);
+  const vHp=State.enemy.activeCard?State.enemy.activeCard.currentHp:0;
+  await Tutorial.say([
+    `Look at him. From one hundred forty down to ${vHp} \u2014 and he's STILL burning.`,
+    "Grudge's one big swing would have left him standing at eighty-five. Fire and steel, working together, very nearly finished him \u2014 and you've only attacked once.",
+    "Cards aren't strong alone in this Arena. They're strong together. That's the whole game.",
+  ]);
+}
+
+async function tutStepOutro(){
+  Tutorial.setStep(0,'Tutorial Complete');
+  await Tutorial.say([
+    "That's everything I have to teach you. The rest, the Arena will teach itself.",
+    "Go make a name for yourself out there.",
+  ]);
+  Tutorial.setAction('Finish \u2716',()=>Tutorial.exit());
+}
+
+async function runTutorial(){
+  try{
+    await tutStepWelcome();               if(Tutorial._cancelled)return;
+    await tutStepDeployAndAnatomy();       if(Tutorial._cancelled)return;
+    await tutStepAttack();                 if(Tutorial._cancelled)return;
+    await tutStepSwap();                   if(Tutorial._cancelled)return;
+    await tutStepEquipment();              if(Tutorial._cancelled)return;
+    await tutStepStatus();                 if(Tutorial._cancelled)return;
+    await tutStepTypes();                  if(Tutorial._cancelled)return;
+    await tutStepFinale();                 if(Tutorial._cancelled)return;
+    await tutStepOutro();
+  }catch(err){
+    console.error('Tutorial error:',err);
+    showToast("The Simga's tutorial hit a snag \u2014 exiting.",3000);
+    Tutorial.exit();
+  }
+}
+
+/* ── ENTRY / EXIT ──────────────────────────────────────────────────────── */
+/* ── FIRST-TIME DETECTION ─────────────────────────────────────────────
+   A plain localStorage flag: the simplest reliable signal for "has this
+   browser ever opened the tutorial before" without guessing at server-side
+   account fields. Wrapped in try/catch since storage can be blocked
+   (private browsing, locked-down environments) — if so, just don't force
+   the tutorial on anyone rather than risk erroring out Play entirely. */
+function aopHasSeenTutorial(){
+  try{ return localStorage.getItem('aop_tutorial_seen')==='1'; }
+  catch(e){ return true; }
+}
+function aopMarkTutorialSeen(){
+  try{ localStorage.setItem('aop_tutorial_seen','1'); }catch(e){}
+}
+
+function startTutorial(){
+  aopMarkTutorialSeen();
+  showScreen('game');
+  hideChatWidget();
+  disableBattleChat();
+  document.getElementById('main').classList.add('tut-active');
+  const battleBtn=document.getElementById('btn-battle');
+  if(battleBtn) battleBtn.style.display='none';
+  tutClearBoard();
+  Tutorial.active=true;
+  Tutorial._cancelled=false;
+  Tutorial.showBox();
+  runTutorial();
+}
+
+/* ── PATCHES: route game actions through the tutorial engine while active,
+   without touching a single line of the real multiplayer code paths ── */
+const _tutOrigNetSend=Net.send.bind(Net);
+Net.send=function(obj){
+  if(Tutorial.active){ Tutorial.handleIntent(obj); return; }
+  return _tutOrigNetSend(obj);
+};
+
+const _tutOrigInspectCard=inspectCard;
+inspectCard=function(index){
+  _tutOrigInspectCard(index);
+  if(Tutorial.active&&document.getElementById('inspect-overlay').classList.contains('open')){
+    Tutorial.handleInspect(index);
+  }
+};
+
+const _tutOrigEndPlayerTurn=endPlayerTurn;
+endPlayerTurn=function(){
+  // The live game auto-ends a turn once every slot has acted. The tutorial
+  // drives "end turn" explicitly through its own prompts instead, so this
+  // stays a no-op while a tutorial session is active.
+  if(Tutorial.active)return;
+  _tutOrigEndPlayerTurn();
+};
 
 /* ── BOOT ─────────────────────────────────────────────── */
 window.onload=()=>{
