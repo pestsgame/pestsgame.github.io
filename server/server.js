@@ -219,6 +219,14 @@ const guestTournamentEvents = new Map();         // eventId -> event object (cam
 const guestTournamentRegistrations = new Map();  // eventId -> Map(userId -> registration object)
 const guestTournamentBrackets = new Map();       // bracketId -> bracket object (camelCase, see rowToBracket shape)
 
+/** Quest registries — only used when Supabase isn't configured. Mirrors
+ * player_quest_progress/player_quest_bars, keyed the same way the real
+ * tables are (owner_id+quest_id+period_key / owner_id+scope+period_key)
+ * so the data-layer functions below branch on HAS_SUPABASE like everything
+ * else. See "QUEST SYSTEM" further down for the actual logic. */
+const guestQuestProgress = new Map(); // `${userId}|${questId}|${periodKey}` -> { progress, completed, rewarded }
+const guestQuestBars = new Map();     // `${userId}|${scope}|${periodKey}` -> { points, claimedMilestones }
+
 let nextGuestId = 1;
 
 /* ── PROFILE CUSTOMIZATION (validated allow-lists) ────────────────── */
@@ -381,6 +389,9 @@ async function updateProfile(userId, msg, ownedSet) {
       Object.assign(p, fields);
       if (favoriteCards !== undefined) p.favoriteCards = favoriteCards;
     }
+    if (Object.keys(fields).length || favoriteCards !== undefined) {
+      recordQuestEvent(userId, Engine.QUEST_TRACK.PROFILE_CUSTOMIZE, 1).catch(e => console.error('[arena] profile_customize quest event failed', e));
+    }
     return fetchProfile(userId);
   }
 
@@ -389,6 +400,7 @@ async function updateProfile(userId, msg, ownedSet) {
   if (Object.keys(dbFields).length) {
     const { error } = await supabase.from('profiles').update(dbFields).eq('id', userId);
     if (error) throw error;
+    recordQuestEvent(userId, Engine.QUEST_TRACK.PROFILE_CUSTOMIZE, 1).catch(e => console.error('[arena] profile_customize quest event failed', e));
   }
   return fetchProfile(userId);
 }
@@ -1580,6 +1592,7 @@ async function grantPack(userId, packId) {
     for (const [card_id, addQty] of Object.entries(counts)) cards[card_id] = (cards[card_id] || 0) + addQty;
     await supabase.from('player_cards').upsert({ owner_id: userId, cards }, { onConflict: 'owner_id' });
   }
+  recordQuestEvent(userId, Engine.QUEST_TRACK.PACK_BUY, 1).catch(e => console.error('[arena] pack_buy quest event failed', e));
   return { cards: result.cards, newBalance, currency: result.currency };
 }
 
@@ -1617,6 +1630,155 @@ async function applyMatchReward(winnerId, loserId, ranked = true) {
     await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked });
   }
   return { gold: WIN_GOLD_REWARD, gems: 0 };
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+ * QUEST SYSTEM
+ * Definitions (target/points/reward/track) are static data in game-engine.js
+ * (Engine.QUEST_DEFS) — everything here is just per-player PROGRESS,
+ * persisted server-side and only ever mutated by these functions in
+ * response to a real server-observed event, never a client-reported one.
+ *
+ * The one entry point every game-event hook below calls is
+ * recordQuestEvent(userId, track, amount) — it fans out to every currently
+ * active quest (any scope) listening on that track. Nothing else needs to
+ * know which quests exist or care about daily/weekly/permanent bookkeeping.
+ * ══════════════════════════════════════════════════════════════════════ */
+
+/** Adds a currency reward (gold/gems, either optional) to a player's
+ * balance — the same small operation quest completions and quest-bar
+ * milestones both need, factored out once. Silently no-ops for bot ids. */
+async function grantQuestCurrency(userId, reward) {
+  if (isBotId(userId) || !reward) return;
+  const gold = reward.gold || 0, gems = reward.gems || 0;
+  if (!gold && !gems) return;
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId);
+    if (p) { p.gold += gold; p.gems += gems; }
+    return;
+  }
+  const { data: profile } = await supabase.from('profiles').select('gold,gems').eq('id', userId).maybeSingle();
+  if (!profile) return;
+  await supabase.from('profiles').update({ gold: profile.gold + gold, gems: profile.gems + gems }).eq('id', userId);
+}
+
+async function getQuestProgressRow(userId, questId, periodKey) {
+  if (!HAS_SUPABASE) {
+    return guestQuestProgress.get(`${userId}|${questId}|${periodKey}`) || { progress: 0, completed: false, rewarded: false };
+  }
+  const { data } = await supabase.from('player_quest_progress').select('progress,completed,rewarded')
+    .eq('owner_id', userId).eq('quest_id', questId).eq('period_key', periodKey).maybeSingle();
+  return data || { progress: 0, completed: false, rewarded: false };
+}
+async function putQuestProgressRow(userId, questId, periodKey, row) {
+  if (!HAS_SUPABASE) { guestQuestProgress.set(`${userId}|${questId}|${periodKey}`, row); return; }
+  await supabase.from('player_quest_progress').upsert(
+    { owner_id: userId, quest_id: questId, period_key: periodKey, ...row },
+    { onConflict: 'owner_id,quest_id,period_key' },
+  );
+}
+async function getQuestBarRow(userId, scope, periodKey) {
+  if (!HAS_SUPABASE) {
+    return guestQuestBars.get(`${userId}|${scope}|${periodKey}`) || { points: 0, claimedMilestones: [] };
+  }
+  const { data } = await supabase.from('player_quest_bars').select('points,claimed_milestones')
+    .eq('owner_id', userId).eq('scope', scope).eq('period_key', periodKey).maybeSingle();
+  return data ? { points: data.points, claimedMilestones: data.claimed_milestones || [] } : { points: 0, claimedMilestones: [] };
+}
+async function putQuestBarRow(userId, scope, periodKey, row) {
+  if (!HAS_SUPABASE) { guestQuestBars.set(`${userId}|${scope}|${periodKey}`, row); return; }
+  await supabase.from('player_quest_bars').upsert(
+    { owner_id: userId, scope, period_key: periodKey, points: row.points, claimed_milestones: row.claimedMilestones },
+    { onConflict: 'owner_id,scope,period_key' },
+  );
+}
+
+/** Adds `pointsToAdd` to `scope`'s ('daily'|'weekly') quest bar for the
+ * CURRENT period, paying out (immediately, via grantQuestCurrency) any
+ * 20/40/60/80/100 milestone crossed in the process. */
+async function addQuestBarPoints(userId, scope, pointsToAdd) {
+  if (isBotId(userId) || pointsToAdd <= 0) return;
+  const periodKey = Engine.periodKeyForScope(scope);
+  const bar = await getQuestBarRow(userId, scope, periodKey);
+  const newPoints = Math.min(100, bar.points + pointsToAdd);
+  const { reward, claimedMilestones } = Engine.resolveBarMilestoneCrossings(scope, newPoints, bar.claimedMilestones);
+  await putQuestBarRow(userId, scope, periodKey, { points: newPoints, claimedMilestones });
+  await grantQuestCurrency(userId, reward);
+}
+
+/** The one entry point game-event hooks call. Fans `amount` progress out to
+ * every currently-active quest def listening on `track`, regardless of
+ * scope — each one independently handles its own period key, completion,
+ * and reward. Safe to call for a track nothing currently listens on (a
+ * no-op), and safe to call for bot ids (also a no-op). */
+async function recordQuestEvent(userId, track, amount = 1) {
+  if (isBotId(userId) || !userId) return;
+  const defs = Engine.questDefsForTrack(track);
+  if (!defs.length) return;
+  for (const def of defs) {
+    try {
+      const periodKey = Engine.periodKeyForScope(def.scope);
+      const row = await getQuestProgressRow(userId, def.id, periodKey);
+      if (row.completed) continue; // already done for this period — nothing further to add or pay out
+      const newProgress = Math.min(def.target, row.progress + amount);
+      const justCompleted = newProgress >= def.target;
+      await putQuestProgressRow(userId, def.id, periodKey, {
+        progress: newProgress, completed: justCompleted, rewarded: row.rewarded || (justCompleted && def.scope === 'permanent'),
+      });
+      if (!justCompleted) continue;
+      if (def.scope === 'permanent') await grantQuestCurrency(userId, def.reward);
+      else await addQuestBarPoints(userId, def.scope, def.points);
+    } catch (e) { console.error(`[arena] quest progress failed (${def.id})`, e); }
+  }
+}
+
+/** Builds the full quest_state payload for a player: every active quest
+ * def alongside that player's current progress for it, plus both bars.
+ * Sent on demand (case 'quest_state') and after any quest-affecting
+ * action, so the client never has to guess when something changed. */
+async function buildQuestState(userId) {
+  const dailyKey = Engine.dailyPeriodKey(), weeklyKey = Engine.weeklyPeriodKey();
+  const periodFor = scope => scope === 'daily' ? dailyKey : scope === 'weekly' ? weeklyKey : Engine.PERMANENT_PERIOD_KEY;
+  const quests = [];
+  for (const def of Engine.QUEST_DEFS) {
+    const row = await getQuestProgressRow(userId, def.id, periodFor(def.scope));
+    quests.push({
+      id: def.id, scope: def.scope, title: def.title, desc: def.desc, track: def.track,
+      target: def.target, progress: row.progress, completed: row.completed,
+      points: def.points || null, reward: def.reward || null, periodKey: periodFor(def.scope),
+    });
+  }
+  const dailyBar = await getQuestBarRow(userId, 'daily', dailyKey);
+  const weeklyBar = await getQuestBarRow(userId, 'weekly', weeklyKey);
+  return {
+    quests,
+    // `rewards` mirrors QUEST_BAR_MILESTONE_REWARDS[scope] purely so the
+    // client can render an accurate "+N gold" on each milestone diamond —
+    // the actual currency was already credited server-side the instant the
+    // milestone was crossed (see addQuestBarPoints), this is display-only.
+    dailyBar: { points: dailyBar.points, claimedMilestones: dailyBar.claimedMilestones, milestones: Engine.QUEST_BAR_MILESTONES, rewards: Engine.QUEST_BAR_MILESTONE_REWARDS.daily, periodKey: dailyKey },
+    weeklyBar: { points: weeklyBar.points, claimedMilestones: weeklyBar.claimedMilestones, milestones: Engine.QUEST_BAR_MILESTONES, rewards: Engine.QUEST_BAR_MILESTONE_REWARDS.weekly, periodKey: weeklyKey },
+  };
+}
+
+/** Global chat is written client -> Supabase directly (see index.html's
+ * GlobalChat.sb.from('global_chat_messages').insert), never through this
+ * server's own WebSocket — so counting messages for the chat_message quest
+ * track can't hook a WS message handler the way every other quest track
+ * does. Instead the server subscribes to the table itself (service role,
+ * same posture as everything else here: verification lives server-side
+ * even though the write path doesn't funnel through server.js) and treats
+ * each real INSERT row as the event. No-ops entirely without Supabase —
+ * guest mode has no persisted global chat to observe anyway. */
+function startGlobalChatQuestWatcher() {
+  if (!HAS_SUPABASE) return;
+  supabase
+    .channel('quest-global-chat-watch')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, payload => {
+      const userId = payload?.new?.user_id;
+      if (userId) recordQuestEvent(userId, Engine.QUEST_TRACK.CHAT_MESSAGE, 1).catch(e => console.error('[arena] chat quest event failed', e));
+    })
+    .subscribe();
 }
 
 /* ── CONNECTION WRAPPER ───────────────────────────────────────────── */
@@ -1744,7 +1906,7 @@ class Match {
     const strip = s => ({
       hp: s.hp, maxHp: s.maxHp, activeCard: s.activeCard, activeCard2: s.activeCard2,
       weaponCard: s.weaponCard, defenseCard: s.defenseCard, deckCount: s.deck.length,
-      creaturesLeft: Engine.aliveCreatureCount(s),
+      creaturesLeft: Engine.aliveCreatureCount(s), reviveCharges: s.reviveCharges,
     });
     return {
       you: { ...strip(this.sides[side]), hand: this.sides[side].hand, graveyard: this.sides[side].graveyard },
@@ -1883,10 +2045,13 @@ class Match {
     else this.armTurnTimer();
   }
 
-  /** A card whose top effect is `revive` (instead of `attack`) can spend its
-   * turn action reviving any one creature from this side's own graveyard —
+  /** A card whose top effect is an `ability` carrying a `revive` block
+   * (instead of e.g. an on-deploy curse/heal `ability`) can spend its turn
+   * action reviving any one creature from this side's own graveyard —
    * player's choice of which, not automatic/earliest-first. `msg.target` is
-   * the dead creature's instanceId. */
+   * the dead creature's instanceId. (A `passive`-type self-revive is a
+   * completely separate, fully automatic mechanic — see
+   * `Engine.tryPassiveRevive` — and never goes through this handler.) */
   handleUseAbility(userId, msg) {
     const side = this.sideOf(userId); if (side === -1) return this.errTo(userId, 'not_in_match');
     if (this.phase !== 'MAIN' || this.turn !== side) return this.errTo(userId, 'not_your_turn');
@@ -1950,6 +2115,8 @@ class Match {
     let reward = { gold: WIN_GOLD_REWARD, gems: 0 };
     try { reward = await applyMatchReward(winnerId, loserId, this.ranked); }
     catch (e) { console.error('[arena] reward write failed', e); }
+    try { await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_WIN, 1); }
+    catch (e) { console.error('[arena] match_win quest event failed', e); }
 
     let tournamentSummary = null;
     if (this.tournamentMeta) {
@@ -2084,7 +2251,7 @@ function attachBotAI(match) {
         if (!card || match.actedThisTurn[botSide].has(slotKey)) continue;
         await sleep(randMs(700, 1900));
         if (!stillBotsTurn()) break;
-        if (card.topEffect?.type === 'revive' && entity.graveyard.length && Math.random() < 0.7) {
+        if (card.topEffect?.type === 'ability' && card.topEffect?.revive && entity.graveyard.length && Math.random() < 0.7) {
           const target = entity.graveyard[Math.floor(Math.random() * entity.graveyard.length)];
           match.handleUseAbility(match.botUserId, { slot: slotKey, target: target.instanceId });
           continue;
@@ -2484,6 +2651,7 @@ async function registerForTournament(userId, eventId) {
   if (balance < event.entryAmount) return { error: 'tournament_insufficient_funds' };
   if (event.entryAmount > 0) await adjustWallet(userId, event.entryCurrency === 'gold' ? -event.entryAmount : 0, event.entryCurrency === 'gems' ? -event.entryAmount : 0);
   const registration = await createRegistration(eventId, userId, event.entryAmount, event.entryCurrency);
+  recordQuestEvent(userId, Engine.QUEST_TRACK.TOURNAMENT_JOIN, 1).catch(e => console.error('[arena] tournament_join quest event failed', e));
   return { event, registration };
 }
 async function unregisterFromTournament(userId, eventId) {
@@ -3298,6 +3466,11 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+      case 'quest_state': {
+        try { conn.send({ type:'quest_state', ...(await buildQuestState(userId)) }); }
+        catch (e) { console.error('[arena] quest_state failed', e); conn.send({ type:'error', reason: 'quest_state_failed' }); }
+        break;
+      }
 
       /* ── SOCIAL: friends + presence (data lives in Supabase; every
        * mutation is still an ordinary WS request/response like everything
@@ -3994,6 +4167,7 @@ const tournamentSweepTimer = setInterval(() => {
 wss.on('close', () => clearInterval(tournamentSweepTimer));
 
 syncChatImageCatalog();
+startGlobalChatQuestWatcher();
 
 server.listen(PORT, () => {
   console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
