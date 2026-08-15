@@ -1664,11 +1664,11 @@ async function grantQuestCurrency(userId, reward) {
 
 async function getQuestProgressRow(userId, questId, periodKey) {
   if (!HAS_SUPABASE) {
-    return guestQuestProgress.get(`${userId}|${questId}|${periodKey}`) || { progress: 0, completed: false, rewarded: false };
+    return guestQuestProgress.get(`${userId}|${questId}|${periodKey}`) || { progress: 0, completed: false, claimed: false, rewarded: false };
   }
-  const { data } = await supabase.from('player_quest_progress').select('progress,completed,rewarded')
+  const { data } = await supabase.from('player_quest_progress').select('progress,completed,claimed,rewarded')
     .eq('owner_id', userId).eq('quest_id', questId).eq('period_key', periodKey).maybeSingle();
-  return data || { progress: 0, completed: false, rewarded: false };
+  return data || { progress: 0, completed: false, claimed: false, rewarded: false };
 }
 async function putQuestProgressRow(userId, questId, periodKey, row) {
   if (!HAS_SUPABASE) { guestQuestProgress.set(`${userId}|${questId}|${periodKey}`, row); return; }
@@ -1694,23 +1694,32 @@ async function putQuestBarRow(userId, scope, periodKey, row) {
 }
 
 /** Adds `pointsToAdd` to `scope`'s ('daily'|'weekly') quest bar for the
- * CURRENT period, paying out (immediately, via grantQuestCurrency) any
- * 20/40/60/80/100 milestone crossed in the process. */
+ * CURRENT period. Purely arithmetic — does NOT resolve or pay out any
+ * milestone crossed in the process; that's claim_milestone's job alone
+ * (a milestone being numerically reachable and it being PAID are two
+ * different things now — see claimBarMilestone). Only ever called from
+ * claimQuestReward, i.e. only when the player has explicitly claimed a
+ * completed daily/weekly quest — reaching a quest's target does not, by
+ * itself, move the bar at all. */
 async function addQuestBarPoints(userId, scope, pointsToAdd) {
   if (isBotId(userId) || pointsToAdd <= 0) return;
   const periodKey = Engine.periodKeyForScope(scope);
   const bar = await getQuestBarRow(userId, scope, periodKey);
   const newPoints = Math.min(100, bar.points + pointsToAdd);
-  const { reward, claimedMilestones } = Engine.resolveBarMilestoneCrossings(scope, newPoints, bar.claimedMilestones);
-  await putQuestBarRow(userId, scope, periodKey, { points: newPoints, claimedMilestones });
-  await grantQuestCurrency(userId, reward);
+  await putQuestBarRow(userId, scope, periodKey, { points: newPoints, claimedMilestones: bar.claimedMilestones });
 }
 
 /** The one entry point game-event hooks call. Fans `amount` progress out to
  * every currently-active quest def listening on `track`, regardless of
- * scope — each one independently handles its own period key, completion,
- * and reward. Safe to call for a track nothing currently listens on (a
- * no-op), and safe to call for bot ids (also a no-op). */
+ * scope — each one independently handles its own period key. Reaching a
+ * quest's target only flips `completed` here; for daily/weekly quests
+ * nothing is paid out and the bar doesn't move until the player explicitly
+ * claims it (see claimQuestReward). Permanent quests are the one
+ * exception — their currency has always paid out immediately on
+ * completion (see spec: "permanent quests should give you immediate
+ * currency"), `claim_quest` for those just flips `claimed` for the UI.
+ * Safe to call for a track nothing currently listens on (a no-op), and
+ * safe to call for bot ids (also a no-op). */
 async function recordQuestEvent(userId, track, amount = 1) {
   if (isBotId(userId) || !userId) return;
   const defs = Engine.questDefsForTrack(track);
@@ -1719,17 +1728,63 @@ async function recordQuestEvent(userId, track, amount = 1) {
     try {
       const periodKey = Engine.periodKeyForScope(def.scope);
       const row = await getQuestProgressRow(userId, def.id, periodKey);
-      if (row.completed) continue; // already done for this period — nothing further to add or pay out
+      if (row.completed) continue; // already done for this period — nothing further to add
       const newProgress = Math.min(def.target, row.progress + amount);
       const justCompleted = newProgress >= def.target;
       await putQuestProgressRow(userId, def.id, periodKey, {
-        progress: newProgress, completed: justCompleted, rewarded: row.rewarded || (justCompleted && def.scope === 'permanent'),
+        progress: newProgress, completed: justCompleted, claimed: row.claimed || false,
+        rewarded: row.rewarded || (justCompleted && def.scope === 'permanent'),
       });
-      if (!justCompleted) continue;
-      if (def.scope === 'permanent') await grantQuestCurrency(userId, def.reward);
-      else await addQuestBarPoints(userId, def.scope, def.points);
+      if (justCompleted && def.scope === 'permanent') await grantQuestCurrency(userId, def.reward);
     } catch (e) { console.error(`[arena] quest progress failed (${def.id})`, e); }
   }
+  // Push the fresh state to this player's live connection, if they have one
+  // open right now — covers events a request/response round-trip can't
+  // (like the global-chat watcher below, which fires from a Supabase
+  // subscription with no WS request to reply to) so the Quest Journal
+  // updates in real time instead of only on next manual open.
+  const conn = connections.get(userId);
+  if (conn) {
+    try { conn.send({ type: 'quest_state', ...(await buildQuestState(userId)) }); }
+    catch (e) { console.error('[arena] live quest_state push failed', e); }
+  }
+}
+
+/** Handles a player explicitly claiming a completed quest (case
+ * 'claim_quest') — this is what actually credits a daily/weekly quest's
+ * points onto its bar (permanent quests already paid their currency at
+ * completion time; this just flips `claimed` for those). Re-verifies
+ * completion and non-double-claiming server-side regardless of what the
+ * client thinks its own state is. */
+async function claimQuestReward(userId, questId) {
+  const def = Engine.QuestById[questId];
+  if (!def) return { ok: false, reason: 'unknown_quest' };
+  const periodKey = Engine.periodKeyForScope(def.scope);
+  const row = await getQuestProgressRow(userId, questId, periodKey);
+  if (!row.completed) return { ok: false, reason: 'not_completed' };
+  if (row.claimed) return { ok: false, reason: 'already_claimed' };
+  await putQuestProgressRow(userId, questId, periodKey, { progress: row.progress, completed: true, claimed: true, rewarded: row.rewarded });
+  if (def.scope === 'daily' || def.scope === 'weekly') await addQuestBarPoints(userId, def.scope, def.points);
+  return { ok: true };
+}
+
+/** Handles a player explicitly claiming a reached quest-bar milestone
+ * (case 'claim_milestone') — this is what actually pays out the
+ * milestone's currency reward; being numerically past the threshold
+ * (`bar.points >= milestone`) alone pays nothing. Re-verifies both the
+ * threshold and non-double-claiming server-side. */
+async function claimBarMilestone(userId, scope, milestone) {
+  if (scope !== 'daily' && scope !== 'weekly') return { ok: false, reason: 'bad_scope' };
+  if (!Engine.QUEST_BAR_MILESTONES.includes(milestone)) return { ok: false, reason: 'bad_milestone' };
+  const periodKey = Engine.periodKeyForScope(scope);
+  const bar = await getQuestBarRow(userId, scope, periodKey);
+  if (bar.points < milestone) return { ok: false, reason: 'not_reached' };
+  if ((bar.claimedMilestones || []).includes(milestone)) return { ok: false, reason: 'already_claimed' };
+  const reward = (Engine.QUEST_BAR_MILESTONE_REWARDS[scope] || {})[milestone] || {};
+  const claimedMilestones = [...(bar.claimedMilestones || []), milestone].sort((a, b) => a - b);
+  await putQuestBarRow(userId, scope, periodKey, { points: bar.points, claimedMilestones });
+  await grantQuestCurrency(userId, reward);
+  return { ok: true, reward };
 }
 
 /** Builds the full quest_state payload for a player: every active quest
@@ -1744,7 +1799,7 @@ async function buildQuestState(userId) {
     const row = await getQuestProgressRow(userId, def.id, periodFor(def.scope));
     quests.push({
       id: def.id, scope: def.scope, title: def.title, desc: def.desc, track: def.track,
-      target: def.target, progress: row.progress, completed: row.completed,
+      target: def.target, progress: row.progress, completed: row.completed, claimed: row.claimed,
       points: def.points || null, reward: def.reward || null, periodKey: periodFor(def.scope),
     });
   }
@@ -1754,8 +1809,8 @@ async function buildQuestState(userId) {
     quests,
     // `rewards` mirrors QUEST_BAR_MILESTONE_REWARDS[scope] purely so the
     // client can render an accurate "+N gold" on each milestone diamond —
-    // the actual currency was already credited server-side the instant the
-    // milestone was crossed (see addQuestBarPoints), this is display-only.
+    // the actual currency isn't credited until claim_milestone is called
+    // for it (see claimBarMilestone), this is display-only ahead of that.
     dailyBar: { points: dailyBar.points, claimedMilestones: dailyBar.claimedMilestones, milestones: Engine.QUEST_BAR_MILESTONES, rewards: Engine.QUEST_BAR_MILESTONE_REWARDS.daily, periodKey: dailyKey },
     weeklyBar: { points: weeklyBar.points, claimedMilestones: weeklyBar.claimedMilestones, milestones: Engine.QUEST_BAR_MILESTONES, rewards: Engine.QUEST_BAR_MILESTONE_REWARDS.weekly, periodKey: weeklyKey },
   };
@@ -1775,7 +1830,11 @@ function startGlobalChatQuestWatcher() {
   supabase
     .channel('quest-global-chat-watch')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, payload => {
-      const userId = payload?.new?.user_id;
+      // The table's actual sender column is `sender_id` (see index.html's
+      // GlobalChat inserts / supabase-schema.sql) — it's the same stable
+      // guestId used to authenticate with this WS server, not a `user_id`
+      // column (that name doesn't exist on this table).
+      const userId = payload?.new?.sender_id;
       if (userId) recordQuestEvent(userId, Engine.QUEST_TRACK.CHAT_MESSAGE, 1).catch(e => console.error('[arena] chat quest event failed', e));
     })
     .subscribe();
@@ -3469,6 +3528,22 @@ wss.on('connection', (ws) => {
       case 'quest_state': {
         try { conn.send({ type:'quest_state', ...(await buildQuestState(userId)) }); }
         catch (e) { console.error('[arena] quest_state failed', e); conn.send({ type:'error', reason: 'quest_state_failed' }); }
+        break;
+      }
+      case 'claim_quest': {
+        try {
+          const result = await claimQuestReward(userId, msg.questId);
+          conn.send({ type:'quest_state', ...(await buildQuestState(userId)) });
+          if (!result.ok) conn.send({ type:'error', reason: result.reason || 'claim_failed' });
+        } catch (e) { console.error('[arena] claim_quest failed', e); conn.send({ type:'error', reason:'claim_failed' }); }
+        break;
+      }
+      case 'claim_milestone': {
+        try {
+          const result = await claimBarMilestone(userId, msg.scope, msg.milestone);
+          conn.send({ type:'quest_state', ...(await buildQuestState(userId)) });
+          if (!result.ok) conn.send({ type:'error', reason: result.reason || 'claim_failed' });
+        } catch (e) { console.error('[arena] claim_milestone failed', e); conn.send({ type:'error', reason:'claim_failed' }); }
         break;
       }
 
