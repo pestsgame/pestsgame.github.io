@@ -635,7 +635,10 @@ img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;displ
 .play-record-sub{font-size:.58rem;letter-spacing:.1em;color:rgba(156,163,175,.72);position:relative;z-index:1;}
 
 /* ── Rank progression card ── */
-.play-rank-card{width:100%;max-width:480px;position:relative;z-index:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+.play-rank-card{width:100%;max-width:480px;position:relative;z-index:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:border-color .18s,background .18s,transform .18s;}
+.play-rank-card:hover{border-color:rgba(196,181,253,.4);background:rgba(255,255,255,.05);transform:translateY(-2px);}
+.play-rank-card:hover .play-rank-expand-hint{opacity:1;}
+.play-rank-expand-hint{position:absolute;top:12px;right:14px;color:rgba(196,181,253,.55);opacity:0;transition:opacity .18s;}
 .play-rank-top{display:flex;align-items:center;gap:12px;}
 .play-rank-medal svg{width:38px;height:38px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
 .play-rank-info{display:flex;flex-direction:column;gap:2px;text-align:left;}
@@ -882,7 +885,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 /* deck section — the main focus, pinned to the top of the panel */
 .db-deck-section{padding:20px;display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25);}
 .db-deck-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-.db-deck-slot-grid{display:grid;grid-template-columns:repeat(4,144px);gap:12px;justify-content:center;}
+.db-deck-slot-grid{display:grid;grid-template-columns:repeat(6,144px);gap:12px;justify-content:center;}
 .db-deck-card-slot{position:relative;isolation:isolate;}
 .db-deck-card-slot .card{cursor:pointer;}
 .db-deck-empty-slot{width:144px;height:214px;border-radius:8px;border:2px dashed rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.16);font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;line-height:1.6;}
@@ -1734,6 +1737,25 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .qj-close-x:hover{background:rgba(255,255,255,.12);}
 .qj-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(251,191,36,.3) transparent;padding:22px 22px 30px;}
 
+/* ── Loading states — first open shows a full skeleton (no cached data
+ * yet); subsequent opens show cached content instantly with a small
+ * spinner in the header while a fresh quest_state is in flight. ── */
+.qj-header-spinner{
+  width:14px;height:14px;border-radius:50%;flex-shrink:0;
+  border:2px solid rgba(251,191,36,.25);border-top-color:#fbbf24;
+  animation:qjSpin .7s linear infinite;display:none;
+}
+.qj-header-spinner.active{display:inline-block;}
+@keyframes qjSpin{to{transform:rotate(360deg);}}
+.qj-skeleton-bar{height:14px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.05) 75%);background-size:200% 100%;animation:qjShimmer 1.4s ease-in-out infinite;}
+@keyframes qjShimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+.qj-skel-bar-wrap{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:16px 18px;margin-bottom:16px;}
+.qj-skel-bar-wrap .qj-skeleton-bar:first-child{width:40%;height:10px;margin-bottom:14px;}
+.qj-skel-bar-wrap .qj-skeleton-bar:last-child{height:16px;border-radius:9px;}
+.qj-skel-card{display:flex;align-items:center;gap:13px;padding:13px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);margin-bottom:10px;}
+.qj-skel-card-icon{width:38px;height:38px;border-radius:10px;flex-shrink:0;background:rgba(255,255,255,.06);}
+.qj-skel-card-lines{flex:1;display:flex;flex-direction:column;gap:7px;}
+
 .qj-section{margin-bottom:30px;}
 .qj-section:last-child{margin-bottom:0;}
 .qj-section-head{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
@@ -1744,7 +1766,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 /* ── Quest bar (Daily / Weekly) ── */
 .qbar-wrap{
   background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;
-  padding:16px 18px 22px;margin-bottom:16px;position:relative;overflow:hidden;
+  padding:16px 18px 40px;margin-bottom:16px;position:relative;overflow:visible;
 }
 .qbar-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
 .qbar-label{font-family:'Cinzel',serif;font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#e8e8f4;}
@@ -1869,6 +1891,110 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 /* Milestone-crossing full-bar shimmer sweep, added briefly to .qbar-fill */
 .qbar-fill.qbar-celebrate{animation:qbarSheen 3.4s linear infinite, qbarCelebrateFlash .9s ease-out 1;}
 @keyframes qbarCelebrateFlash{0%{filter:brightness(1);}30%{filter:brightness(1.9);}100%{filter:brightness(1);}}
+.currency-pill.qbar-celebrate{animation:qbarCelebrateFlash .9s ease-out 1;}
+
+/* ══════════════════════════════════════
+   RANK LADDER (expanded detail view)
+   Opened from clicking the compact play-rank-card — same Player.rank data,
+   just a much richer view: a big animated hero medal, and the full 10-tier
+   ladder (Absolute at top down to Copper) with a climb-path line, each
+   tier showing locked/current/cleared state, and the current tier
+   expanding to show its 5 sub-ranks. No network round-trip — renders
+   instantly from data already on hand.
+══════════════════════════════════════ */
+#rank-detail-overlay{
+  display:none;position:fixed;inset:0;z-index:1200;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
+}
+#rank-detail-overlay.open{display:flex;}
+.rkd-modal{
+  width:min(600px,95vw);height:min(800px,90vh);
+  background:var(--panel);border:1px solid rgba(196,181,253,.22);border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:scale(.94) translateY(10px);opacity:0;transition:transform .28s cubic-bezier(.34,1.44,.64,1),opacity .2s;
+}
+#rank-detail-overlay.open .rkd-modal{transform:scale(1) translateY(0);opacity:1;}
+.rkd-header{
+  height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;background:rgba(6,6,16,.9);border-bottom:1px solid rgba(196,181,253,.18);
+}
+.rkd-header-title{font-family:'Cinzel',serif;font-size:.85rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#e9d5ff;display:flex;align-items:center;gap:9px;}
+.rkd-header-title svg{color:#c4b5fd;}
+.rkd-close-x{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;flex-shrink:0;}
+.rkd-close-x:hover{background:rgba(255,255,255,.12);}
+.rkd-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(196,181,253,.3) transparent;padding:24px 22px 34px;}
+
+/* ── Hero: big current-rank showcase ── */
+.rkd-hero{
+  display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;
+  padding:26px 20px 22px;margin-bottom:26px;border-radius:16px;position:relative;overflow:hidden;
+  background:radial-gradient(circle at 50% 0%,rgba(196,181,253,.1),transparent 70%),rgba(255,255,255,.02);
+  border:1px solid rgba(255,255,255,.07);
+}
+.rkd-hero-medal{width:76px;height:76px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));animation:rkdHeroFloat 3.2s ease-in-out infinite;position:relative;z-index:1;}
+.rkd-hero-medal svg{width:100%;height:100%;}
+@keyframes rkdHeroFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.rkd-hero-label{font-family:'Cinzel',serif;font-size:1.35rem;font-weight:900;color:#fff;letter-spacing:.03em;position:relative;z-index:1;}
+.rkd-hero-points{font-size:.68rem;letter-spacing:.08em;color:rgba(196,181,253,.8);text-transform:uppercase;position:relative;z-index:1;}
+.rkd-hero-subpips{display:flex;gap:7px;margin-top:6px;position:relative;z-index:1;}
+.rkd-subpip{
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:800;border:2px solid rgba(255,255,255,.15);color:rgba(255,255,255,.35);
+  background:rgba(0,0,0,.25);transition:all .25s;
+}
+.rkd-subpip.filled{border-color:rgba(196,181,253,.55);color:#e9d5ff;background:rgba(139,92,246,.22);}
+.rkd-subpip.current{border-color:#c4b5fd;color:#fff;background:rgba(139,92,246,.4);box-shadow:0 0 12px rgba(196,181,253,.7);animation:rkdPipPulse 1.6s ease-in-out infinite;}
+@keyframes rkdPipPulse{0%,100%{box-shadow:0 0 8px rgba(196,181,253,.5);}50%{box-shadow:0 0 16px 3px rgba(196,181,253,.8);}}
+.rkd-hero-bar-track{width:100%;max-width:280px;height:8px;border-radius:5px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);overflow:hidden;margin-top:8px;position:relative;z-index:1;}
+.rkd-hero-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#7c3aed,#c4b5fd);box-shadow:0 0 10px rgba(167,139,250,.6);width:0%;transition:width 1s cubic-bezier(.22,.9,.35,1);}
+.rkd-hero-bar-caption{font-size:.58rem;letter-spacing:.05em;color:var(--txt-muted);position:relative;z-index:1;}
+
+/* ── Ladder ── */
+.rkd-ladder{position:relative;padding-left:40px;}
+.rkd-ladder-line{position:absolute;left:19px;top:22px;bottom:22px;width:3px;border-radius:2px;background:rgba(255,255,255,.07);}
+.rkd-ladder-line-fill{position:absolute;left:0;bottom:0;width:100%;border-radius:2px;height:0%;background:linear-gradient(180deg,#c4b5fd,#7c3aed);box-shadow:0 0 8px rgba(167,139,250,.55);transition:height 1.1s cubic-bezier(.22,.9,.35,1);}
+
+.rkd-row{
+  position:relative;display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;margin-bottom:6px;
+  opacity:0;transform:translateX(-14px);animation:rkdRowIn .45s ease-out forwards;
+}
+@keyframes rkdRowIn{to{opacity:1;transform:translateX(0);}}
+.rkd-row-medal{width:26px;height:26px;flex-shrink:0;position:relative;z-index:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));}
+.rkd-row-medal svg{width:100%;height:100%;}
+.rkd-row-mid{flex:1;min-width:0;}
+.rkd-row-name{font-family:'Cinzel',serif;font-size:.74rem;font-weight:800;letter-spacing:.02em;}
+.rkd-row-range{font-size:.58rem;color:var(--txt-muted);letter-spacing:.03em;margin-top:1px;}
+.rkd-row-status{flex-shrink:0;display:flex;align-items:center;gap:5px;}
+
+.rkd-row.locked{opacity:.5;}
+.rkd-row.locked .rkd-row-medal svg{filter:grayscale(0.85) brightness(.8);}
+.rkd-row.locked .rkd-row-name{color:var(--txt-muted);}
+.rkd-row.locked .rkd-row-status svg{color:rgba(255,255,255,.3);}
+
+.rkd-row.cleared{opacity:.88;}
+.rkd-row.cleared .rkd-row-status{color:#34d399;}
+.rkd-row.cleared .rkd-row-status svg{color:#34d399;}
+
+.rkd-row.current{
+  background:rgba(139,92,246,.1);border:1px solid rgba(196,181,253,.4);padding:14px 14px 16px;
+  box-shadow:0 0 18px rgba(139,92,246,.2);
+}
+.rkd-row.current .rkd-row-medal{width:36px;height:36px;}
+.rkd-row.current .rkd-row-name{font-size:.88rem;color:#fff;}
+.rkd-current-subrow{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap;}
+.rkd-current-subpip{
+  width:20px;height:20px;border-radius:50%;font-size:.5rem;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,.15);color:rgba(255,255,255,.35);background:rgba(0,0,0,.25);
+}
+.rkd-current-subpip.filled{border-color:rgba(196,181,253,.55);color:#e9d5ff;background:rgba(139,92,246,.22);}
+.rkd-current-subpip.here{border-color:#c4b5fd;color:#fff;background:rgba(139,92,246,.45);box-shadow:0 0 8px rgba(196,181,253,.7);animation:rkdPipPulse 1.6s ease-in-out infinite;}
+.rkd-current-tag{
+  font-size:.56rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#c4b5fd;
+  background:rgba(139,92,246,.18);border:1px solid rgba(196,181,253,.35);border-radius:20px;padding:3px 9px;
+}
 
 /* ══════════════════════════════════════
    PROFILE VIEW MODAL (read-only)
@@ -2500,8 +2626,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
           <!-- Rank progression: medal + label/points, progress toward the next
                sub-rank, and a compact 10-tier ladder so a glance shows both
-               exactly where you are and how far the climb goes. -->
-          <div class="play-rank-card">
+               exactly where you are and how far the climb goes. Click to
+               expand into the full Rank Ladder modal (renderRankDetail) —
+               purely a richer view of the same Player.rank already here,
+               no extra network round-trip needed. -->
+          <div class="play-rank-card" onclick="openRankDetail()" title="View full rank ladder" role="button" tabindex="0">
+            <div class="play-rank-expand-hint">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
+            </div>
             <div class="play-rank-top">
               <div class="play-rank-medal" id="play-rank-medal"></div>
               <div class="play-rank-info">
@@ -3082,6 +3214,23 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   </div>
 </div>
 
+<!-- ══════ RANK LADDER (expanded detail) ══════
+     Content is rebuilt by renderRankDetail() straight from Player.rank —
+     no server round-trip, this is purely a richer view of data already on
+     hand from the compact play-rank-card. -->
+<div id="rank-detail-overlay" onclick="handleRankDetailBackdrop(event)">
+  <div class="rkd-modal" onclick="event.stopPropagation()">
+    <div class="rkd-header">
+      <div class="rkd-header-title">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v4a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3.5 3.5 0 0 0 3.5 3.5M17 4h3v2a3.5 3.5 0 0 1-3.5 3.5"/><path d="M12 12v3.5M9 20.5h6M9.5 20.5c0-2 .8-3 2.5-3s2.5 1 2.5 3"/></svg>
+        Rank Ladder
+      </div>
+      <div class="rkd-close-x" onclick="closeRankDetail()">✕</div>
+    </div>
+    <div class="rkd-body" id="rkd-body"><!-- injected by renderRankDetail() --></div>
+  </div>
+</div>
+
 <!-- ══════ QUEST JOURNAL ══════
      Content is entirely rebuilt by renderQuestJournal() from the server's
      'quest_state' response — see JS. Rewards are already credited the
@@ -3094,6 +3243,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       <div class="qj-header-title">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h10.5A1.5 1.5 0 0 1 18 5v16l-6-3-6 3V5A1.5 1.5 0 0 1 7.5 3.5z"/><path d="M9 8.2l1.6 1.6L14 6.4"/></svg>
         Quest Journal
+        <span class="qj-header-spinner" id="qj-header-spinner"></span>
       </div>
       <div class="qj-close-x" onclick="closeQuestJournal()">✕</div>
     </div>
@@ -4246,6 +4396,10 @@ function initHandTray(){
     closeInspect();
     const lb=document.getElementById('logbook-overlay');
     if(lb&&lb.classList.contains('open'))closeLogbook();
+    const qj=document.getElementById('quest-overlay');
+    if(qj&&qj.classList.contains('open'))closeQuestJournal();
+    const rkd=document.getElementById('rank-detail-overlay');
+    if(rkd&&rkd.classList.contains('open'))closeRankDetail();
   });
 }
 
@@ -5352,54 +5506,32 @@ function handleLogbookBackdrop(e){
    QUEST JOURNAL
    State comes entirely from the server's 'quest_state' response (see
    Net.handle's 'quest_state' case) — this file never invents or adjusts
-   progress client-side. The "Claim" interaction (on a completed quest
-   card, or on a reached quest-bar milestone diamond) is a purely local
-   reveal/collect flourish: the reward was already credited the instant
-   the server saw the quest/milestone complete, so clicking Claim here
-   just plays the burst animation, ticks the currency display, and
-   remembers (in localStorage) that this player has now "seen" it so the
-   glowing invite doesn't show again for the same quest/milestone.
+   progress client-side, and never assumes a claim succeeded on its own:
+   `claim_quest`/`claim_milestone` are real requests, the server re-verifies
+   completion/thresholds and re-double-claim-guards regardless of what this
+   client thinks its state is, and the accompanying quest_state response is
+   what actually updates anything on screen. A completed daily/weekly quest
+   does NOT move its bar, and a reached bar milestone does NOT pay out,
+   until the player explicitly clicks Claim — see claimQuestReward /
+   claimBarMilestone in server.js.
+   The only thing this file does locally is remember, for the moment
+   between "I clicked Claim" and "the server confirmed it", what to animate
+   once that confirmation lands (_qjPendingClaim) — see reconcileClaimAnimation.
 ══════════════════════════════════════ */
 let QuestState=null;
+let _qjPendingClaim=null;
 
-function questSeenStorageKey(){ return 'aop_quest_seen_v1'; }
-function loadQuestSeenStore(){
-  try{ return JSON.parse(localStorage.getItem(questSeenStorageKey()))||{quests:{},milestones:{}}; }
-  catch{ return {quests:{},milestones:{}}; }
-}
-function saveQuestSeenStore(store){
-  try{ localStorage.setItem(questSeenStorageKey(), JSON.stringify(store)); }catch{}
-}
-function isQuestSeen(questId, periodKey){
-  return !!loadQuestSeenStore().quests[`${questId}|${periodKey}`];
-}
-function markQuestSeen(questId, periodKey){
-  const store=loadQuestSeenStore();
-  store.quests[`${questId}|${periodKey}`]=true;
-  saveQuestSeenStore(store);
-}
-function isMilestoneSeen(scope, periodKey, milestone){
-  const list=loadQuestSeenStore().milestones[`${scope}|${periodKey}`]||[];
-  return list.includes(milestone);
-}
-function markMilestoneSeen(scope, periodKey, milestone){
-  const store=loadQuestSeenStore();
-  const key=`${scope}|${periodKey}`;
-  const list=store.milestones[key]||[];
-  if(!list.includes(milestone)) list.push(milestone);
-  store.milestones[key]=list;
-  saveQuestSeenStore(store);
-}
-
-/** True if anything in `state` is completed-but-uncollected — drives the
- * gentle pulse on the topbar Quest Journal button so players notice there's
- * something waiting without needing to open the panel first. */
+/** True if anything in `state` is completed-but-unclaimed (a quest) or
+ * reached-but-unclaimed (a bar milestone) — drives the gentle pulse on the
+ * topbar Quest Journal button so players notice there's something waiting
+ * without needing to open the panel first. */
 function questStateHasUnclaimed(state){
   if(!state) return false;
-  const anyQuest=(state.quests||[]).some(q=>q.completed && !isQuestSeen(q.id, q.periodKey));
+  const anyQuest=(state.quests||[]).some(q=>q.completed && !q.claimed);
   const anyMilestone=['dailyBar','weeklyBar'].some(k=>{
     const bar=state[k]; if(!bar) return false;
-    return (bar.claimedMilestones||[]).some(m=>!isMilestoneSeen(k==='dailyBar'?'daily':'weekly', bar.periodKey, m));
+    const claimed=new Set(bar.claimedMilestones||[]);
+    return (bar.milestones||[]).some(m=>bar.points>=m && !claimed.has(m));
   });
   return anyQuest||anyMilestone;
 }
@@ -5407,35 +5539,75 @@ function updateQuestBadge(state){
   document.getElementById('quest-topbar-btn')?.classList.toggle('has-quest-glow', questStateHasUnclaimed(state));
 }
 
+let _qjLoadTimeout=null;
 function openQuestJournal(){
   document.getElementById('quest-overlay').classList.add('open');
+  document.getElementById('qj-header-spinner').classList.add('active');
+  const body=document.getElementById('qj-body');
+  if(QuestState){
+    renderQuestJournal(QuestState); // show cached data instantly, spinner covers the background refresh
+  }else{
+    body.innerHTML=renderQuestSkeleton(); // first-ever open: nothing cached yet, show a loading skeleton
+  }
   Net.send({type:'quest_state'});
+  clearTimeout(_qjLoadTimeout);
+  _qjLoadTimeout=setTimeout(()=>{
+    document.getElementById('qj-header-spinner').classList.remove('active');
+    if(!QuestState) body.innerHTML=`<div class="qj-section-sub" style="text-align:center;padding:30px 0;">Couldn't reach the server — try reopening the Quest Journal.</div>`;
+  },10000);
 }
 function closeQuestJournal(){
   document.getElementById('quest-overlay').classList.remove('open');
+  clearTimeout(_qjLoadTimeout);
 }
 function handleQuestBackdrop(e){
   if(e.target===document.getElementById('quest-overlay')) closeQuestJournal();
 }
+/** Placeholder skeleton shown only on the very first open, before any real
+ * quest_state has ever arrived — mirrors the real layout's shape (a bar +
+ * 2 cards per daily/weekly section, 1 card for permanent) so the swap to
+ * real content doesn't visually jump. */
+function renderQuestSkeleton(){
+  const skelCard=()=>`<div class="qj-skel-card"><div class="qj-skel-card-icon"></div><div class="qj-skel-card-lines"><div class="qj-skeleton-bar" style="width:55%;"></div><div class="qj-skeleton-bar" style="width:80%;height:9px;"></div></div></div>`;
+  const skelBar=()=>`<div class="qj-skel-bar-wrap"><div class="qj-skeleton-bar"></div><div class="qj-skeleton-bar"></div></div>`;
+  return `
+    <div class="qj-section"><div class="qj-section-head">${renderCalendarIcon(15)}<span class="qj-section-title">Daily Quests</span></div>${skelBar()}${skelCard()}${skelCard()}</div>
+    <div class="qj-section"><div class="qj-section-head">${renderRefreshIcon(15)}<span class="qj-section-title">Weekly Quests</span></div>${skelBar()}${skelCard()}${skelCard()}</div>
+    <div class="qj-section"><div class="qj-section-head">${renderInfinityIcon(15)}<span class="qj-section-title">Permanent Quests</span></div>${skelCard()}</div>`;
+}
 /** Called from Net.handle's 'quest_state' case — the single source of
- * truth for anything rendered in the panel. */
+ * truth for anything rendered in the panel. If this response is the
+ * server's answer to a claim we just sent (_qjPendingClaim), the panel
+ * still gets a full rebuild for correctness, but reconcileClaimAnimation
+ * then layers the burst/bar-fill/counter-tick animations on top of it. */
 function applyQuestState(state){
+  const pending=_qjPendingClaim; _qjPendingClaim=null;
   QuestState=state;
+  clearTimeout(_qjLoadTimeout);
+  document.getElementById('qj-header-spinner').classList.remove('active');
   updateQuestBadge(state);
-  if(document.getElementById('quest-overlay').classList.contains('open')) renderQuestJournal(state);
+  if(document.getElementById('quest-overlay').classList.contains('open')){
+    renderQuestJournal(state);
+    if(pending) reconcileClaimAnimation(pending, state);
+  }
 }
 
 function renderQuestBar(scope, bar){
   const label=scope==='daily'?'Daily Quest Bar':'Weekly Quest Bar';
   const claimed=new Set(bar.claimedMilestones||[]);
   const marks=(bar.milestones||[20,40,60,80,100]).map(m=>{
-    const reached=claimed.has(m);
-    const collectible=reached && !isMilestoneSeen(scope, bar.periodKey, m);
+    const reached=bar.points>=m;
+    const isClaimed=claimed.has(m);
+    const collectible=reached && !isClaimed;
     const reward=(bar.rewards&&bar.rewards[m])||null;
     const rewardHtml=reward?rewardTagHtml(reward):'';
-    return `<div class="qbar-milestone${reached?' reached':''}${collectible?' qbar-collectible':''}"
+    // "reached"(lit) styling only once actually claimed — a numerically
+    // passed-but-unclaimed milestone shows the inviting pulse instead, so
+    // the glow always means "the reward is actually yours", not just
+    // "you could claim this".
+    return `<div class="qbar-milestone${isClaimed?' reached':''}${collectible?' qbar-collectible':''}"
                  style="left:${m}%" data-scope="${scope}" data-milestone="${m}" data-period="${escapeHtml(bar.periodKey)}"
-                 onclick="collectMilestone(this)" title="${m} pts${reward?' — '+rewardPlainText(reward):''}">
+                 onclick="collectMilestone(this)" title="${m} pts${reward?' — '+rewardPlainText(reward):''}${collectible?' (click to claim)':''}">
               <span class="qbar-milestone-tag">${rewardHtml||m}</span>
             </div>`;
   }).join('');
@@ -5457,6 +5629,18 @@ function rewardTagHtml(reward){
   if(reward.gems) parts.push(`${currencyIcon('gems')}${reward.gems}`);
   return parts.join(' ');
 }
+/** Same data as rewardTagHtml, but as separate pre-wrapped pill spans —
+ * for the permanent-quest-card reward display, which needs each
+ * currency in its own `.qcard-reward-pill`. (Previously this called
+ * rewardTagHtml(...).split(' ') to fake the split, which corrupted the
+ * `<img>` tag itself since its attributes contain spaces — hence "code
+ * showing up as text" in the card. This builds the pills directly instead.) */
+function rewardPillsHtml(reward){
+  const parts=[];
+  if(reward.gold) parts.push(`<span class="qcard-reward-pill">${currencyIcon('gold')}${reward.gold}</span>`);
+  if(reward.gems) parts.push(`<span class="qcard-reward-pill">${currencyIcon('gems')}${reward.gems}</span>`);
+  return parts.join('');
+}
 function rewardPlainText(reward){
   const parts=[];
   if(reward.gold) parts.push(`${reward.gold} gold`);
@@ -5466,21 +5650,21 @@ function rewardPlainText(reward){
 
 function renderQuestCard(q){
   const pct=q.target?Math.min(100,Math.round(100*q.progress/q.target)):0;
-  const needsClaim=q.completed && !isQuestSeen(q.id, q.periodKey);
+  const needsClaim=q.completed && !q.claimed;
   let rightHtml;
   if(needsClaim){
     rightHtml=`<button class="qcard-claim-btn" onclick="claimQuest('${q.id}')">${renderCheckIcon(12)} Claim</button>`;
-  }else if(q.completed){
+  }else if(q.claimed){
     rightHtml=`<span class="qcard-done-badge">${renderCheckIcon(13)} Completed</span>`;
   }else if(q.scope==='permanent'&&q.reward){
-    rightHtml=rewardTagHtml(q.reward).split(' ').map(p=>`<span class="qcard-reward-pill">${p}</span>`).join('');
+    rightHtml=rewardPillsHtml(q.reward);
   }else if(q.points){
     rightHtml=`<span class="qcard-points-pill">+${q.points} QP</span>`;
   }else{
     rightHtml='';
   }
   return `
-    <div class="qcard${q.completed?' completed':''}" id="qcard-${q.id}">
+    <div class="qcard${q.claimed?' completed':''}" id="qcard-${q.id}">
       <div class="qcard-icon">${questTrackIconSvg(q.track,18)}</div>
       <div class="qcard-mid">
         <div class="qcard-title">${escapeHtml(q.title)}</div>
@@ -5514,35 +5698,84 @@ function renderQuestJournal(state){
     </div>`;
 }
 
+/** Sends the actual claim request — the reward isn't granted and the bar
+ * doesn't move until the server confirms it (see applyQuestState /
+ * reconcileClaimAnimation, which plays the burst once that confirmation,
+ * not this click, actually arrives). Disables the button immediately just
+ * to prevent double-sends while the request is in flight. */
 function claimQuest(questId){
   if(!QuestState) return;
   const def=(QuestState.quests||[]).find(q=>q.id===questId);
-  if(!def) return;
-  markQuestSeen(def.id, def.periodKey);
+  if(!def || !def.completed || def.claimed) return;
   const card=document.getElementById(`qcard-${questId}`);
-  const anchor=card?.querySelector('.qcard-claim-btn')||card;
-  if(def.scope==='permanent'&&def.reward){
-    bumpCurrencyDisplay(def.reward);
-    spawnRewardBurst(anchor, def.reward);
-  }else{
-    spawnRewardBurst(anchor, null, def.points);
-  }
-  if(card) card.querySelector('.qcard-right').innerHTML=`<span class="qcard-done-badge">${renderCheckIcon(13)} Completed</span>`;
-  updateQuestBadge(QuestState);
+  const btn=card?.querySelector('.qcard-claim-btn');
+  if(btn){ btn.disabled=true; btn.style.opacity='.6'; btn.textContent='Claiming…'; }
+  _qjPendingClaim={kind:'quest', questId, anchorRect:(btn||card)?.getBoundingClientRect()};
+  Net.send({type:'claim_quest', questId});
 }
 
+/** Same idea as claimQuest but for a quest-bar milestone diamond — sends
+ * claim_milestone and waits for the server's quest_state to actually
+ * confirm the payout before animating anything. */
 function collectMilestone(el){
   if(!el.classList.contains('qbar-collectible')) return;
-  const scope=el.dataset.scope, milestone=Number(el.dataset.milestone), periodKey=el.dataset.period;
-  markMilestoneSeen(scope, periodKey, milestone);
-  const bar=QuestState&&(scope==='daily'?QuestState.dailyBar:QuestState.weeklyBar);
-  const reward=bar&&bar.rewards&&bar.rewards[milestone];
-  if(reward) bumpCurrencyDisplay(reward);
-  spawnRewardBurst(el, reward||null);
-  el.classList.remove('qbar-collectible');
-  const fill=document.getElementById(`qbar-fill-${scope}`);
-  if(fill){ fill.classList.add('qbar-celebrate'); setTimeout(()=>fill.classList.remove('qbar-celebrate'),1000); }
-  updateQuestBadge(QuestState);
+  const scope=el.dataset.scope, milestone=Number(el.dataset.milestone);
+  el.classList.remove('qbar-collectible'); // prevent double-click while the request is in flight
+  el.style.pointerEvents='none';
+  _qjPendingClaim={kind:'milestone', scope, milestone, anchorRect:el.getBoundingClientRect()};
+  Net.send({type:'claim_milestone', scope, milestone});
+}
+
+/** Runs once the server's quest_state confirms (or rejects) a pending
+ * claim_quest/claim_milestone. The panel has already been fully rebuilt
+ * with the new authoritative state by the time this runs (applyQuestState
+ * calls renderQuestJournal first) — this only layers the celebration on
+ * top: the reward burst, the currency counter tick-up, and (for a quest
+ * claim) animating the bar's fill from where it was to where it is now via
+ * a classic "set old value with no transition, force reflow, set new value"
+ * trick, since the fill element was just torn down and recreated by the
+ * rebuild and would otherwise jump straight to the new width with no
+ * visible motion. If the claim was rejected (a race — e.g. another tab
+ * claimed it first), the new state simply won't show it as claimed and
+ * nothing here fires; the rebuild already reflects the true state either way. */
+function reconcileClaimAnimation(pending, state){
+  if(pending.kind==='quest'){
+    const def=(state.quests||[]).find(q=>q.id===pending.questId);
+    if(!def || !def.claimed) return;
+    if(def.scope==='permanent'){
+      if(def.reward) bumpCurrencyDisplay(def.reward);
+      spawnRewardBurstAtRect(pending.anchorRect, def.reward, null);
+    }else{
+      spawnRewardBurstAtRect(pending.anchorRect, null, def.points);
+      const bar=def.scope==='daily'?state.dailyBar:state.weeklyBar;
+      const oldPoints=Math.max(0,bar.points-(def.points||0));
+      animateBarFillFrom(def.scope, oldPoints, bar.points);
+    }
+  }else if(pending.kind==='milestone'){
+    const bar=pending.scope==='daily'?state.dailyBar:state.weeklyBar;
+    const nowClaimed=(bar.claimedMilestones||[]).includes(pending.milestone);
+    if(!nowClaimed) return;
+    const reward=(bar.rewards&&bar.rewards[pending.milestone])||null;
+    if(reward) bumpCurrencyDisplay(reward);
+    spawnRewardBurstAtRect(pending.anchorRect, reward, null);
+    const fill=document.getElementById(`qbar-fill-${pending.scope}`);
+    if(fill){ fill.classList.add('qbar-celebrate'); setTimeout(()=>fill.classList.remove('qbar-celebrate'),1000); }
+  }
+  updateQuestBadge(state);
+}
+
+/** Sets a bar's fill to `fromPct` with transitions off, forces a reflow,
+ * then restores the transition and sets it to `toPct` — the standard
+ * trick for animating a freshly-recreated element from an old value
+ * instead of it just snapping straight to the new one. */
+function animateBarFillFrom(scope, fromPct, toPct){
+  const el=document.getElementById(`qbar-fill-${scope}`);
+  if(!el) return;
+  el.style.transition='none';
+  el.style.width=`${fromPct}%`;
+  void el.offsetWidth; // force reflow so the browser commits the "from" state before we change it again
+  el.style.transition='';
+  requestAnimationFrame(()=>{ el.style.width=`${toPct}%`; });
 }
 
 /** Briefly ticks the topbar gold/gems numbers up to their new total and
@@ -5563,7 +5796,8 @@ function bumpCurrencyDisplay(reward){
       if(p<1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
-    document.querySelector(pillSelector)?.classList.add('qbar-celebrate');
+    const pill=document.querySelector(pillSelector);
+    if(pill){ pill.classList.remove('qbar-celebrate'); void pill.offsetWidth; pill.classList.add('qbar-celebrate'); setTimeout(()=>pill.classList.remove('qbar-celebrate'),900); }
   };
   bump('menu-gold','.currency-pill.gold',reward.gold||0);
   bump('menu-gems','.currency-pill.gems',reward.gems||0);
@@ -5577,7 +5811,15 @@ function bumpCurrencyDisplay(reward){
  * DOM nodes once the animation finishes — nothing here persists. */
 function spawnRewardBurst(targetEl, reward, points){
   if(!targetEl) return;
-  const rect=targetEl.getBoundingClientRect();
+  spawnRewardBurstAtRect(targetEl.getBoundingClientRect(), reward, points);
+}
+/** Same as spawnRewardBurst but takes a pre-captured rect — needed for the
+ * claim flourishes, since by the time the server confirms a claim the
+ * original element has usually been replaced by a full panel rebuild; the
+ * rect captured at click-time is still visually accurate enough for a
+ * decorative particle burst. */
+function spawnRewardBurstAtRect(rect, reward, points){
+  if(!rect) return;
   const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
   const wrap=document.createElement('div');
   wrap.className='reward-burst';
@@ -5711,6 +5953,100 @@ function renderPlayRankCard(rank){
       return `<div class="play-rank-ladder-pip ${cls}" title="${escapeHtml(tier)}">${medalSVG(tier)}<span class="play-rank-ladder-pip-name">${escapeHtml(tier)}</span></div>`;
     }).join('');
   }
+}
+
+/* ── RANK LADDER (expanded detail modal) ─────────────────
+ * Purely a richer view of the exact same Player.rank data the compact
+ * play-rank-card already renders — no network round-trip, opens/animates
+ * instantly. Tiers list top(Absolute, best)-to-bottom(Copper, first),
+ * matching the usual "climb upward" ranked-ladder convention. */
+const RANK_SUBS_DISPLAY=['V','IV','III','II','I']; // index0=worst of tier ... index4=best, mirrors server RANK_SUBS
+function openRankDetail(){
+  renderRankDetail(Player.rank);
+  document.getElementById('rank-detail-overlay').classList.add('open');
+}
+function closeRankDetail(){
+  document.getElementById('rank-detail-overlay').classList.remove('open');
+}
+function handleRankDetailBackdrop(e){
+  if(e.target===document.getElementById('rank-detail-overlay')) closeRankDetail();
+}
+function renderRankDetail(rank){
+  const r=rank||{tier:'Copper',sub:'V',label:'Copper V',points:0};
+  const points=Math.max(0,r.points||0);
+  const isMax=points>=RANK_MAX_POINTS_DISPLAY;
+  const clamped=Math.min(points,RANK_MAX_POINTS_DISPLAY);
+  const intoTier=clamped%RANK_POINTS_PER_TIER_DISPLAY;
+  const subIdx=Math.min(RANK_SUBS_DISPLAY.length-1,Math.floor(intoTier/RANK_POINTS_PER_SUB_DISPLAY));
+  const intoSub=intoTier%RANK_POINTS_PER_SUB_DISPLAY;
+  const subPct=isMax?100:Math.round((intoSub/RANK_POINTS_PER_SUB_DISPLAY)*100);
+
+  const currentAscIdx=Math.max(0,RANK_LADDER_TIERS.indexOf(r.tier));
+  const displayTiers=[...RANK_LADDER_TIERS].reverse(); // Absolute..Copper, index0=top
+  const currentDisplayIdx=displayTiers.length-1-currentAscIdx;
+
+  const heroPips=RANK_SUBS_DISPLAY.map((sub,i)=>{
+    const cls=i===subIdx?'current':(i<subIdx?'filled':'');
+    return `<div class="rkd-subpip ${cls}">${sub}</div>`;
+  }).join('');
+  const heroHtml=`
+    <div class="rkd-hero">
+      <div class="rkd-hero-medal" id="rkd-hero-medal">${medalSVG(r.tier)}</div>
+      <div class="rkd-hero-label">${escapeHtml(r.label||'Copper V')}</div>
+      <div class="rkd-hero-points">${points} rank points</div>
+      <div class="rkd-hero-subpips">${heroPips}</div>
+      <div class="rkd-hero-bar-track"><div class="rkd-hero-bar-fill" id="rkd-hero-bar-fill" style="width:0%"></div></div>
+      <div class="rkd-hero-bar-caption">${isMax?'Top of the ladder — Absolute I':`${intoSub} / ${RANK_POINTS_PER_SUB_DISPLAY} RP to next sub-rank`}</div>
+    </div>`;
+
+  const rows=displayTiers.map((tier,di)=>{
+    const ai=displayTiers.length-1-di;
+    const isCurrent=di===currentDisplayIdx;
+    const isCleared=di>currentDisplayIdx;
+    const cls=isCurrent?'current':(isCleared?'cleared':'locked');
+    const lo=ai*RANK_POINTS_PER_TIER_DISPLAY, hi=lo+RANK_POINTS_PER_TIER_DISPLAY-1;
+    let statusHtml;
+    if(isCurrent) statusHtml=`<span class="rkd-current-tag">You are here</span>`;
+    else if(isCleared) statusHtml=renderCheckIcon(13);
+    else statusHtml=`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>`;
+    let subrowHtml='';
+    if(isCurrent){
+      const pips=RANK_SUBS_DISPLAY.map((sub,i)=>{
+        const pcls=i===subIdx?'here':(i<subIdx?'filled':'');
+        return `<div class="rkd-current-subpip ${pcls}" title="${escapeHtml(tier)} ${sub}">${sub}</div>`;
+      }).join('');
+      subrowHtml=`<div class="rkd-current-subrow">${pips}</div>`;
+    }
+    return `
+      <div class="rkd-row ${cls}" style="animation-delay:${di*45}ms">
+        <div class="rkd-row-medal">${medalSVG(tier)}</div>
+        <div class="rkd-row-mid">
+          <div class="rkd-row-name">${escapeHtml(tier)}</div>
+          <div class="rkd-row-range">${lo}\u2013${hi} RP</div>
+          ${subrowHtml}
+        </div>
+        <div class="rkd-row-status">${statusHtml}</div>
+      </div>`;
+  }).join('');
+
+  const body=document.getElementById('rkd-body');
+  body.innerHTML=`${heroHtml}<div class="rkd-ladder"><div class="rkd-ladder-line"><div class="rkd-ladder-line-fill" id="rkd-ladder-line-fill"></div></div>${rows}</div>`;
+
+  // Deferred so the width/height transitions actually animate from 0
+  // instead of snapping straight to their end state on first paint.
+  requestAnimationFrame(()=>{
+    const fill=document.getElementById('rkd-hero-bar-fill');
+    if(fill) fill.style.width=`${subPct}%`;
+    const lineFill=document.getElementById('rkd-ladder-line-fill');
+    if(lineFill){
+      const climbedPct=displayTiers.length>1?(currentDisplayIdx/(displayTiers.length-1))*100:0;
+      lineFill.style.height=`${100-climbedPct}%`; // fills bottom(Copper)->up as tier improves
+    }
+  });
+  setTimeout(()=>{
+    const heroMedal=document.getElementById('rkd-hero-medal');
+    if(heroMedal) spawnRewardBurst(heroMedal, null, null); // reuses the quest-claim shine burst as a celebratory flourish
+  },260);
 }
 
 /* ── PLAY TAB: ranked vs casual toggle ───────────────────
@@ -9099,7 +9435,9 @@ const Net={
         applyServerProfile(msg.profile);
         showToast("Registered! Be online when it starts, or you'll be disqualified.", 3600, renderCheckIcon(13));
         Net.send({type:'tournament_list'});
-        Net.send({type:'quest_state'}); // may have just completed the enter-tournaments weekly quest
+        // No explicit quest_state request needed here — recordQuestEvent's
+        // live push (server.js) already sends one proactively the instant
+        // this registration progresses the enter-tournaments weekly quest.
         break;
       case 'tournament_left':
         clearTourneyActionLoading();
@@ -9327,6 +9665,11 @@ const Net={
         } else if(msg.reason==='tournament_create_failed'){
           showToast('⚠ Could not create that tournament — please try again.');
           document.getElementById('tc-submit-btn').disabled=false;
+        } else if(['not_completed','already_claimed','not_reached','bad_scope','bad_milestone','unknown_quest'].includes(msg.reason)){
+          // Quest/milestone claim lost a race or was stale (another tab claimed
+          // it first, etc.) — the quest_state that always accompanies this
+          // error already re-synced the UI to the true server state, so
+          // there's nothing more to tell the player here.
         } else {
           showToast('⚠ '+(msg.reason||'Something went wrong'));
           // Whatever this error was, make sure it can't leave a disabled
@@ -9983,7 +10326,9 @@ function handleMatchOver(msg){
   State._mpOver=true; State.mp=false;
   applyServerProfile(msg.profile);
   const won=msg.result==='win';
-  if(won) Net.send({type:'quest_state'}); // may have just completed/progressed a win-X-games quest
+  // No explicit quest_state request needed here — recordQuestEvent's live
+  // push (server.js) already sends one proactively if this win progressed
+  // a win-X-games quest.
   document.getElementById('game-over').style.display='flex';
   const el=document.getElementById('game-over-text');
   el.innerText=won?'VICTORY':'DEFEAT';
@@ -10016,7 +10361,9 @@ function handleMatchOver(msg){
 function handlePackResult(msg){
   const packDef=PACK_DEFS.find(p=>p.id===msg.packId);
   if(!packDef)return;
-  Net.send({type:'quest_state'}); // may have just completed the buy-a-pack daily quest
+  // No explicit quest_state request needed here — recordQuestEvent's live
+  // push (server.js) already sends one proactively if this purchase
+  // completed the buy-a-pack daily quest.
   if(msg.currency==='gems')Player.gems=msg.newBalance; else Player.gold=msg.newBalance;
   savePlayer();
   const gEl=document.getElementById('menu-gold'), mEl=document.getElementById('menu-gems');
