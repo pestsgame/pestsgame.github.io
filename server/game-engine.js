@@ -231,7 +231,12 @@ function periodKeyForScope(scope, now = new Date()) {
  * period — diffing against `claimedMilestones` rather than an old/new
  * point delta makes this safe to call however/whenever, not just exactly
  * once per point-add) and the combined reward to pay out for them. Does
- * NOT mutate its inputs — the caller persists the returned claimed list. */
+ * NOT mutate its inputs — the caller persists the returned claimed list.
+ * Not currently wired into server.js's live path — reaching a milestone's
+ * threshold no longer auto-pays it out, see claimBarMilestone there for
+ * the explicit-claim flow that replaced calling this on every point-add.
+ * Left here as a reusable pure helper (e.g. for a future "N milestones
+ * ready to claim" display) since the math is still exactly right. */
 function resolveBarMilestoneCrossings(scope, points, claimedMilestones) {
   const claimed = new Set(claimedMilestones || []);
   const rewardTable = QUEST_BAR_MILESTONE_REWARDS[scope] || {};
