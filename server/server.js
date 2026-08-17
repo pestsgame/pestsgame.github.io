@@ -210,6 +210,7 @@ const guildChatLastSentAt = new Map();       // userId -> ms timestamp of their 
 const guestListings = new Map();             // listingId -> listing object (camelCase, see rowToListing shape)
 const guestBids = new Map();                 // listingId -> Array<{id,bidderId,amount,createdAt}>, oldest first
 const guestDMs = new Map();                  // pairKey(a,b) -> Array<message>, oldest first
+const guestDMArchived = new Map();           // `${ownerId}|${otherId}` -> archivedAt ISO string
 
 /** Tournament registries — only used when Supabase isn't configured.
  * Mirrors tournament_events/tournament_registrations/tournament_brackets
@@ -235,11 +236,58 @@ let nextGuestId = 1;
 // offer never reaches Postgres, no matter what a modified client sends.
 // Icon values are ids (not emoji) — the client maps each id to a custom SVG
 // glyph it draws itself. Keep this list in sync with ICON_SVGS in docs/index.html.
-const PROFILE_ICONS = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'];
-const PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
+const PROFILE_ICONS_FREE = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'];
+const PROFILE_BANNERS_FREE = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
+// Quest-locked cosmetics — only reachable by completing the matching
+// permanent quest (see game-engine.js's QUEST_DEFS reward.icon/reward.banner
+// fields, and grantQuestCosmetics, which is what actually unlocks these).
+// Valid to EQUIP only once actually unlocked (see updateProfile) — being in
+// this list just means the id exists/is drawable, same as the free set.
+const PROFILE_ICONS_LOCKED = ['first_card','collector','overlord_master','merchant','flipper','nemesis','pack_fiend','lucky_bastard'];
+const PROFILE_BANNERS_LOCKED = ['first_pack','archivist','first_sale','market_crash','hello_world','guildgoer','fabled_pull','absolute'];
+const PROFILE_ICONS = [...PROFILE_ICONS_FREE, ...PROFILE_ICONS_LOCKED];
+const PROFILE_BANNERS = [...PROFILE_BANNERS_FREE, ...PROFILE_BANNERS_LOCKED];
 const BIO_MAX = 140;
 const USERNAME_MAX = 24;
 const FAVORITES_MAX = 3;
+
+/* ── COSMETIC UNLOCKS (quest-granted icons/banners) ───────────────────
+ * Small bit of bookkeeping, same posture as the other quest support
+ * tables: server-only source of truth for which quest-locked icons/banners
+ * a player has actually earned (see grantQuestCosmetics, called from
+ * recordQuestEvent/recordQuestThreshold the moment a permanent quest with
+ * a reward.icon/reward.banner completes — NOT gated behind claim_quest,
+ * same as that quest's currency: "permanent quests give immediate
+ * currency... and profile banners/icons" per spec). */
+const guestCosmeticUnlocks = new Map(); // userId -> { icons:Set, banners:Set }
+async function grantCosmeticUnlock(userId, kind, itemId) {
+  if (!itemId) return;
+  if (!HAS_SUPABASE) {
+    let u = guestCosmeticUnlocks.get(userId);
+    if (!u) { u = { icons: new Set(), banners: new Set() }; guestCosmeticUnlocks.set(userId, u); }
+    (kind === 'icon' ? u.icons : u.banners).add(itemId);
+    return;
+  }
+  await supabase.from('player_cosmetic_unlocks').upsert({ owner_id: userId, kind, item_id: itemId }, { onConflict: 'owner_id,kind,item_id' });
+}
+async function getCosmeticUnlocks(userId) {
+  if (!HAS_SUPABASE) {
+    const u = guestCosmeticUnlocks.get(userId);
+    return { icons: u ? [...u.icons] : [], banners: u ? [...u.banners] : [] };
+  }
+  const { data } = await supabase.from('player_cosmetic_unlocks').select('kind,item_id').eq('owner_id', userId);
+  const icons = [], banners = [];
+  for (const row of (data || [])) (row.kind === 'icon' ? icons : banners).push(row.item_id);
+  return { icons, banners };
+}
+/** Called wherever a permanent quest's completion is processed — grants
+ * any icon/banner named in its reward. A no-op for quests whose reward is
+ * currency-only (most of them). */
+async function grantQuestCosmetics(userId, reward) {
+  if (isBotId(userId) || !reward) return;
+  if (reward.icon) await grantCosmeticUnlock(userId, 'icon', reward.icon);
+  if (reward.banner) await grantCosmeticUnlock(userId, 'banner', reward.banner);
+}
 
 /* ── GUILDS (validated allow-lists, same posture as profile icons/banners) ─
  * `icon` is the emblem drawn in the middle (reuses the same hand-drawn SVG
@@ -345,7 +393,9 @@ async function fetchProfile(userId, fallbackName) {
         collection: seedStarterIds(), deck: [] });
     }
     const p = guestProfiles.get(userId);
-    return { ...p, rank: Engine.getRank(p.rankPoints || 0) };
+    const unlocks = await getCosmeticUnlocks(userId);
+    return { ...p, rank: Engine.getRank(p.rankPoints || 0),
+      unlockedIcons: [...PROFILE_ICONS_FREE, ...unlocks.icons], unlockedBanners: [...PROFILE_BANNERS_FREE, ...unlocks.banners] };
   }
   let { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
@@ -365,6 +415,7 @@ async function fetchProfile(userId, fallbackName) {
   const { data: cardsRow } = await supabase.from('player_cards').select('cards').eq('owner_id', userId).maybeSingle();
   const { data: deckRow } = await supabase.from('player_decks').select('card_ids').eq('owner_id', userId).maybeSingle();
   const rankPoints = profile.rank_points || 0;
+  const unlocks = await getCosmeticUnlocks(userId);
   return {
     id: profile.id, username: profile.username, gold: profile.gold, gems: profile.gems,
     wins: profile.wins, losses: profile.losses, rankPoints, rank: Engine.getRank(rankPoints),
@@ -372,6 +423,7 @@ async function fetchProfile(userId, fallbackName) {
     favoriteCards: profile.favorite_cards || [],
     collection: Object.entries(cardsRow?.cards || {}).flatMap(([id, qty]) => Array(qty).fill(id)),
     deck: (deckRow && deckRow.card_ids) || [],
+    unlockedIcons: [...PROFILE_ICONS_FREE, ...unlocks.icons], unlockedBanners: [...PROFILE_BANNERS_FREE, ...unlocks.banners],
   };
 }
 
@@ -382,6 +434,21 @@ async function fetchProfile(userId, fallbackName) {
 async function updateProfile(userId, msg, ownedSet) {
   const fields = sanitizeProfileFields(msg);
   const favoriteCards = sanitizeFavorites(msg.favoriteCards, ownedSet);
+
+  // Icon/banner must actually be UNLOCKED, not just a recognized id —
+  // sanitizeProfileFields already guarantees it's a real id from
+  // PROFILE_ICONS/PROFILE_BANNERS, but a quest-locked one additionally
+  // requires having actually completed its quest. A modified client
+  // trying to equip one it hasn't earned just has the field dropped here,
+  // same "silently ignored" posture as any other invalid field.
+  if (fields.icon && PROFILE_ICONS_LOCKED.includes(fields.icon)) {
+    const unlocks = await getCosmeticUnlocks(userId);
+    if (!unlocks.icons.includes(fields.icon)) delete fields.icon;
+  }
+  if (fields.banner && PROFILE_BANNERS_LOCKED.includes(fields.banner)) {
+    const unlocks = await getCosmeticUnlocks(userId);
+    if (!unlocks.banners.includes(fields.banner)) delete fields.banner;
+  }
 
   if (!HAS_SUPABASE) {
     const p = guestProfiles.get(userId);
@@ -797,6 +864,7 @@ async function seatNewMember(guildId, userId) {
   if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) { const e = new Error('guild_full'); e.code = 'guild_full'; throw e; }
   await chargeJoinFee(guild, userId);
   await addGuildMember(guildId, userId, 'member');
+  recordQuestEvent(userId, Engine.QUEST_TRACK.GUILD_JOIN, 1).catch(e => console.error('[arena] guild_join quest failed', e));
   return guild;
 }
 
@@ -1140,6 +1208,63 @@ async function recordBid(listingId, bidderId, amount) {
 /** Creates a listing: validates params, escrows one copy of the card off
  * the seller's collection, and persists the row. Returns { error } on any
  * validation failure, never throws for bad input. */
+/* ── Marketplace quest hooks (Merchant/Shopping Spree/Flipper/etc.) ──
+ * Small bits of bookkeeping that only exist to feed the quest system —
+ * see game-engine.js's QUEST_TRACK for what each of these means. */
+const guestCardBuyPrice = new Map(); // `${userId}|${cardId}` -> {price, currency}
+async function setCardBuyPrice(userId, cardId, price, currency) {
+  if (!HAS_SUPABASE) { guestCardBuyPrice.set(`${userId}|${cardId}`, { price, currency }); return; }
+  await supabase.from('player_card_buy_price').upsert({ owner_id: userId, card_id: cardId, price, currency }, { onConflict: 'owner_id,card_id' });
+}
+async function getCardBuyPrice(userId, cardId) {
+  if (!HAS_SUPABASE) return guestCardBuyPrice.get(`${userId}|${cardId}`) || null;
+  const { data } = await supabase.from('player_card_buy_price').select('price,currency').eq('owner_id', userId).eq('card_id', cardId).maybeSingle();
+  return data || null;
+}
+/** Recomputes a player's unique-card-id count and total owned-overlord
+ * count straight from their live collection and feeds both into their
+ * respective threshold quests (Collector/Archivist/Overlord Master). Safe
+ * to call after any card-gaining event (pack open, market purchase). */
+async function computeCollectionQuestThresholds(userId) {
+  const profile = await fetchProfile(userId);
+  const counts = collectionCounts(profile.collection);
+  let overlordCount = 0;
+  for (const [id, qty] of Object.entries(counts)) {
+    const def = Engine.CardById[id];
+    if (def && def.classification === 'overlord') overlordCount += qty;
+  }
+  await recordQuestThreshold(userId, Engine.QUEST_TRACK.CARDS_UNIQUE, Object.keys(counts).length);
+  await recordQuestThreshold(userId, Engine.QUEST_TRACK.OVERLORDS_OWNED, overlordCount);
+}
+/** Shared by every marketplace settlement path (direct buy, auction
+ * buyout, auction expiry-with-winner) — everything quest-related that
+ * happens once a sale actually completes. `grossAmount` is what the buyer
+ * paid before marketplace tax (what "sold it for more/less than you paid"
+ * should compare against, not the seller's after-tax take). */
+async function onMarketSaleCompleted({ buyerId, sellerId, cardId, grossAmount, currency }) {
+  try {
+    await recordQuestEvent(buyerId, Engine.QUEST_TRACK.MARKET_PURCHASE, 1);
+    await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_SALE, 1);
+    await recordQuestEvent(buyerId, Engine.QUEST_TRACK.MARKET_TRANSACTION, 1);
+    await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_TRANSACTION, 1);
+    await computeCollectionQuestThresholds(buyerId);
+    if (currency === 'gold') {
+      const sellerProfile = await fetchProfile(sellerId);
+      await recordQuestThreshold(sellerId, Engine.QUEST_TRACK.GOLD_HELD, sellerProfile.gold);
+    }
+    // Flipper / Market Crash — compare against the seller's last known buy
+    // price for this exact card id (a simplified cost basis — see schema).
+    const prevBuy = await getCardBuyPrice(sellerId, cardId);
+    if (prevBuy && prevBuy.currency === currency) {
+      if (grossAmount > prevBuy.price) await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_FLIP_PROFIT, 1);
+      else if (grossAmount < prevBuy.price) await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_SELL_LOSS, 1);
+    }
+    // The buyer now owns this card at this price — that's their new cost
+    // basis if THEY resell it later.
+    await setCardBuyPrice(buyerId, cardId, grossAmount, currency);
+  } catch (e) { console.error('[arena] market sale quest hooks failed', e); }
+}
+
 async function createListing(userId, msg) {
   const cardId = typeof msg.cardId === 'string' ? msg.cardId : null;
   const cardDef = cardId && Engine.CardDB.find(c => c.id === cardId);
@@ -1183,6 +1308,11 @@ async function createListing(userId, msg) {
     settledAt: null,
   };
   await saveListing(listing);
+  try {
+    await recordQuestEvent(userId, Engine.QUEST_TRACK.MARKET_LISTING_CREATE, 1);
+    const activeCount = (await listingsBySeller(userId)).filter(l => l.status === 'active').length;
+    await recordQuestThreshold(userId, Engine.QUEST_TRACK.MARKET_LISTINGS_ACTIVE, activeCount);
+  } catch (e) { console.error('[arena] listing quest hooks failed', e); }
   return { ok: true, listing };
 }
 
@@ -1234,6 +1364,7 @@ async function buyListing(userId, listingId) {
   listing.status = 'sold'; listing.currentBidderId = userId; listing.currentBid = amount;
   listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
   await saveListing(listing);
+  await onMarketSaleCompleted({ buyerId: userId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, currency: listing.currency });
   return { ok: true, listing, sellerNet, taxAmt };
 }
 
@@ -1262,6 +1393,7 @@ async function executeAuctionBuyout(listing, buyerId, taxRate) {
   listing.status = 'sold'; listing.currentBid = amount; listing.currentBidderId = buyerId;
   listing.currentBidEscrow = totalCost; listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
   await saveListing(listing);
+  await onMarketSaleCompleted({ buyerId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, currency: listing.currency });
   return { ok: true, listing, bought: true, previousBidderId };
 }
 
@@ -1331,6 +1463,7 @@ async function settleExpiredListings() {
         await adjustCardQuantity(listing.currentBidderId, listing.cardId, 1);
         listing.status = 'sold'; listing.settledAt = new Date().toISOString();
         await saveListing(listing);
+        await onMarketSaleCompleted({ buyerId: listing.currentBidderId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: listing.currentBid, currency: listing.currency });
         notifyUser(listing.currentBidderId, { type: 'market_auction_won', listingId: listing.id, cardId: listing.cardId, amount: listing.currentBid, currency: listing.currency });
         notifyUser(listing.sellerId, { type: 'market_item_sold', listingId: listing.id, cardId: listing.cardId, amount: sellerNet, currency: listing.currency });
       } else {
@@ -1387,6 +1520,29 @@ async function markMessagesRead(ids, guestRowsRef) {
   const { error } = await supabase.from('direct_messages').update({ read: true }).in('id', ids);
   if (error) throw error;
 }
+/** Per-viewer archive flag for a DM conversation — see the
+ * player_dm_archived schema comment for the full "auto-un-archives on a
+ * new message" behavior, implemented in dmConversations below by simply
+ * comparing timestamps rather than needing to clear this on every send. */
+async function getDMArchivedMap(userId) {
+  if (!HAS_SUPABASE) {
+    const map = new Map();
+    for (const [key, archivedAt] of guestDMArchived) {
+      const [owner, other] = key.split('|');
+      if (owner === userId) map.set(other, archivedAt);
+    }
+    return map;
+  }
+  const { data } = await supabase.from('player_dm_archived').select('other_id,archived_at').eq('owner_id', userId);
+  const map = new Map();
+  for (const row of (data || [])) map.set(row.other_id, row.archived_at);
+  return map;
+}
+async function archiveDMConversation(userId, otherId) {
+  if (!HAS_SUPABASE) { guestDMArchived.set(`${userId}|${otherId}`, new Date().toISOString()); return; }
+  await supabase.from('player_dm_archived').upsert({ owner_id: userId, other_id: otherId, archived_at: new Date().toISOString() }, { onConflict: 'owner_id,other_id' });
+}
+
 async function dmHistory(userId, otherId) {
   let rows;
   if (!HAS_SUPABASE) {
@@ -1430,7 +1586,19 @@ async function dmConversations(userId) {
       if (entry) entry.unread++;
     }
   }
+  // A conversation this player archived stays hidden from their own list
+  // (see the player_dm_archived schema comment) UNLESS its last message
+  // came in/went out AFTER the archive — i.e. archiving only hides it
+  // until something new happens, same as most chat apps' "archive" (not
+  // "block" or "delete") behavior. This is also exactly what makes a
+  // finished trade's conversation actually leave the list once archived,
+  // rather than sitting there forever with nothing to do about it.
+  const archived = await getDMArchivedMap(userId);
   return [...byOther.entries()]
+    .filter(([otherId, v]) => {
+      const archivedAt = archived.get(otherId);
+      return !archivedAt || v.lastMessage.createdAt > archivedAt;
+    })
     .map(([otherId, v]) => ({ userId: otherId, lastMessage: v.lastMessage, unread: v.unread }))
     .sort((a, b) => b.lastMessage.createdAt.localeCompare(a.lastMessage.createdAt))
     .slice(0, DM_CONVERSATIONS_LIMIT);
@@ -1555,6 +1723,8 @@ async function saveDeck(userId, cardIds, ownedSet) {
   if (!Engine.isDeckLegal(owned)) {
     const e = new Error('deck_illegal');
     e.code = owned.length !== Engine.DECK_SIZE ? 'deck_wrong_size' : 'deck_composition_invalid';
+    e.deckSize = owned.length;
+    e.requiredSize = Engine.DECK_SIZE;
     throw e;
   }
   const clean = owned;
@@ -1593,8 +1763,29 @@ async function grantPack(userId, packId) {
     await supabase.from('player_cards').upsert({ owner_id: userId, cards }, { onConflict: 'owner_id' });
   }
   recordQuestEvent(userId, Engine.QUEST_TRACK.PACK_BUY, 1).catch(e => console.error('[arena] pack_buy quest event failed', e));
+  (async () => {
+    try {
+      // Pack Variety — distinct pack ids ever opened, at least once.
+      if (!HAS_SUPABASE) {
+        let set = guestPackTypes.get(userId);
+        if (!set) { set = new Set(); guestPackTypes.set(userId, set); }
+        set.add(packId);
+        await recordQuestThreshold(userId, Engine.QUEST_TRACK.PACK_VARIETY, set.size);
+      } else {
+        await supabase.from('player_pack_types').upsert({ owner_id: userId, pack_id: packId }, { onConflict: 'owner_id,pack_id', ignoreDuplicates: true });
+        const { count } = await supabase.from('player_pack_types').select('pack_id', { count: 'exact', head: true }).eq('owner_id', userId);
+        await recordQuestThreshold(userId, Engine.QUEST_TRACK.PACK_VARIETY, count || 0);
+      }
+      // Lucky Bastard / Fabled Pull — did this specific pack contain one?
+      if (result.cards.some(c => c.rarity === 'mythic')) await recordQuestEvent(userId, Engine.QUEST_TRACK.PULL_RARITY_MYTHIC, 1);
+      if (result.cards.some(c => c.classification === 'overlord')) await recordQuestEvent(userId, Engine.QUEST_TRACK.PULL_OVERLORD_CARD, 1);
+      // Collector / Archivist / Overlord Master — recompute from the live collection.
+      await computeCollectionQuestThresholds(userId);
+    } catch (e) { console.error('[arena] pack quest hooks failed', e); }
+  })();
   return { cards: result.cards, newBalance, currency: result.currency };
 }
+const guestPackTypes = new Map(); // userId -> Set(packId) — guest-mode fallback for Pack Variety
 
 /** Bot opponents get a `bot:<uuid>` userId — never a real profile row, so
  * nothing here should try to read/write one as if it belonged to a player. */
@@ -1603,33 +1794,80 @@ const isBotId = id => typeof id === 'string' && id.startsWith('bot:');
 const RANK_POINTS_WIN = 2, RANK_POINTS_LOSS = -1;
 
 async function applyMatchReward(winnerId, loserId, ranked = true) {
+  let winnerGold = null, winnerRank = null, loserRank = null;
   if (!HAS_SUPABASE) {
     const w = guestProfiles.get(winnerId), l = guestProfiles.get(loserId);
-    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; if (ranked) w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); }
-    if (l) { l.losses++; if (ranked) l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); }
-    return { gold: WIN_GOLD_REWARD, gems: 0 };
-  }
-  if (!isBotId(winnerId)) {
-    const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
-    if (winner) {
-      const update = { gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 };
-      if (ranked) update.rank_points = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
-      await supabase.from('profiles').update(update).eq('id', winnerId);
+    if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; if (ranked) w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); winnerGold = w.gold; winnerRank = w.rankPoints; }
+    if (l) { l.losses++; if (ranked) l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); loserRank = l.rankPoints; }
+  } else {
+    if (!isBotId(winnerId)) {
+      const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
+      if (winner) {
+        const update = { gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 };
+        if (ranked) update.rank_points = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
+        await supabase.from('profiles').update(update).eq('id', winnerId);
+        winnerGold = update.gold; winnerRank = update.rank_points != null ? update.rank_points : winner.rank_points;
+      }
+    }
+    if (!isBotId(loserId)) {
+      const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
+      if (loser) {
+        const update = { losses: loser.losses + 1 };
+        if (ranked) update.rank_points = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
+        await supabase.from('profiles').update(update).eq('id', loserId);
+        loserRank = update.rank_points != null ? update.rank_points : loser.rank_points;
+      }
+    }
+    // don't log fake matches against a bot into permanent match history
+    if (!isBotId(winnerId) && !isBotId(loserId)) {
+      await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked });
     }
   }
-  if (!isBotId(loserId)) {
-    const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
-    if (loser) {
-      const update = { losses: loser.losses + 1 };
-      if (ranked) update.rank_points = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
-      await supabase.from('profiles').update(update).eq('id', loserId);
-    }
+
+  // ── Quest hooks — every match, win or lose, ranked or not ──────────
+  await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_PLAY, 1);
+  await recordQuestEvent(loserId, Engine.QUEST_TRACK.MATCH_PLAY, 1);
+  await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_WIN, 1);
+  if (ranked) {
+    await recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1);
+    await recordQuestEvent(loserId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1);
+    await recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_WIN, 1);
+    if (winnerRank != null) await recordQuestThreshold(winnerId, Engine.QUEST_TRACK.RANK_POINTS, winnerRank);
+    if (loserRank != null) await recordQuestThreshold(loserId, Engine.QUEST_TRACK.RANK_POINTS, loserRank);
   }
-  // don't log fake matches against a bot into permanent match history
+  if (winnerGold != null) await recordQuestThreshold(winnerId, Engine.QUEST_TRACK.GOLD_HELD, winnerGold);
+  // Nemesis: track the loser's worst per-opponent loss streak. Skipped for
+  // bot matches — "the same player" doesn't mean much against a bot.
   if (!isBotId(winnerId) && !isBotId(loserId)) {
-    await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked });
+    try {
+      const streak = await bumpNemesisLoss(loserId, winnerId);
+      await recordQuestThreshold(loserId, Engine.QUEST_TRACK.NEMESIS_LOSS, streak);
+    } catch (e) { console.error('[arena] nemesis tracking failed', e); }
   }
+
   return { gold: WIN_GOLD_REWARD, gems: 0 };
+}
+
+/** Guest-mode fallback for per-opponent loss streaks (see bumpNemesisLoss).
+ * Key is `${loserId}|${winnerId}` -> loss count against that specific
+ * opponent. */
+const guestNemesisLosses = new Map();
+/** Increments and returns `loserId`'s loss count specifically against
+ * `winnerId` — the "worst streak against any single opponent" the Nemesis
+ * quest tracks is the max of these across all opponents (see
+ * recordQuestThreshold, which only ever keeps the highest value it's
+ * ever been given). */
+async function bumpNemesisLoss(loserId, winnerId) {
+  if (!HAS_SUPABASE) {
+    const key = `${loserId}|${winnerId}`;
+    const next = (guestNemesisLosses.get(key) || 0) + 1;
+    guestNemesisLosses.set(key, next);
+    return next;
+  }
+  const { data } = await supabase.from('player_nemesis').select('losses').eq('owner_id', loserId).eq('opponent_id', winnerId).maybeSingle();
+  const next = (data ? data.losses : 0) + 1;
+  await supabase.from('player_nemesis').upsert({ owner_id: loserId, opponent_id: winnerId, losses: next }, { onConflict: 'owner_id,opponent_id' });
+  return next;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1720,9 +1958,31 @@ async function addQuestBarPoints(userId, scope, pointsToAdd) {
  * currency"), `claim_quest` for those just flips `claimed` for the UI.
  * Safe to call for a track nothing currently listens on (a no-op), and
  * safe to call for bot ids (also a no-op). */
+/** Pushes a fresh quest_state to this player's live connection, if they
+ * have one open right now — covers events a request/response round-trip
+ * can't (like the global-chat/marketplace/rank watchers, which fire from
+ * places with no originating WS request to reply to) so the Quest Journal
+ * updates in real time instead of only on next manual open. */
+async function pushLiveQuestState(userId) {
+  const conn = connections.get(userId);
+  if (!conn) return;
+  try { conn.send({ type: 'quest_state', ...(await buildQuestState(userId)) }); }
+  catch (e) { console.error('[arena] live quest_state push failed', e); }
+}
+
+/** The entry point for CUMULATIVE quest tracks (see the "two flavors"
+ * doc in game-engine.js) — fans `amount` progress out to every currently
+ * active `kind !== 'threshold'` quest def listening on `track`, regardless
+ * of scope. Reaching a quest's target only flips `completed` here; for
+ * daily/weekly quests nothing is paid out and the bar doesn't move until
+ * the player explicitly claims it (see claimQuestReward). Permanent quests
+ * are the one exception — their currency has always paid out immediately
+ * on completion, `claim_quest` for those just flips `claimed` for the UI.
+ * Safe to call for a track nothing currently listens on (a no-op), and
+ * safe to call for bot ids (also a no-op). */
 async function recordQuestEvent(userId, track, amount = 1) {
   if (isBotId(userId) || !userId) return;
-  const defs = Engine.questDefsForTrack(track);
+  const defs = Engine.questDefsForTrack(track).filter(d => d.kind !== 'threshold');
   if (!defs.length) return;
   for (const def of defs) {
     try {
@@ -1735,19 +1995,39 @@ async function recordQuestEvent(userId, track, amount = 1) {
         progress: newProgress, completed: justCompleted, claimed: row.claimed || false,
         rewarded: row.rewarded || (justCompleted && def.scope === 'permanent'),
       });
-      if (justCompleted && def.scope === 'permanent') await grantQuestCurrency(userId, def.reward);
+      if (justCompleted && def.scope === 'permanent') { await grantQuestCurrency(userId, def.reward); await grantQuestCosmetics(userId, def.reward); }
     } catch (e) { console.error(`[arena] quest progress failed (${def.id})`, e); }
   }
-  // Push the fresh state to this player's live connection, if they have one
-  // open right now — covers events a request/response round-trip can't
-  // (like the global-chat watcher below, which fires from a Supabase
-  // subscription with no WS request to reply to) so the Quest Journal
-  // updates in real time instead of only on next manual open.
-  const conn = connections.get(userId);
-  if (conn) {
-    try { conn.send({ type: 'quest_state', ...(await buildQuestState(userId)) }); }
-    catch (e) { console.error('[arena] live quest_state push failed', e); }
+  await pushLiveQuestState(userId);
+}
+
+/** The entry point for THRESHOLD quest tracks (see the "two flavors" doc
+ * in game-engine.js) — sets progress to max(existing, currentValue) for
+ * every currently active `kind === 'threshold'` quest def listening on
+ * `track`, instead of adding. For "reach/have/hold N" quests (gold held,
+ * friends, unique cards, rank points, concurrent listings, worst
+ * per-opponent loss streak) where what matters is the best value ever
+ * observed, not a tally of discrete events. Same completion/payout rules
+ * as recordQuestEvent otherwise. */
+async function recordQuestThreshold(userId, track, currentValue) {
+  if (isBotId(userId) || !userId) return;
+  const defs = Engine.questDefsForTrack(track).filter(d => d.kind === 'threshold');
+  if (!defs.length) return;
+  for (const def of defs) {
+    try {
+      const periodKey = Engine.periodKeyForScope(def.scope);
+      const row = await getQuestProgressRow(userId, def.id, periodKey);
+      if (row.completed) continue;
+      const newProgress = Math.min(def.target, Math.max(row.progress, currentValue));
+      const justCompleted = newProgress >= def.target;
+      await putQuestProgressRow(userId, def.id, periodKey, {
+        progress: newProgress, completed: justCompleted, claimed: row.claimed || false,
+        rewarded: row.rewarded || (justCompleted && def.scope === 'permanent'),
+      });
+      if (justCompleted && def.scope === 'permanent') { await grantQuestCurrency(userId, def.reward); await grantQuestCosmetics(userId, def.reward); }
+    } catch (e) { console.error(`[arena] quest threshold failed (${def.id})`, e); }
   }
+  await pushLiveQuestState(userId);
 }
 
 /** Handles a player explicitly claiming a completed quest (case
@@ -1870,6 +2150,9 @@ class Match {
     this.actedThisTurn = [new Set(), new Set()];
     this.phase = 'SETUP';
     this.turn = 0; // side index whose turn it is (meaningless during SETUP)
+    this.turnCounter = 0; // increments once per runTurnStart call (both sides combined) — lets a per-card
+                           // effect (e.g. a revive ability's one-turn cooldown) know "this side's next turn"
+                           // as turnCounter+2, since turns strictly alternate 0,1,0,1,...
     this.readyForBattle = [false, false];
     this.timer = null;
     this.disconnectTimers = [null, null];
@@ -2007,6 +2290,7 @@ class Match {
 
   /** onTurnStart effects + draw, mirroring startTurn() in the original client engine. */
   runTurnStart(isFirstTurnOfMatch) {
+    this.turnCounter++;
     const side = this.turn;
     const entity = this.sides[side];
     if (!isFirstTurnOfMatch && entity.deck.length > 0 && entity.hand.length < 6) entity.hand.push(entity.deck.pop());
@@ -2026,6 +2310,22 @@ class Match {
     }
     this.broadcastState(ctx.events);
     this.armTurnTimer();
+  }
+
+  /** Scans a just-resolved action's events for `effect_applied` entries and
+   * credits whichever side actually caused each one (a defense reflecting
+   * an effect back onto the attacker is credited to the defender, not the
+   * attacker — see the `side` on each effect_applied event, set in
+   * game-engine.js's performHit/applyDeployAbility) toward the Status
+   * Report quest. Called after both handleAttack and handleDeploy, since
+   * either can trigger an on-hit or on-deploy effect. */
+  recordStatusEffectQuests(events) {
+    const bySide = {};
+    for (const e of events) { if (e.t === 'effect_applied') bySide[e.side] = (bySide[e.side] || 0) + 1; }
+    for (const [sideStr, count] of Object.entries(bySide)) {
+      const uid = this.users[Number(sideStr)];
+      if (uid) recordQuestEvent(uid, Engine.QUEST_TRACK.STATUS_EFFECT_APPLY, count).catch(e => console.error('[arena] status_effect_apply quest failed', e));
+    }
   }
 
   handleDeploy(userId, msg) {
@@ -2072,6 +2372,7 @@ class Match {
       }
       Engine.checkCardDeath(this, side, events);
     }
+    this.recordStatusEffectQuests(events);
     this.broadcastState(events);
     if (this.phase === 'SETUP') this.armSetupTimer();
   }
@@ -2093,6 +2394,7 @@ class Match {
 
     const result = Engine.executeAttack(this, side, slot, target, atkIndex);
     if (!result.ok) return this.errTo(userId, result.reason);
+    this.recordStatusEffectQuests(result.events);
     this.broadcastState(result.events);
 
     const over = Engine.isMatchOver(this);
@@ -2174,8 +2476,9 @@ class Match {
     let reward = { gold: WIN_GOLD_REWARD, gems: 0 };
     try { reward = await applyMatchReward(winnerId, loserId, this.ranked); }
     catch (e) { console.error('[arena] reward write failed', e); }
-    try { await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_WIN, 1); }
-    catch (e) { console.error('[arena] match_win quest event failed', e); }
+    // (match_play/match_win/ranked/gold/rank/nemesis quest hooks all live
+    // inside applyMatchReward now — it already has clean access to the
+    // final gold/rank values needed for the threshold-style ones)
 
     let tournamentSummary = null;
     if (this.tournamentMeta) {
@@ -2311,9 +2614,18 @@ function attachBotAI(match) {
         await sleep(randMs(700, 1900));
         if (!stillBotsTurn()) break;
         if (card.topEffect?.type === 'ability' && card.topEffect?.revive && entity.graveyard.length && Math.random() < 0.7) {
-          const target = entity.graveyard[Math.floor(Math.random() * entity.graveyard.length)];
-          match.handleUseAbility(match.botUserId, { slot: slotKey, target: target.instanceId });
-          continue;
+          // Boss/Overlord graveyard entries aren't legal revive targets (see
+          // executeRevive) — filter them out of the bot's candidate pool so
+          // it doesn't waste its whole turn on a guaranteed-rejected attempt.
+          const revivable = entity.graveyard.filter(c => {
+            const def = Engine.CardById[c.baseId];
+            return !def || (def.classification !== 'boss' && def.classification !== 'overlord');
+          });
+          if (revivable.length) {
+            const target = revivable[Math.floor(Math.random() * revivable.length)];
+            match.handleUseAbility(match.botUserId, { slot: slotKey, target: target.instanceId });
+            continue;
+          }
         }
         const oppEntity = match.sides[humanSide];
         const targetSlot = oppEntity.activeCard ? 'slot1' : (oppEntity.activeCard2 ? 'slot2' : null);
@@ -2413,6 +2725,11 @@ async function startDuelMatch(uA, uB) {
     connA?.send({ type: 'match_found', matchId: match.id, youAre: 0, opponentName: profileB.username, opponentIcon: profileB.icon || 'star', opponentRank: profileB.rank });
     connB?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank });
     match.broadcastState([]);
+    // This path only ever runs for the friends-only duel_request/duel_respond
+    // flow (see the case handlers above) — never for random matchmaking —
+    // so both sides count toward the "Duel a friend" quest.
+    recordQuestEvent(uA, Engine.QUEST_TRACK.FRIEND_DUEL, 1).catch(e => console.error('[arena] friend_duel quest failed', e));
+    recordQuestEvent(uB, Engine.QUEST_TRACK.FRIEND_DUEL, 1).catch(e => console.error('[arena] friend_duel quest failed', e));
   } catch (e) {
     console.error('[arena] duel match failed', e);
     connA?.send({ type: 'error', reason: 'duel_match_failed' });
@@ -3394,6 +3711,14 @@ wss.on('connection', (ws) => {
 
         const profile = await fetchProfile(userId, username);
         conn.icon = profile.icon || 'star';
+        // Threshold quests that depend on "what you currently have" (not a
+        // discrete event) need a checkpoint even if nothing changed this
+        // session — a returning player who already owns 60 unique cards or
+        // already has 250 gold should see Collector/Rich Guy etc. reflect
+        // that on login, not only the next time a pack/match/sale nudges it.
+        computeCollectionQuestThresholds(userId).catch(e => console.error('[arena] login collection quest check failed', e));
+        recordQuestThreshold(userId, Engine.QUEST_TRACK.GOLD_HELD, profile.gold).catch(e => console.error('[arena] login gold quest check failed', e));
+        if (profile.rankPoints) recordQuestThreshold(userId, Engine.QUEST_TRACK.RANK_POINTS, profile.rankPoints).catch(e => console.error('[arena] login rank quest check failed', e));
         conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, tournamentOptions: { bracketSize: TOURNAMENT_BRACKET_SIZE, officialPrizePercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, dailyEntryGold: TOURNAMENT_DAILY_ENTRY_GOLD, weeklyEntryGems: TOURNAMENT_WEEKLY_ENTRY_GEMS, unofficialMinPlayers: TOURNAMENT_UNOFFICIAL_MIN_PLAYERS, unofficialMaxPlayers: TOURNAMENT_UNOFFICIAL_MAX_PLAYERS, unofficialPrizePercentMin: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN, unofficialPrizePercentMax: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX, unofficialEntryMaxGold: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD, unofficialEntryMaxGems: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS, unofficialMinLeadMs: TOURNAMENT_UNOFFICIAL_MIN_LEAD_MS, unofficialMaxLeadMs: TOURNAMENT_UNOFFICIAL_MAX_LEAD_MS, nameMin: TOURNAMENT_NAME_MIN, nameMax: TOURNAMENT_NAME_MAX }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
         console.error('[arena] auth failed', e);
@@ -3513,7 +3838,7 @@ wss.on('connection', (ws) => {
           const owned = new Set(profile.collection);
           const saved = await saveDeck(userId, msg.cardIds, owned);
           conn.send({ type:'deck_saved', cardIds: saved });
-        } catch (e) { conn.send({ type:'error', reason: e.code || 'save_deck_failed' }); }
+        } catch (e) { conn.send({ type:'error', reason: e.code || 'save_deck_failed', deckSize: e.deckSize, requiredSize: e.requiredSize }); }
         break;
       }
       case 'buy_pack': {
@@ -3597,8 +3922,12 @@ wss.on('connection', (ws) => {
           if (msg.accept) {
             await acceptFriendRequest(userId, otherId);
             const otherConn = connections.get(otherId);
-            conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
-            if (otherConn) otherConn.send({ type:'friends_list', ...(await buildFriendsList(otherId)) });
+            const myList = await buildFriendsList(userId);
+            const theirList = await buildFriendsList(otherId);
+            conn.send({ type:'friends_list', ...myList });
+            if (otherConn) otherConn.send({ type:'friends_list', ...theirList });
+            recordQuestThreshold(userId, Engine.QUEST_TRACK.FRIENDS_COUNT, myList.friends.length).catch(e => console.error('[arena] friends_count quest failed', e));
+            recordQuestThreshold(otherId, Engine.QUEST_TRACK.FRIENDS_COUNT, theirList.friends.length).catch(e => console.error('[arena] friends_count quest failed', e));
           } else {
             await deleteFriendship(userId, otherId);
             conn.send({ type:'friends_list', ...(await buildFriendsList(userId)) });
@@ -4113,6 +4442,17 @@ wss.on('connection', (ws) => {
           const summaries = await fetchProfileSummaries(conversations.map(c => c.userId));
           conn.send({ type: 'dm_conversations', conversations: conversations.map(c => ({ ...c, username: summaries.get(c.userId)?.username || 'Unknown', icon: summaries.get(c.userId)?.icon || 'star' })) });
         } catch (e) { console.error('[arena] dm_conversations failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
+        break;
+      }
+      case 'dm_archive_conversation': {
+        try {
+          const otherId = typeof msg.userId === 'string' ? msg.userId : null;
+          if (!otherId) { conn.send({ type: 'error', reason: 'dm_failed' }); break; }
+          await archiveDMConversation(userId, otherId);
+          const conversations = await dmConversations(userId);
+          const summaries = await fetchProfileSummaries(conversations.map(c => c.userId));
+          conn.send({ type: 'dm_conversations', conversations: conversations.map(c => ({ ...c, username: summaries.get(c.userId)?.username || 'Unknown', icon: summaries.get(c.userId)?.icon || 'star' })) });
+        } catch (e) { console.error('[arena] dm_archive_conversation failed', e); conn.send({ type: 'error', reason: 'dm_failed' }); }
         break;
       }
       case 'dm_history': {
