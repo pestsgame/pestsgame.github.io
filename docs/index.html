@@ -43,32 +43,68 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 
 /* ══════════════════════════════════════
    COIN FLIP OVERLAY
+   A real toss: the coin rises, spins fast with a visible metallic edge,
+   falls back down, bounces twice with decreasing height (a light
+   squash/stretch on each impact), and wobbles briefly before settling
+   flat — all one JS-timed keyframe (coinToss/coinShadow) driven by the
+   --final-rot custom property so the ending face (player vs enemy) is
+   still just "however many full spins land on 0deg vs 180deg", same idea
+   as before, just with real physics on top. See runNetCoinFlip.
 ══════════════════════════════════════ */
 #coinflip-overlay{
   display:none;position:fixed;inset:0;z-index:900;
-  align-items:center;justify-content:center;flex-direction:column;gap:28px;
+  align-items:center;justify-content:center;flex-direction:column;gap:20px;
   background:rgba(4,4,12,0.96);backdrop-filter:blur(12px);
+  overflow:hidden;
 }
 #coinflip-overlay.open{display:flex;}
 .coinflip-title{
   font-family:'Cinzel',serif;font-size:0.95rem;font-weight:700;
   letter-spacing:0.22em;color:var(--txt-dim);text-transform:uppercase;
-  text-align:center;
+  text-align:center;display:flex;align-items:center;justify-content:center;gap:10px;
 }
-.coin-scene{width:130px;height:130px;perspective:700px;}
+.coinflip-title svg{color:#fbbf24;flex-shrink:0;animation:coinTitleSpark 2.4s ease-in-out infinite;}
+.coinflip-title svg:last-child{animation-delay:1.2s;}
+@keyframes coinTitleSpark{0%,100%{opacity:.4;transform:scale(.85);}50%{opacity:1;transform:scale(1.1);}}
+
+.coin-scene{width:170px;height:250px;perspective:950px;position:relative;display:flex;align-items:flex-end;justify-content:center;}
+.coin-shadow{
+  position:absolute;bottom:8px;width:120px;height:28px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(0,0,0,.6),transparent 72%);
+  filter:blur(2px);opacity:.5;transform:scale(1);
+}
+.coin-shadow.flipping{animation:coinShadow 3.1s cubic-bezier(.22,.61,.25,1) forwards;}
+@keyframes coinShadow{
+  0%  {transform:scale(1);   opacity:.5;}
+  38% {transform:scale(.38); opacity:.16;}
+  62% {transform:scale(.7);  opacity:.3;}
+  76% {transform:scale(1.18);opacity:.62;}
+  83% {transform:scale(.85); opacity:.4;}
+  90% {transform:scale(1.1); opacity:.56;}
+  95% {transform:scale(.96); opacity:.48;}
+  100%{transform:scale(1);   opacity:.5;}
+}
 .coin{
-  width:130px;height:130px;position:relative;
+  width:132px;height:132px;position:absolute;bottom:30px;
   transform-style:preserve-3d;
 }
 .coin.flipping{
-  animation:coinSpin 2.8s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+  animation:coinToss 3.1s cubic-bezier(.22,.61,.25,1) forwards;
 }
-@keyframes coinSpin{
-  0%  {transform:rotateY(0deg) rotateX(8deg);}
-  55% {transform:rotateY(1440deg) rotateX(8deg);}
-  75% {transform:rotateY(1680deg) rotateX(4deg);}
-  88% {transform:rotateY(var(--final-rot,1800deg)) rotateX(2deg);}
-  100%{transform:rotateY(var(--final-rot,1800deg)) rotateX(0deg);}
+@keyframes coinToss{
+  0%  {transform:translateY(0)     rotateY(0deg) rotateX(9deg)  scale(1);}
+  38% {transform:translateY(-210px)rotateY(calc(var(--final-rot,1800deg)*0.45)) rotateX(11deg) scale(1.14);}
+  62% {transform:translateY(-46px) rotateY(calc(var(--final-rot,1800deg)*0.78)) rotateX(6deg)  scale(1.03);}
+  76% {transform:translateY(0px)   rotateY(calc(var(--final-rot,1800deg)*0.94)) rotateX(-7deg) scale(.96);}
+  83% {transform:translateY(-28px) rotateY(var(--final-rot,1800deg))            rotateX(4deg)  scale(1.02);}
+  90% {transform:translateY(0px)   rotateY(var(--final-rot,1800deg))            rotateX(-3deg) scale(.985);}
+  95% {transform:translateY(-9px)  rotateY(var(--final-rot,1800deg))            rotateX(1.5deg)scale(1.005);}
+  100%{transform:translateY(0px)   rotateY(var(--final-rot,1800deg))            rotateX(0deg)  scale(1);}
+}
+.coin-edge{position:absolute;inset:0;transform-style:preserve-3d;}
+.coin-edge-slice{
+  position:absolute;top:50%;left:50%;height:13px;margin-top:-6.5px;
+  background:linear-gradient(180deg,#fef3c7,#d4af37 45%,#7c5e18);
 }
 .coin-face{
   position:absolute;inset:0;border-radius:50%;
@@ -76,20 +112,34 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   backface-visibility:hidden;-webkit-backface-visibility:hidden;
   font-family:'Cinzel',serif;font-size:1.7rem;font-weight:900;
   border:5px solid currentColor;
-  flex-direction:column;gap:2px;
+  flex-direction:column;gap:2px;overflow:hidden;
 }
+.coin-face::after{
+  /* a soft rotating sheen sweeping across the face while it spins, for a
+   * "polished metal catching the light" feel */
+  content:'';position:absolute;inset:-20%;
+  background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.35) 48%,rgba(255,255,255,.35) 52%,transparent 65%);
+  background-size:220% 220%;
+}
+.coin.flipping .coin-face::after{animation:coinSheen 3.1s linear forwards;}
+@keyframes coinSheen{0%{background-position:0% 0%;}100%{background-position:340% 0%;}}
 .coin-face-sub{font-size:0.42rem;letter-spacing:0.12em;font-weight:700;opacity:0.75;}
 .coin-player{
   background:radial-gradient(circle at 40% 38%,#0d2048,#060614);
   color:#3b82f6;
   box-shadow:0 0 35px rgba(59,130,246,0.55);
-  transform:rotateY(0deg);
+  transform:rotateY(0deg) translateZ(6px);
 }
 .coin-enemy{
   background:radial-gradient(circle at 40% 38%,#3b0a0a,#060614);
   color:#ef4444;
   box-shadow:0 0 35px rgba(239,68,68,0.55);
-  transform:rotateY(180deg);
+  transform:rotateY(180deg) translateZ(6px);
+}
+#coinflip-overlay.impact-shake{animation:coinImpactShake .35s ease-out;}
+@keyframes coinImpactShake{
+  0%{transform:translate(0,0);} 25%{transform:translate(-3px,2px);}
+  50%{transform:translate(3px,-1px);} 75%{transform:translate(-2px,1px);} 100%{transform:translate(0,0);}
 }
 .coinflip-result{
   font-family:'Cinzel',serif;font-size:1.4rem;font-weight:900;
@@ -1368,6 +1418,17 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .banner-obsidian{background:linear-gradient(120deg,#050508,#1f2937 55%,#9ca3af);}
 .banner-rose    {background:linear-gradient(120deg,#4a0a2a,#db2777 55%,#f9a8d4);}
 .banner-storm   {background:linear-gradient(120deg,#082f2c,#0891b2 55%,#67e8f9);}
+/* ── Quest-locked banners (see COSMETIC_UNLOCK_QUEST) — pure CSS gradients,
+ * same convention as the free set above, just leaning on radial/conic/
+ * repeating gradients to evoke each theme instead of a flat linear blend. ── */
+.banner-first_pack{background:radial-gradient(circle at 50% 50%,rgba(253,230,138,.85),rgba(253,230,138,0) 32%),repeating-linear-gradient(90deg,#170f05 0px,#170f05 24px,#3d2b0f 24px,#3d2b0f 44px),linear-gradient(120deg,#0d0904,#3d2b0f);}
+.banner-archivist{background:repeating-linear-gradient(0deg,rgba(217,180,120,.1) 0 3px,transparent 3px 13px),repeating-linear-gradient(90deg,rgba(217,180,120,.1) 0 3px,transparent 3px 13px),linear-gradient(150deg,#170f06,#4a2f10 60%,#8a5a1f);}
+.banner-first_sale{background:repeating-linear-gradient(115deg,transparent 0 18px,rgba(253,224,71,.55) 18px 22px,transparent 22px 40px),linear-gradient(120deg,#170f02,#78350f 55%,#d97706);}
+.banner-market_crash{background:linear-gradient(200deg,rgba(239,68,68,.35),transparent 45%),repeating-linear-gradient(115deg,rgba(252,165,165,.28) 0 2px,transparent 2px 22px),linear-gradient(135deg,#170303,#7f1d1d 55%,#ef4444);}
+.banner-hello_world{background:radial-gradient(ellipse at 50% 45%,rgba(196,181,253,.5),transparent 60%),radial-gradient(circle at 20% 80%,rgba(255,255,255,.16) 0 2px,transparent 3px),radial-gradient(circle at 75% 25%,rgba(255,255,255,.13) 0 2px,transparent 3px),radial-gradient(circle at 60% 78%,rgba(255,255,255,.12) 0 2px,transparent 3px),linear-gradient(135deg,#09091a,#4c1d95 55%,#a78bfa);}
+.banner-guildgoer{background:radial-gradient(circle at 35% 55%,rgba(52,211,153,.5) 0 20%,transparent 45%),radial-gradient(circle at 65% 55%,rgba(96,165,250,.5) 0 20%,transparent 45%),radial-gradient(circle at 50% 38%,rgba(251,191,36,.42) 0 18%,transparent 40%),linear-gradient(135deg,#02150e,#065f46 55%,#34d399);}
+.banner-fabled_pull{background:conic-gradient(from 0deg at 50% 50%,rgba(253,230,138,.28),transparent 8%,rgba(253,230,138,.28) 16%,transparent 24%,rgba(253,230,138,.28) 32%,transparent 40%,rgba(253,230,138,.28) 48%,transparent 56%,rgba(253,230,138,.28) 64%,transparent 72%,rgba(253,230,138,.28) 80%,transparent 88%,rgba(253,230,138,.28) 96%),radial-gradient(circle at 50% 50%,rgba(255,255,255,.9),transparent 20%),radial-gradient(circle at 50% 50%,#fef3c7,#78350f 70%);}
+.banner-absolute{background:conic-gradient(from 45deg at 50% 50%,rgba(251,113,133,.32),transparent 10%,rgba(196,181,253,.32) 20%,transparent 30%,rgba(251,113,133,.32) 40%,transparent 50%,rgba(196,181,253,.32) 60%,transparent 70%,rgba(251,113,133,.32) 80%,transparent 90%),radial-gradient(circle at 50% 50%,rgba(255,255,255,.9),transparent 15%),radial-gradient(circle at 50% 50%,#fecdd3,#170a0d 75%);}
 
 #profile-overlay{
   display:none;position:fixed;inset:0;z-index:1100;
@@ -1543,13 +1604,19 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pf-bio-input:focus{border-color:rgba(139,92,246,.6);}
 .pf-bio-count{font-size:.58rem;color:var(--txt-muted);text-align:right;margin-top:4px;}
 .pf-icon-grid{display:flex;flex-wrap:wrap;gap:8px;}
-.pf-icon-swatch{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.04);border:2px solid transparent;display:flex;align-items:center;justify-content:center;color:#c4b5fd;cursor:pointer;transition:transform .15s,border-color .15s,color .15s;}
+.pf-icon-swatch{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.04);border:2px solid transparent;display:flex;align-items:center;justify-content:center;color:#c4b5fd;cursor:pointer;transition:transform .15s,border-color .15s,color .15s;position:relative;}
 .pf-icon-swatch:hover{transform:translateY(-2px);color:#e9d5ff;}
 .pf-icon-swatch.selected{border-color:#a78bfa;box-shadow:0 0 12px rgba(139,92,246,.5);color:#fff;}
+.pf-icon-swatch.locked{color:rgba(196,181,253,.28);cursor:not-allowed;}
+.pf-icon-swatch.locked svg:first-child{filter:grayscale(1);}
+.pf-icon-swatch.locked:hover{transform:none;}
 .pf-banner-grid{display:flex;flex-wrap:wrap;gap:8px;}
-.pf-banner-swatch{width:44px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;}
+.pf-banner-swatch{width:44px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;position:relative;}
 .pf-banner-swatch:hover{transform:translateY(-2px);}
 .pf-banner-swatch.selected{border-color:#fff;box-shadow:0 0 12px rgba(139,92,246,.5);}
+.pf-banner-swatch.locked{cursor:not-allowed;filter:grayscale(.85) brightness(.55);}
+.pf-banner-swatch.locked:hover{transform:none;}
+.pf-swatch-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.85);background:rgba(0,0,0,.28);border-radius:inherit;}
 .pf-fav-hint{font-size:.62rem;color:var(--txt-muted);margin-bottom:10px;}
 .pf-fav-grid{display:flex;flex-wrap:wrap;gap:10px;max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;padding:2px;}
 .fav-card-slot{cursor:pointer;position:relative;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
@@ -1735,7 +1802,23 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .qj-header-title svg{color:#fbbf24;}
 .qj-close-x{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;flex-shrink:0;}
 .qj-close-x:hover{background:rgba(255,255,255,.12);}
-.qj-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(251,191,36,.3) transparent;padding:22px 22px 30px;}
+.qj-tabs{display:flex;gap:6px;padding:12px 20px 0;flex-shrink:0;}
+.qj-tab-btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 8px;border-radius:10px 10px 0 0;cursor:pointer;position:relative;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-bottom:none;
+  color:var(--txt-muted);font-family:'Rajdhani',sans-serif;font-size:.68rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;
+  transition:background .15s,color .15s;
+}
+.qj-tab-btn svg{flex-shrink:0;}
+.qj-tab-btn:hover{color:var(--txt);}
+.qj-tab-btn.active{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.3);color:#fde68a;}
+.qj-tab-count{font-size:.56rem;font-weight:800;background:rgba(255,255,255,.08);border-radius:10px;padding:1px 6px;}
+.qj-tab-btn.active .qj-tab-count{background:rgba(251,191,36,.25);color:#fde68a;}
+.qj-tab-dot{position:absolute;top:6px;right:9px;width:6px;height:6px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.9);display:none;}
+.qj-tab-btn.has-unclaimed .qj-tab-dot{display:block;animation:qMilestoneInvite 1.1s ease-in-out infinite;}
+.qj-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(251,191,36,.3) transparent;padding:18px 22px 30px;}
+.qj-empty{text-align:center;padding:40px 10px;color:var(--txt-muted);font-size:.75rem;}
 
 /* ── Loading states — first open shows a full skeleton (no cached data
  * yet); subsequent opens show cached content instantly with a small
@@ -2304,12 +2387,18 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .dm-conv-list{width:190px;flex:0 0 190px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;height:100%;}
 .dm-conv-row{
   display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;flex-shrink:0;
-  border:1px solid transparent;transition:background .15s;
+  border:1px solid transparent;transition:background .15s;position:relative;
 }
 .dm-conv-row:hover{background:rgba(255,255,255,.04);}
 .dm-conv-row.active{background:rgba(139,92,246,.14);border-color:rgba(139,92,246,.4);}
 .dm-conv-name{font-size:.72rem;font-weight:700;color:var(--txt);}
 .dm-conv-preview{font-size:.6rem;color:var(--txt-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
+.dm-conv-archive-btn{
+  flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:var(--txt-muted);opacity:0;transition:opacity .12s,background .12s,color .12s;background:transparent;
+}
+.dm-conv-row:hover .dm-conv-archive-btn{opacity:1;}
+.dm-conv-archive-btn:hover{background:rgba(239,68,68,.18);color:#fca5a5;}
 .dm-conv-unread{
   margin-left:auto;background:#7c3aed;color:#fff;font-size:.56rem;font-weight:900;border-radius:20px;
   padding:1px 6px;min-width:16px;text-align:center;flex-shrink:0;
@@ -3247,6 +3336,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
       </div>
       <div class="qj-close-x" onclick="closeQuestJournal()">✕</div>
     </div>
+    <div class="qj-tabs" id="qj-tabs"><!-- injected by renderQuestJournal() --></div>
     <div class="qj-body" id="qj-body"><!-- injected by renderQuestJournal() --></div>
   </div>
 </div>
@@ -3711,9 +3801,15 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 <!-- ══════ COIN FLIP OVERLAY ══════ -->
 <div id="coinflip-overlay">
-  <div class="coinflip-title">✦ &nbsp; Fate Decides First Strike &nbsp; ✦</div>
+  <div class="coinflip-title">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>
+    Fate Decides First Strike
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>
+  </div>
   <div class="coin-scene">
+    <div class="coin-shadow" id="coin-shadow"></div>
     <div class="coin" id="coin">
+      <div class="coin-edge" id="coin-edge"><!-- thin slices injected by buildCoinEdge() --></div>
       <div class="coin-face coin-player">P1<span class="coin-face-sub">PLAYER</span></div>
       <div class="coin-face coin-enemy">P2<span class="coin-face-sub">ENEMY</span></div>
     </div>
@@ -4656,7 +4752,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
     <div class="card-imgbox">
-      <img class="card-img" src="${card.image}" alt="${card.name}" onerror="this.style.display='none'">
+      <img class="card-img" src="${cardImageSrc(card.image)}" alt="${card.name}" onerror="this.style.display='none'">
       <span class="card-img-placeholder">${card.name.charAt(0)}</span>
     </div>
     <div class="card-footer">
@@ -4670,6 +4766,14 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
     </div>
     ${cardSetBarHtml(card)}
   </div>`;
+}
+
+/** Card art lives in a dedicated card-images/ folder (cards.json's `image`
+ * field is just a bare filename, e.g. "moth.png") — this is the one place
+ * that turns a filename into an actual src path, so every card renderer
+ * stays in sync if that folder ever moves. */
+function cardImageSrc(filename){
+  return filename ? `card-images/${filename}` : '';
 }
 
 /* ── CARD RENDERER ────────────────────────────────────── */
@@ -4703,7 +4807,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
     <div class="card-img-wrap">
       ${clsLabels}
       <div class="card-imgbox">
-        <img class="card-img" src="${card.image}" alt="${card.name}" onerror="this.style.display='none'">
+        <img class="card-img" src="${cardImageSrc(card.image)}" alt="${card.name}" onerror="this.style.display='none'">
         <span class="card-img-placeholder">${card.name.charAt(0)}</span>
         <div class="card-status-layer">${badges}</div>
       </div>
@@ -4777,10 +4881,18 @@ function updateUI(){
       el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
     }
     // Graveyard picker — choose which of your own dead creatures to revive.
+    // Boss/Overlord cards are never revivable this way (see executeRevive/
+    // tryPassiveRevive server-side) — shown here but disabled rather than
+    // hidden, so it's clear why they're not pickable instead of just
+    // silently missing.
     else if(State.pendingRevive===slot){
       const graveyard=State.player.graveyard||[];
       const healPct=card.topEffect?.revive?.healPercent!=null?card.topEffect.revive.healPercent:0.5;
-      const rows=graveyard.map(g=>`<button class="atk-pick-btn" onclick="chooseReviveTarget('${slot}','${g.instanceId}')">${escapeHtml(g.name)}<span class="pick-dmg">&#8594; ${Math.max(1,Math.round(g.maxHp*healPct))}/${g.maxHp} HP</span></button>`).join('');
+      const rows=graveyard.map(g=>{
+        const blocked=g.classification==='boss'||g.classification==='overlord';
+        if(blocked) return `<button class="atk-pick-btn" disabled title="Boss/Overlord cards can't be revived this way">${escapeHtml(g.name)}<span class="pick-dmg">Not revivable</span></button>`;
+        return `<button class="atk-pick-btn" onclick="chooseReviveTarget('${slot}','${g.instanceId}')">${escapeHtml(g.name)}<span class="pick-dmg">&#8594; ${Math.max(1,Math.round(g.maxHp*healPct))}/${g.maxHp} HP</span></button>`;
+      }).join('');
       const picker=`<div class="atk-picker"><div class="atk-picker-title">Revive which creature?</div>${rows||'<div class="atk-picker-title">No dead cards</div>'}<button class="atk-pick-cancel" onclick="cancelPending()">Cancel</button></div>`;
       el.innerHTML=`<div style="position:relative;display:inline-block;">${el.innerHTML}${picker}</div>`;
     }
@@ -4875,12 +4987,18 @@ const Player = {
   favoriteCards: [], // up to 3 card ids chosen to showcase on the profile
   collection: [], // array of card ids owned
   deck: [],       // array of card ids in current deck (must be exactly DECK_SIZE)
+  // Quest-locked cosmetics this player has actually unlocked (server-verified —
+  // see applyServerProfile). The base free sets are always included by the
+  // server regardless of quest progress; anything beyond that only appears
+  // here once its unlocking permanent quest has been completed.
+  unlockedIcons: ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'],
+  unlockedBanners: ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'],
 };
 
 // Default picker options — replaced with the server's exact allow-lists on auth_ok
 // so the UI never offers something the server would reject.
-let PROFILE_ICONS = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'];
-let PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
+let PROFILE_ICONS = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel','first_card','collector','overlord_master','merchant','flipper','nemesis','pack_fiend','lucky_bastard'];
+let PROFILE_BANNERS = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm','first_pack','archivist','first_sale','market_crash','hello_world','guildgoer','fabled_pull','absolute'];
 let PROFILE_BIO_MAX = 140;
 
 // Hand-drawn vector icons (no emoji) — each is inner SVG markup rendered on a
@@ -4904,6 +5022,15 @@ const ICON_SVGS = {
   beetle:   '<ellipse cx="12" cy="13.3" rx="5" ry="6"/><path d="M12 7.6v11.4"/><circle cx="12" cy="6.1" r="1.3"/><path d="M7.6 9.4l-3.2-2M7.1 13.3H3.4M7.6 17.2l-3.2 2M16.4 9.4l3.2-2M16.9 13.3h3.7M16.4 17.2l3.2 2"/>',
   serpent:  '<path d="M5.5 19.3c0-2.2 4-2.1 4-4.9s-4-2.7-4-5.5 4-3.6 8.7-3.6"/><circle cx="15.3" cy="5.1" r="1.35"/><path d="M16.9 4.6l1.7-.7M16.9 5.5l1.7.7"/>',
   laurel:   '<path d="M12 20V5"/><path d="M12 6c-2-1.6-2-4 0-4M12 9c-2.4-1.4-2.6-4.2-.6-4.8M12 12c-2.6-1-3-3.8-1.1-4.7M12 15c-2.8-.6-3.4-3.3-1.6-4.5M12 6c2-1.6 2-4 0-4M12 9c2.4-1.4 2.6-4.2.6-4.8M12 12c2.6-1 3-3.8 1.1-4.7M12 15c2.8-.6 3.4-3.3 1.6-4.5"/>',
+  // ── Quest-locked icons (see COSMETIC_UNLOCK_QUEST) ──
+  first_card:      '<circle cx="12" cy="12" r="10.2"/><rect x="9" y="6.5" width="6" height="9" rx="1.1"/>',
+  collector:       '<rect x="4" y="8" width="9" height="12.5" rx="1.1" transform="rotate(-11 8.5 14.25)"/><rect x="7.5" y="6" width="9" height="12.5" rx="1.1"/><rect x="11" y="8" width="9" height="12.5" rx="1.1" transform="rotate(11 15.5 14.25)"/><path d="M12 2.6l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z" fill="currentColor" stroke="none"/>',
+  overlord_master: '<path d="M4 11h16M4 11l1.5-6.3L9 8.2l3-5.4 3 5.4 3.5-3.5L20 11"/><circle cx="9.6" cy="15.8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.4" cy="15.8" r="1.1" fill="currentColor" stroke="none"/>',
+  merchant:        '<circle cx="12" cy="12" r="8.6"/><rect x="9.4" y="8.4" width="5.2" height="7.4" rx=".8"/>',
+  flipper:         '<rect x="9.3" y="9.2" width="5.4" height="7.6" rx=".8"/><path d="M4 9.2a8 8 0 0113-5.2M20 14.8a8 8 0 01-13 5.2"/><path d="M15.6 2.6L17 3.8l-1.2 1.3M8.4 21.4L7 20.2l1.2-1.3"/>',
+  nemesis:         '<path d="M5 4l14 16"/><path d="M19 4L5 20"/><path d="M10.6 10.2l1.1 1.6-1.6.5 1.6 1-1.1 2.1" stroke="#ef4444"/>',
+  pack_fiend:      '<rect x="6" y="6.4" width="12" height="15" rx="1.4"/><path d="M6 10.4h12M12 6.4v4"/><circle cx="9.2" cy="4" r="1" fill="currentColor" stroke="none"/><circle cx="14.8" cy="4" r="1" fill="currentColor" stroke="none"/>',
+  lucky_bastard:   '<path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" fill="currentColor" stroke="none"/><path d="M12 9.4c1 1 1.5 1.7 1.5 2.5a1.5 1.5 0 01-3 0c0-.8.5-1.5 1.5-2.5z" fill="#0a0a12" stroke="none"/>',
 };
 /** Usernames are player-controlled text — this keeps them from being
  * interpreted as markup wherever they're interpolated into an innerHTML
@@ -5076,13 +5203,51 @@ function renderInfinityIcon(size=14){
  * new glyphs for the same concepts. */
 function questTrackIconSvg(track, size=18){
   switch(track){
+    case 'match_play': return renderDuelIcon(size);
     case 'match_win': return renderDuelIcon(size);
+    case 'ranked_match_play': return renderCrownIcon(size);
+    case 'ranked_match_win': return renderCrownIcon(size);
+    case 'status_effect_apply': return renderStatusEffectIcon(size);
+    case 'market_listing_create': return renderBazaarTabIcon(size);
+    case 'market_listings_active': return renderBazaarTabIcon(size);
+    case 'market_purchase': return renderBazaarTabIcon(size);
+    case 'market_sale': return renderBazaarTabIcon(size);
+    case 'market_transaction': return renderBazaarTabIcon(size);
+    case 'market_flip_profit': return renderTrendIcon(size,true);
+    case 'market_sell_loss': return renderTrendIcon(size,false);
+    case 'gold_held': return `<img src="coin.png" style="width:${size}px;height:${size}px;object-fit:contain;" alt="">`;
     case 'pack_buy': return renderShopTabIcon(size);
+    case 'pack_variety': return renderShopTabIcon(size);
     case 'tournament_join': return renderTourneyTabIcon(size);
+    case 'friend_duel': return renderFriendIcon(size);
+    case 'cards_unique': return renderDeckTabIcon(size);
+    case 'overlords_owned': return renderCrownIcon(size);
     case 'chat_message': return renderChatBubbleIcon(size);
+    case 'friends_count': return renderFriendIcon(size);
+    case 'nemesis_loss': return renderNemesisIcon(size);
+    case 'guild_join': return renderGuildTabIcon(size);
+    case 'pull_rarity_mythic': return renderSparkleIcon(size);
+    case 'pull_overlord_card': return renderCrownIcon(size);
+    case 'rank_points': return renderCrownIcon(size);
     case 'profile_customize': return renderFriendIcon(size);
     default: return renderQuestTabIcon(size);
   }
+}
+/** Small trending arrow — up (profit) or down (loss) — for the Flipper /
+ * Market Crash quest tracks. */
+function renderTrendIcon(size=14, up=true){
+  const arrow=up?'M4 17l6-7 4 4 6-9':'M4 7l6 7 4-4 6 9';
+  const head=up?'M14 5h6v6':'M14 19h6v-6';
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="${arrow}"/><path d="${head}"/></svg>`;
+}
+/** Simple skull glyph for the Nemesis quest track. */
+function renderNemesisIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M12 3c-4.4 0-7.5 3.1-7.5 7.2 0 2.6 1.3 4.4 2.5 5.5V18h2v-1.6c.6.2 1.3.3 2 .35V18h2v-1.25c.7-.05 1.4-.16 2-.35V18h2v-2.3c1.2-1.1 2.5-2.9 2.5-5.5C19.5 6.1 16.4 3 12 3z"/><circle cx="9.3" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.7" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><path d="M11 13.5h2l-1 1.6z" fill="currentColor" stroke="none"/></svg>`;
+}
+/** Four-point sparkle — same glyph as the coin-flip title accents — for
+ * the Lucky Bastard (pull-a-mythic) quest track. */
+function renderSparkleIcon(size=14){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>`;
 }
 /** Three ascending bars glyph — used for the Card Classifications logbook
  * tab (Normal/PESTS/BOSS/OVERLORD is a tiered system). */
@@ -5219,15 +5384,41 @@ function updatePfHeroPreview(){
   hero.className='profile-modal-hero banner-'+_pfEditBanner;
 }
 
+/** Small padlock glyph overlaid on a quest-locked icon/banner swatch the
+ * player hasn't unlocked yet. */
+function renderLockIcon(size=11){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
+}
+/** Which quest title unlocks each quest-locked icon/banner id — display-
+ * only (a tooltip/toast label), not a trust boundary: the server is what
+ * actually decides Player.unlockedIcons/unlockedBanners, and rejects any
+ * icon/banner the player tries to equip that isn't in there regardless of
+ * what this map says. */
+const COSMETIC_UNLOCK_QUEST={
+  first_card:'First Card', collector:'Collector', overlord_master:'Overlord Master', merchant:'Merchant',
+  flipper:'Flipper', nemesis:'Nemesis', pack_fiend:'Pack Fiend', lucky_bastard:'Lucky Bastard',
+  first_pack:'First Pack', archivist:'Archivist', first_sale:'First Sale', market_crash:'Market Crash',
+  hello_world:'Hello, World', guildgoer:'Guildgoer', fabled_pull:'Fabled Pull', absolute:'Absolute',
+};
+
 function renderProfileIconGrid(){
   const grid=document.getElementById('pf-icon-grid');
   grid.innerHTML='';
+  const owned=new Set(Player.unlockedIcons||[]);
   PROFILE_ICONS.forEach(icon=>{
     const sel=icon===_pfEditIcon?' selected':'';
-    grid.innerHTML+=`<div class="pf-icon-swatch${sel}" onclick="selectProfileIcon('${icon}')" title="${icon}">${renderIcon(icon,20)}</div>`;
+    const locked=!owned.has(icon);
+    const questTitle=COSMETIC_UNLOCK_QUEST[icon];
+    const label=locked&&questTitle?`Locked — complete "${questTitle}" to unlock`:icon;
+    grid.innerHTML+=`<div class="pf-icon-swatch${sel}${locked?' locked':''}" onclick="selectProfileIcon('${icon}')" title="${escapeHtml(label)}">${renderIcon(icon,20)}${locked?`<span class="pf-swatch-lock">${renderLockIcon()}</span>`:''}</div>`;
   });
 }
 function selectProfileIcon(icon){
+  if(!(Player.unlockedIcons||[]).includes(icon)){
+    const questTitle=COSMETIC_UNLOCK_QUEST[icon];
+    showToast(questTitle?`⚠ Complete "${questTitle}" to unlock this icon.`:'⚠ Icon locked.');
+    return;
+  }
   _pfEditIcon=icon;
   renderProfileIconGrid();
   updatePfHeroPreview();
@@ -5236,12 +5427,21 @@ function selectProfileIcon(icon){
 function renderProfileBannerGrid(){
   const grid=document.getElementById('pf-banner-grid');
   grid.innerHTML='';
+  const owned=new Set(Player.unlockedBanners||[]);
   PROFILE_BANNERS.forEach(banner=>{
     const sel=banner===_pfEditBanner?' selected':'';
-    grid.innerHTML+=`<div class="pf-banner-swatch banner-${banner}${sel}" onclick="selectProfileBanner('${banner}')" title="${banner}"></div>`;
+    const locked=!owned.has(banner);
+    const questTitle=COSMETIC_UNLOCK_QUEST[banner];
+    const label=locked&&questTitle?`Locked — complete "${questTitle}" to unlock`:banner;
+    grid.innerHTML+=`<div class="pf-banner-swatch banner-${banner}${sel}${locked?' locked':''}" onclick="selectProfileBanner('${banner}')" title="${escapeHtml(label)}">${locked?`<span class="pf-swatch-lock">${renderLockIcon()}</span>`:''}</div>`;
   });
 }
 function selectProfileBanner(banner){
+  if(!(Player.unlockedBanners||[]).includes(banner)){
+    const questTitle=COSMETIC_UNLOCK_QUEST[banner];
+    showToast(questTitle?`⚠ Complete "${questTitle}" to unlock this banner.`:'⚠ Banner locked.');
+    return;
+  }
   _pfEditBanner=banner;
   renderProfileBannerGrid();
   updatePfHeroPreview();
@@ -5570,10 +5770,8 @@ function handleQuestBackdrop(e){
 function renderQuestSkeleton(){
   const skelCard=()=>`<div class="qj-skel-card"><div class="qj-skel-card-icon"></div><div class="qj-skel-card-lines"><div class="qj-skeleton-bar" style="width:55%;"></div><div class="qj-skeleton-bar" style="width:80%;height:9px;"></div></div></div>`;
   const skelBar=()=>`<div class="qj-skel-bar-wrap"><div class="qj-skeleton-bar"></div><div class="qj-skeleton-bar"></div></div>`;
-  return `
-    <div class="qj-section"><div class="qj-section-head">${renderCalendarIcon(15)}<span class="qj-section-title">Daily Quests</span></div>${skelBar()}${skelCard()}${skelCard()}</div>
-    <div class="qj-section"><div class="qj-section-head">${renderRefreshIcon(15)}<span class="qj-section-title">Weekly Quests</span></div>${skelBar()}${skelCard()}${skelCard()}</div>
-    <div class="qj-section"><div class="qj-section-head">${renderInfinityIcon(15)}<span class="qj-section-title">Permanent Quests</span></div>${skelCard()}</div>`;
+  document.getElementById('qj-tabs').innerHTML=QJ_TABS.map(t=>`<button class="qj-tab-btn${t.id===_qjActiveTab?' active':''}" disabled>${t.icon(13)}${t.label}</button>`).join('');
+  return `${skelBar()}${skelCard()}${skelCard()}${skelCard()}`;
 }
 /** Called from Net.handle's 'quest_state' case — the single source of
  * truth for anything rendered in the panel. If this response is the
@@ -5648,6 +5846,39 @@ function rewardPlainText(reward){
   return parts.join(', ');
 }
 
+let _qjActiveTab='daily';
+const QJ_TABS=[
+  {id:'daily', label:'Daily', icon:renderCalendarIcon},
+  {id:'weekly', label:'Weekly', icon:renderRefreshIcon},
+  {id:'permanent', label:'Permanent', icon:renderInfinityIcon},
+];
+/** True if `scope`'s tab has anything worth the glowing "come look" dot —
+ * a completed-but-unclaimed quest, or (daily/weekly only) a reached-but-
+ * unclaimed bar milestone. */
+function scopeHasUnclaimed(state, scope){
+  const anyQuest=(state.quests||[]).some(q=>q.scope===scope && q.completed && !q.claimed);
+  if(scope==='permanent') return anyQuest;
+  const bar=scope==='daily'?state.dailyBar:state.weeklyBar;
+  const claimed=new Set(bar.claimedMilestones||[]);
+  const anyMilestone=(bar.milestones||[]).some(m=>bar.points>=m && !claimed.has(m));
+  return anyQuest||anyMilestone;
+}
+function renderQuestTabs(state){
+  const tabs=document.getElementById('qj-tabs');
+  tabs.innerHTML=QJ_TABS.map(t=>{
+    const count=(state.quests||[]).filter(q=>q.scope===t.id).length;
+    const unclaimed=scopeHasUnclaimed(state,t.id);
+    return `<button class="qj-tab-btn${t.id===_qjActiveTab?' active':''}${unclaimed?' has-unclaimed':''}" onclick="switchQuestTab('${t.id}')">
+        ${t.icon(13)}${t.label}<span class="qj-tab-count">${count}</span>
+        <span class="qj-tab-dot"></span>
+      </button>`;
+  }).join('');
+}
+function switchQuestTab(tab){
+  _qjActiveTab=tab;
+  if(QuestState) renderQuestJournal(QuestState);
+}
+
 function renderQuestCard(q){
   const pct=q.target?Math.min(100,Math.round(100*q.progress/q.target)):0;
   const needsClaim=q.completed && !q.claimed;
@@ -5679,23 +5910,14 @@ function renderQuestCard(q){
 }
 
 function renderQuestJournal(state){
+  renderQuestTabs(state);
   const body=document.getElementById('qj-body');
-  const byScope=s=>(state.quests||[]).filter(q=>q.scope===s);
-  body.innerHTML=`
-    <div class="qj-section">
-      <div class="qj-section-head">${renderCalendarIcon(15)}<span class="qj-section-title">Daily Quests</span></div>
-      ${renderQuestBar('daily', state.dailyBar)}
-      ${byScope('daily').map(renderQuestCard).join('')}
-    </div>
-    <div class="qj-section">
-      <div class="qj-section-head">${renderRefreshIcon(15)}<span class="qj-section-title">Weekly Quests</span></div>
-      ${renderQuestBar('weekly', state.weeklyBar)}
-      ${byScope('weekly').map(renderQuestCard).join('')}
-    </div>
-    <div class="qj-section">
-      <div class="qj-section-head">${renderInfinityIcon(15)}<span class="qj-section-title">Permanent Quests</span></div>
-      ${byScope('permanent').map(renderQuestCard).join('')}
-    </div>`;
+  const quests=(state.quests||[]).filter(q=>q.scope===_qjActiveTab);
+  const barHtml=_qjActiveTab==='daily'?renderQuestBar('daily',state.dailyBar)
+    :_qjActiveTab==='weekly'?renderQuestBar('weekly',state.weeklyBar):'';
+  const listHtml=quests.length?quests.map(renderQuestCard).join('')
+    :`<div class="qj-empty">Nothing here yet.</div>`;
+  body.innerHTML=barHtml+listHtml;
 }
 
 /** Sends the actual claim request — the reward isn't granted and the bar
@@ -9077,8 +9299,22 @@ function renderDMConversations(){
         <div class="dm-conv-preview">${escapeHtml((c.lastMessage&&c.lastMessage.message)||'')}</div>
       </div>
       ${c.unread?`<div class="dm-conv-unread">${c.unread>9?'9+':c.unread}</div>`:''}
+      <button type="button" class="dm-conv-archive-btn" title="Remove this conversation from your list" onclick="event.stopPropagation();archiveDMConversation('${c.userId}')">${renderCloseIcon(11)}</button>
     </div>`).join('');
   updateDMBadge();
+}
+/** Removes a conversation from THIS player's own Messages list — the
+ * underlying messages aren't deleted (the other person still sees their
+ * copy), and a new message either direction brings it right back (see
+ * dmConversations server-side). This is what actually lets a finished
+ * trade's chat leave your list instead of sitting there forever. */
+function archiveDMConversation(otherUserId){
+  if(BazaarState.dmActiveUserId===otherUserId){
+    BazaarState.dmActiveUserId=null;
+    BazaarState.dmMessages=[];
+    renderDMThread();
+  }
+  Net.send({type:'dm_archive_conversation', userId:otherUserId});
 }
 function updateDMBadge(){
   const n=BazaarState.dmConversations.reduce((sum,c)=>sum+(c.unread||0),0);
@@ -9507,7 +9743,8 @@ const Net={
         } else if(msg.reason==='invalid_chat_image'){
           showToast("⚠ That image isn't in the official catalog — message blocked.", 3600);
         } else if(msg.reason==='deck_wrong_size'){
-          showToast(`⚠ Deck must be exactly ${DECK_SIZE} cards.`);
+          const need=msg.requiredSize??DECK_SIZE, have=msg.deckSize??_dbDeck.length;
+          showToast(`⚠ Deck must be exactly ${need} cards (currently ${have}/${need}).`);
         } else if(msg.reason==='deck_composition_invalid'){
           showToast('⚠ Deck breaks the Boss/Overlord rule — only one Boss or Overlord allowed, and Overlord decks can\'t include Pests or Boss cards.', 6000);
         } else if(msg.reason==='user_not_found'){
@@ -9665,6 +9902,10 @@ const Net={
         } else if(msg.reason==='tournament_create_failed'){
           showToast('⚠ Could not create that tournament — please try again.');
           document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='revive_on_cooldown'){
+          showToast("⚠ That card just revived someone — it can't do it again this soon.");
+        } else if(msg.reason==='cannot_revive_boss_or_overlord'){
+          showToast("⚠ Boss and Overlord cards can't be brought back with a revive ability.");
         } else if(['not_completed','already_claimed','not_reached','bad_scope','bad_milestone','unknown_quest'].includes(msg.reason)){
           // Quest/milestone claim lost a race or was stale (another tab claimed
           // it first, etc.) — the quest_state that always accompanies this
@@ -9699,6 +9940,8 @@ function applyServerProfile(p){
   if(Array.isArray(p.favoriteCards))Player.favoriteCards=p.favoriteCards;
   if(Array.isArray(p.collection))Player.collection=p.collection;
   if(Array.isArray(p.deck))Player.deck=p.deck;
+  if(Array.isArray(p.unlockedIcons))Player.unlockedIcons=p.unlockedIcons;
+  if(Array.isArray(p.unlockedBanners))Player.unlockedBanners=p.unlockedBanners;
   savePlayer();
   refreshMenuUI();
 }
@@ -10297,27 +10540,58 @@ function playSingleEvent(e){
 }
 
 /* ── PREDETERMINED COIN FLIP (server already rolled the winner) ── */
+/** Builds the coin's edge ring out of thin rotated slices — the classic
+ * CSS "cylinder from N flat panels" trick — so the coin actually reads as
+ * a 3D disc with thickness while it's tumbling, not a paper-flat circle.
+ * Idempotent (clears and rebuilds), safe to call every flip. */
+function buildCoinEdge(){
+  const edge=document.getElementById('coin-edge');
+  if(!edge || edge.childElementCount) return; // build once, reused every flip
+  const n=24, radius=65;
+  const segWidth=((2*Math.PI*radius)/n)*1.04; // slight overlap so there's no visible gap between slices
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<n;i++){
+    const seg=document.createElement('div');
+    seg.className='coin-edge-slice';
+    seg.style.width=segWidth.toFixed(2)+'px';
+    seg.style.marginLeft=(-segWidth/2).toFixed(2)+'px';
+    seg.style.transform=`rotateY(${(360/n)*i}deg) translateZ(${radius}px)`;
+    frag.appendChild(seg);
+  }
+  edge.appendChild(frag);
+}
+
 function runNetCoinFlip(iWon){
+  buildCoinEdge();
   const ov=document.getElementById('coinflip-overlay');
   const coin=document.getElementById('coin');
+  const shadow=document.getElementById('coin-shadow');
   const resultEl=document.getElementById('coinflip-result');
   const subEl=document.getElementById('coinflip-sub');
   resultEl.classList.remove('show');subEl.classList.remove('show');
   resultEl.textContent='';subEl.textContent='';
-  coin.classList.remove('flipping');
+  coin.classList.remove('flipping');shadow.classList.remove('flipping');ov.classList.remove('impact-shake');
   void coin.offsetWidth;
   ov.classList.add('open');
   const finalRot=iWon?1800:1980;
   coin.style.setProperty('--final-rot',finalRot+'deg');
   setTimeout(()=>{
     coin.classList.add('flipping');
+    shadow.classList.add('flipping');
+    // First (main) impact lands at the 76% mark of the 3100ms toss — a
+    // quick particle burst + screen shake there sells the coin actually
+    // hitting a surface, not just stopping.
+    setTimeout(()=>{
+      spawnRewardBurstAtRect(coin.getBoundingClientRect(), null, null);
+      ov.classList.add('impact-shake');
+    },3100*0.76);
     setTimeout(()=>{
       resultEl.textContent=iWon?'YOU GO FIRST!':'OPPONENT GOES FIRST!';
       resultEl.style.color=iWon?'#3b82f6':'#ef4444';
       subEl.textContent=iWon?'Your coin came up — strike first!':'The enemy coin came up — brace yourself!';
       resultEl.classList.add('show');subEl.classList.add('show');
       setTimeout(()=>{ov.classList.remove('open');},1900);
-    },3000);
+    },3100);
   },180);
 }
 
