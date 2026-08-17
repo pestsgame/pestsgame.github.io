@@ -125,134 +125,6 @@ const PACK_DEFS = [
 ];
 const PackById = Object.fromEntries(PACK_DEFS.map(p => [p.id, p]));
 
-/* ══════════════════════════════════════════════════════════════════════
- * QUEST SYSTEM — pure data + pure helpers only. All progress is tracked,
- * persisted, and verified server-side (see server.js's player_quest_progress
- * / player_quest_bars tables + recordQuestEvent/addQuestBarPoints) — the
- * client is only ever told the result, never trusted to report it, same
- * spirit as everything else in this file.
- *
- * Three scopes:
- *   daily      — resets every UTC day (see dailyPeriodKey). Completing one
- *                awards `points` (10 or 20) onto that day's Daily Quest Bar.
- *   weekly     — resets every ISO week (see weeklyPeriodKey). Same idea,
- *                onto that week's Weekly Quest Bar.
- *   permanent  — never resets, completes once, ever. Pays its `reward`
- *                (currency now; `banner`/`icon` fields are placeholders for
- *                a future cosmetic-unlock system — currently a no-op if set)
- *                immediately on completion, no bar involved.
- *
- * Each quest def's `track` is a string key that server.js's game-event hooks
- * (a match win, a pack purchase, a tournament join, a global chat message,
- * a profile edit, ...) call recordQuestEvent(userId, track, amount) with —
- * every currently-active quest (any scope) listening on that track gets
- * `amount` added to its progress, clamped at `target`. Adding a new quest is
- * just adding an entry below; if nothing currently listens on a track yet
- * (see the commented-out examples), calling recordQuestEvent for it is a
- * harmless no-op, so hooks can be wired up ahead of the quests that use them.
- *
- * Only 2 daily + 2 weekly + 1 permanent are filled in for now, per spec —
- * the shape supports as many as needed later. */
-const QUEST_TRACK = {
-  MATCH_WIN: 'match_win',
-  PACK_BUY: 'pack_buy',
-  TOURNAMENT_JOIN: 'tournament_join',
-  CHAT_MESSAGE: 'chat_message',
-  PROFILE_CUSTOMIZE: 'profile_customize',
-};
-
-const QUEST_DEFS = [
-  // ── DAILY ── (2, per spec)
-  { id:'daily_win_3',      scope:'daily', track:QUEST_TRACK.MATCH_WIN,  target:3, points:20,
-    title:'Win 3 Games',   desc:'Win 3 matches today.' },
-  { id:'daily_buy_pack_1', scope:'daily', track:QUEST_TRACK.PACK_BUY,   target:1, points:10,
-    title:'Open a Pack',   desc:'Buy 1 card pack today.' },
-
-  // ── WEEKLY ── (2, per spec)
-  { id:'weekly_win_15',       scope:'weekly', track:QUEST_TRACK.MATCH_WIN,       target:15, points:20,
-    title:'Win 15 Games',        desc:'Win 15 matches this week.' },
-  { id:'weekly_tournament_2', scope:'weekly', track:QUEST_TRACK.TOURNAMENT_JOIN, target:2,  points:20,
-    title:'Enter 2 Tournaments', desc:'Register for 2 tournaments this week.' },
-
-  // ── PERMANENT ── (1 active for now, per spec — reward.banner/reward.icon
-  // are placeholders for the future cosmetic-unlock system mentioned in the
-  // spec; they currently do nothing on top of the immediate currency).
-  { id:'permanent_chat_50', scope:'permanent', track:QUEST_TRACK.CHAT_MESSAGE, target:50,
-    title:'Say Hello', desc:'Send 50 messages in global chat.',
-    reward:{ gold:200, gems:0, banner:null, icon:null } },
-
-  // Scaffolded, not active — same system, just more examples of what can
-  // slot in later without any further engine changes:
-  // { id:'permanent_customize_profile', scope:'permanent', track:QUEST_TRACK.PROFILE_CUSTOMIZE, target:1,
-  //   title:'Make It Yours', desc:'Customize your profile.', reward:{ gold:100, gems:0 } },
-];
-const QuestById = Object.fromEntries(QUEST_DEFS.map(q => [q.id, q]));
-const questDefsForTrack = track => QUEST_DEFS.filter(q => q.track === track);
-const questDefsForScope = scope => QUEST_DEFS.filter(q => q.scope === scope);
-
-/** The bar fills from 0–100 via each completed daily/weekly quest's
- * `points`, paying out a (placeholder, tunable) currency reward every time
- * it crosses one of these milestones — weekly pays more than daily since
- * its quests are harder. */
-const QUEST_BAR_MILESTONES = [20, 40, 60, 80, 100];
-const QUEST_BAR_MILESTONE_REWARDS = {
-  daily:  { 20:{gold:25}, 40:{gold:25}, 60:{gold:35}, 80:{gold:35}, 100:{gold:75,  gems:2} },
-  weekly: { 20:{gold:60}, 40:{gold:60}, 60:{gold:80}, 80:{gold:80}, 100:{gold:200, gems:8} },
-};
-
-/** UTC calendar day, e.g. '2026-08-13' — the daily reset boundary. A new
- * key each day means a brand-new progress/bar row is simply created fresh;
- * nothing needs to explicitly "reset" the old one. */
-function dailyPeriodKey(now = new Date()) {
-  return now.toISOString().slice(0, 10);
-}
-/** ISO-8601 week key, e.g. '2026-W33' — the weekly reset boundary (Monday
- * start, first week of a year is the one containing that year's first
- * Thursday). Same "new key = fresh row" reasoning as dailyPeriodKey. */
-function weeklyPeriodKey(now = new Date()) {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
-  d.setUTCDate(d.getUTCDate() - dayNum + 3); // shift to this ISO week's Thursday
-  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-}
-/** Permanent quests never reset, so they always live under this one
- * constant "period" rather than a rolling date/week key. */
-const PERMANENT_PERIOD_KEY = 'permanent';
-function periodKeyForScope(scope, now = new Date()) {
-  if (scope === 'daily') return dailyPeriodKey(now);
-  if (scope === 'weekly') return weeklyPeriodKey(now);
-  return PERMANENT_PERIOD_KEY;
-}
-
-/** Given a bar's already-claimed milestone list and its new point total,
- * returns the milestones newly crossed (each only once, ever, per bar
- * period — diffing against `claimedMilestones` rather than an old/new
- * point delta makes this safe to call however/whenever, not just exactly
- * once per point-add) and the combined reward to pay out for them. Does
- * NOT mutate its inputs — the caller persists the returned claimed list.
- * Not currently wired into server.js's live path — reaching a milestone's
- * threshold no longer auto-pays it out, see claimBarMilestone there for
- * the explicit-claim flow that replaced calling this on every point-add.
- * Left here as a reusable pure helper (e.g. for a future "N milestones
- * ready to claim" display) since the math is still exactly right. */
-function resolveBarMilestoneCrossings(scope, points, claimedMilestones) {
-  const claimed = new Set(claimedMilestones || []);
-  const rewardTable = QUEST_BAR_MILESTONE_REWARDS[scope] || {};
-  const newlyCrossed = [];
-  let reward = { gold: 0, gems: 0 };
-  for (const m of QUEST_BAR_MILESTONES) {
-    if (points >= m && !claimed.has(m)) {
-      newlyCrossed.push(m);
-      claimed.add(m);
-      const r = rewardTable[m] || {};
-      reward = { gold: reward.gold + (r.gold || 0), gems: reward.gems + (r.gems || 0) };
-    }
-  }
-  return { newlyCrossed, reward, claimedMilestones: [...claimed].sort((a, b) => a - b) };
-}
-
 function rollRarityFromWeights(weights) {
   const total = Object.values(weights).reduce((s, w) => s + w, 0);
   if (total === 0) return 'common';
@@ -724,6 +596,13 @@ function processReviveQueue(match, side, events) {
 function tryPassiveRevive(card, events, side, slotKey) {
   const te = card.topEffect;
   if (!te || te.type !== 'passive' || !te.revive) return false;
+  // Boss/Overlord cards never come back via a card's own revive ability
+  // (active or passive) — losing one is meant to be permanent within a
+  // match, unlike the classification-driven Revive Queue (see
+  // processReviveQueue), which is a deliberately different mechanic that
+  // DOES let charges bring a Boss/Overlord back.
+  const selfDef = CardById[card.baseId];
+  if (selfDef && (selfDef.classification === 'boss' || selfDef.classification === 'overlord')) return false;
   const rv = te.revive;
   let revived = false;
   if (card.reviveState && card.reviveState.guaranteedLeft > 0) {
@@ -746,10 +625,22 @@ function tryPassiveRevive(card, events, side, slotKey) {
  * (this is what distinguishes an active revive ability from an ordinary
  * on-deploy `ability` like a curse or a heal); `deadInstanceId` must name a
  * creature currently in this side's graveyard (the caller's choice —
- * earliest, latest, whichever they want). The revived creature returns to
- * hand at `topEffect.revive.healPercent` of its max HP (50% if unspecified)
- * with all lingering statuses cleared, and this consumes the acting card's
- * turn exactly like an attack would.
+ * earliest, latest, whichever they want) — EXCEPT a Boss or Overlord,
+ * which a revive ability can never target (see tryPassiveRevive for the
+ * same rule on the passive/self-revive side; the classification-driven
+ * Revive Queue in processReviveQueue is deliberately exempt from this —
+ * that's its whole purpose). The revived creature returns to hand at
+ * `topEffect.revive.healPercent` of its max HP (50% if unspecified) with
+ * all lingering statuses cleared, and this consumes the acting card's turn
+ * exactly like an attack would.
+ *
+ * One-turn cooldown: the SAME acting card instance can't use its revive
+ * ability again on its side's very next turn (tracked via
+ * `match.turnCounter`, which increments once per runTurnStart call for
+ * either side — since turns strictly alternate, "this side's next turn" is
+ * always turnCounter+2 from whichever turnCounter it was just used on).
+ * Other revive-capable cards on the same side are unaffected; this is a
+ * per-card lock, not a side-wide one.
  *
  * This is unrelated to (and can't trigger) a `passive`-type self-revive —
  * see `tryPassiveRevive` — which is automatic, self-only, and never costs a
@@ -761,9 +652,14 @@ function executeRevive(match, side, slotKey, deadInstanceId) {
   const actingCard = cardInSlot(entity, slotKey);
   if (!actingCard) return { ok:false, reason:'no_card_in_slot', events };
   if (!actingCard.topEffect || actingCard.topEffect.type !== 'ability' || !actingCard.topEffect.revive) return { ok:false, reason:'no_revive_ability', events };
+  if (actingCard.reviveLockUntilTurnCounter === match.turnCounter) return { ok:false, reason:'revive_on_cooldown', events };
 
   const idx = entity.graveyard.findIndex(c => c.instanceId === deadInstanceId);
   if (idx === -1) return { ok:false, reason:'invalid_target', events };
+  const targetDef = CardById[entity.graveyard[idx].baseId];
+  if (targetDef && (targetDef.classification === 'boss' || targetDef.classification === 'overlord')) {
+    return { ok:false, reason:'cannot_revive_boss_or_overlord', events };
+  }
   const [card] = entity.graveyard.splice(idx, 1);
 
   const healPercent = actingCard.topEffect.revive.healPercent != null ? actingCard.topEffect.revive.healPercent : 0.5;
@@ -772,6 +668,7 @@ function executeRevive(match, side, slotKey, deadInstanceId) {
   entity.hand.push(card);
   events.push({ t:'revive', side, card: card.instanceId, name: card.name, hp: card.currentHp, maxHp: card.maxHp, via: actingCard.instanceId });
 
+  actingCard.reviveLockUntilTurnCounter = match.turnCounter + 2;
   match.actedThisTurn[side].add(slotKey);
   return { ok:true, events };
 }
@@ -851,7 +748,8 @@ function applyDeployAbility(sides, side, card, events) {
     if (target) {
       card.topEffect.effects.forEach(eff => {
         const applied = applyEffectToCard(target, eff);
-        if (!applied) events.push({ t:'immune', side: otherSide, card: target.instanceId, effect: eff.type });
+        if (applied) events.push({ t:'effect_applied', side, target: target.instanceId, effect: eff.type });
+        else events.push({ t:'immune', side: otherSide, card: target.instanceId, effect: eff.type });
       });
       events.push({ t:'ability', card: card.instanceId, target: target.instanceId });
     }
@@ -878,9 +776,10 @@ function applyDeployAbility(sides, side, card, events) {
   }
 }
 
-const DECK_SIZE = 16;
+const DECK_SIZE = 12;
 /** Creatures (wizard/mob/dragon cards — anything without a cardType) are
- * capped at 12 per deck; the remaining slots (down to DECK_SIZE) must be
+ * capped at 12 per deck (i.e. a deck can be all-creature, with equipment
+ * entirely optional) — the remaining slots (down to DECK_SIZE) must be
  * weapon/defense equipment. */
 const MAX_CREATURES = 12;
 
@@ -960,14 +859,27 @@ function buildDeckFromIds(ids) {
   return applySetBonuses(cards, cards.map(c => c.baseId));
 }
 
+/** Plain Fisher-Yates shuffle, in place. Used so the starting hand (and
+ * subsequent draws) are a genuinely random sample of the deck, not
+ * whatever fixed order it happened to be built/stored in. */
+function shuffleDeck(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /* ── PLAYER SIDE FACTORY ──────────────────────────────────────────── */
 function freshSide(deck) {
   const d = [...deck];
-  applySynergies(d); // deck+hand together — synergy is about composition, not what's drawn yet
+  applySynergies(d); // deck+hand together — synergy is about composition, not what's drawn yet, so this
+                      // runs before the shuffle below (order-independent — see applySynergies' own .find() lookups)
+  shuffleDeck(d);
   return {
     hp: 100, maxHp: 100, // cosmetic only — see module doc; never decides the match anymore
     activeCard: null, activeCard2: null, weaponCard: null, defenseCard: null,
-    deck: d, hand: d.splice(0, 4),
+    deck: d, hand: d.splice(0, 5), // 5 random cards from the shuffled deck
     graveyard: [], // doubles as the Revive Queue — oldest death first (see processReviveQueue)
     reviveCharges: 0, // spent oldest-to-newest against the graveyard/Revive Queue
   };
@@ -1098,12 +1010,14 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   const weaponAmp = weaponRef ? { side, kind:'weapon' } : null;
   (atkDef.effects || []).forEach(eff => {
     const applied = applyEffectToCard(targetCard, eff, weaponAmp);
-    if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
+    if (applied) events.push({ t:'effect_applied', side, target: targetCard.instanceId, effect: eff.type });
+    else events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
   });
   if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
     weaponRef.addEffects.forEach(eff => {
       const applied = applyEffectToCard(targetCard, eff, weaponAmp);
-      if (!applied) events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
+      if (applied) events.push({ t:'effect_applied', side, target: targetCard.instanceId, effect: eff.type });
+      else events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
     });
     events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:targetCard.instanceId });
   }
@@ -1111,7 +1025,8 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
     const defenseAmp = { side: defSide, kind:'defense' };
     defenseRef.addEffects.forEach(eff => {
       const applied = applyEffectToCard(ac, eff, defenseAmp);
-      if (!applied) events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
+      if (applied) events.push({ t:'effect_applied', side: defSide, target: ac.instanceId, effect: eff.type });
+      else events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
     });
     events.push({ t:'defense_effect', side:defSide, slot:tgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
   }
@@ -1248,6 +1163,256 @@ function getRank(points) {
   const tier = RANK_TIERS[tierIndex], sub = RANK_SUBS[subIndex];
   return { tier, sub, label: `${tier} ${sub}`, points: p };
 }
+/** Rank-points threshold for "reach `tier` `sub`" (sub omitted/null means
+ * just entering the tier, i.e. its worst sub, index 0). Used by the
+ * rank-climb permanent quests below — e.g. rankThreshold('Bronze','I') is
+ * the point total at which you've cleared all of Bronze and are one win
+ * from promoting into Iron. */
+function rankThreshold(tier, sub) {
+  const tierIdx = Math.max(0, RANK_TIERS.indexOf(tier));
+  const subIdx = sub ? Math.max(0, RANK_SUBS.indexOf(sub)) : 0;
+  return tierIdx * RANK_POINTS_PER_TIER + subIdx * RANK_POINTS_PER_SUB;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+ * QUEST SYSTEM — pure data + pure helpers only. All progress is tracked,
+ * persisted, and verified server-side (see server.js's player_quest_progress
+ * / player_quest_bars tables + recordQuestEvent/recordQuestThreshold/
+ * addQuestBarPoints) — the client is only ever told the result, never
+ * trusted to report it, same spirit as everything else in this file. Every
+ * quest below pays real currency (permanent) or quest-bar points
+ * (daily/weekly), so every last one of them is server-verified — nothing
+ * here is decorative.
+ *
+ * Three scopes:
+ *   daily      — resets every UTC day (see dailyPeriodKey). Completing one
+ *                awards `points` onto that day's Daily Quest Bar.
+ *   weekly     — resets every ISO week (see weeklyPeriodKey). Same idea,
+ *                onto that week's Weekly Quest Bar.
+ *   permanent  — never resets, completes once, ever. Pays its `reward`
+ *                (currency now; `banner`/`icon` fields are placeholders for
+ *                a future cosmetic-unlock system — currently a no-op if set)
+ *                on completion, no bar involved. Reaching a daily/weekly
+ *                quest's target doesn't pay anything by itself either —
+ *                see claim_quest/claim_milestone in server.js, nothing
+ *                pays out until the player explicitly claims it.
+ *
+ * Two flavors of progress, both server-driven, never client-reported:
+ *   cumulative — recordQuestEvent(userId, track, amount) ADDS `amount` to
+ *                every active quest listening on `track` (e.g. "play 3
+ *                matches", "open 15 packs").
+ *   threshold  — recordQuestThreshold(userId, track, currentValue) sets
+ *                progress to max(existing progress, currentValue) instead
+ *                of adding — for "reach/have/hold N" style quests (gold
+ *                held, friend count, unique cards owned, rank points, the
+ *                highest loss-streak against any single opponent) where
+ *                what matters is the best value ever observed, not a tally
+ *                of events.
+ * Each def's `kind` (defaulting to 'cumulative' when omitted) tells
+ * server.js which of the two to use for it. */
+const QUEST_TRACK = {
+  MATCH_PLAY: 'match_play',                   // any match completed, regardless of outcome
+  MATCH_WIN: 'match_win',
+  RANKED_MATCH_PLAY: 'ranked_match_play',
+  RANKED_MATCH_WIN: 'ranked_match_win',
+  STATUS_EFFECT_APPLY: 'status_effect_apply',
+  MARKET_LISTING_CREATE: 'market_listing_create',
+  MARKET_LISTINGS_ACTIVE: 'market_listings_active', // threshold: concurrent active listings right now
+  MARKET_PURCHASE: 'market_purchase',        // buyer side of a completed transaction
+  MARKET_SALE: 'market_sale',                // seller side of a completed transaction
+  MARKET_TRANSACTION: 'market_transaction',  // fires for BOTH sides of any completed transaction
+  MARKET_FLIP_PROFIT: 'market_flip_profit',  // event: sold something for more than its last-bought price
+  MARKET_SELL_LOSS: 'market_sell_loss',      // event: sold something for less than its last-bought price
+  GOLD_HELD: 'gold_held',                    // threshold: current gold balance
+  PACK_BUY: 'pack_buy',
+  PACK_VARIETY: 'pack_variety',              // threshold: count of distinct pack ids ever opened
+  FRIEND_DUEL: 'friend_duel',
+  CARDS_UNIQUE: 'cards_unique',              // threshold: distinct card ids owned
+  OVERLORDS_OWNED: 'overlords_owned',        // threshold: count of Overlord-classified cards owned
+  CHAT_MESSAGE: 'chat_message',
+  FRIENDS_COUNT: 'friends_count',            // threshold
+  NEMESIS_LOSS: 'nemesis_loss',              // threshold: worst per-opponent loss streak (see recordQuestThreshold)
+  GUILD_JOIN: 'guild_join',
+  PULL_RARITY_MYTHIC: 'pull_rarity_mythic',
+  PULL_OVERLORD_CARD: 'pull_overlord_card',  // pulled a card classified 'overlord' from a pack
+  RANK_POINTS: 'rank_points',                // threshold: current rank points
+  PROFILE_CUSTOMIZE: 'profile_customize',
+};
+
+const QUEST_DEFS = [
+  // ── DAILY (8) ──────────────────────────────────────────────────────
+  { id:'daily_arena_regular', scope:'daily', track:QUEST_TRACK.MATCH_PLAY, target:3, points:20,
+    title:'Arena Regular', desc:'Play 3 matches.' },
+  { id:'daily_victory_lap', scope:'daily', track:QUEST_TRACK.MATCH_WIN, target:1, points:10,
+    title:'Victory Lap', desc:'Win 1 match.' },
+  { id:'daily_ranked_regular', scope:'daily', track:QUEST_TRACK.RANKED_MATCH_PLAY, target:1, points:10,
+    title:'Ranked Regular', desc:'Play 1 ranked match.' },
+  { id:'daily_status_report', scope:'daily', track:QUEST_TRACK.STATUS_EFFECT_APPLY, target:5, points:10,
+    title:'Status Report', desc:'Apply 5 status effects.' },
+  { id:'daily_merchant', scope:'daily', track:QUEST_TRACK.MARKET_LISTING_CREATE, target:1, points:10,
+    title:'Merchant', desc:'List 1 item on the marketplace.' },
+  { id:'daily_pack_opener', scope:'daily', track:QUEST_TRACK.PACK_BUY, target:1, points:20,
+    title:'Pack Opener', desc:'Open 1 pack.' },
+  { id:'daily_shopping_spree', scope:'daily', track:QUEST_TRACK.MARKET_PURCHASE, target:2, points:20,
+    title:'Shopping Spree', desc:'Purchase 2 marketplace items.' },
+  { id:'daily_rich_guy', scope:'daily', track:QUEST_TRACK.GOLD_HELD, target:200, points:10, kind:'threshold',
+    title:'Rich Guy', desc:'Get 200 coins.' },
+
+  // ── WEEKLY (9) ─────────────────────────────────────────────────────
+  { id:'weekly_arena_conquerer', scope:'weekly', track:QUEST_TRACK.MATCH_PLAY, target:15, points:10,
+    title:'Arena Conquerer', desc:'Play 15 matches.' },
+  { id:'weekly_victorious', scope:'weekly', track:QUEST_TRACK.MATCH_WIN, target:5, points:10,
+    title:'Victorious', desc:'Win 5 matches.' },
+  { id:'weekly_rank_up', scope:'weekly', track:QUEST_TRACK.RANKED_MATCH_WIN, target:4, points:20,
+    title:'Rank Up', desc:'Win 4 ranked matches.' },
+  { id:'weekly_marketplace_mogul', scope:'weekly', track:QUEST_TRACK.MARKET_TRANSACTION, target:8, points:20,
+    title:'Marketplace Mogul', desc:'Complete 8 marketplace transactions.' },
+  { id:'weekly_open_for_business', scope:'weekly', track:QUEST_TRACK.MARKET_LISTINGS_ACTIVE, target:4, points:10, kind:'threshold',
+    title:'Open for Business', desc:'Have 4 marketplace listings active at the same time.' },
+  { id:'weekly_pack_addict', scope:'weekly', track:QUEST_TRACK.PACK_BUY, target:15, points:20,
+    title:'Pack Addict', desc:'Open 15 packs.' },
+  { id:'weekly_pack_variety', scope:'weekly', track:QUEST_TRACK.PACK_VARIETY, target:5, points:10, kind:'threshold',
+    title:'Pack Variety', desc:'Open at least one pack of 5 different types.' },
+  { id:'weekly_old_friends', scope:'weekly', track:QUEST_TRACK.FRIEND_DUEL, target:1, points:10,
+    title:'Old Friends', desc:'Duel a friend one time.' },
+  { id:'weekly_golden_guy', scope:'weekly', track:QUEST_TRACK.GOLD_HELD, target:1000, points:20, kind:'threshold',
+    title:'Golden Guy', desc:'Get 1000 coins.' },
+
+  // ── PERMANENT (28) — reward amounts are placeholder/tunable; several
+  // carry a reward.icon or reward.banner too (unlocking a quest-locked
+  // profile cosmetic — see PROFILE_ICONS_LOCKED/PROFILE_BANNERS_LOCKED in
+  // server.js and ICON_SVGS/banner-* CSS in docs/index.html), granted
+  // alongside the currency the instant the quest completes, same as spec:
+  // "permanent quests give immediate currency... and profile
+  // banners/icons". ─────────────────────────────────────────────────
+  { id:'perm_first_card', scope:'permanent', track:QUEST_TRACK.CARDS_UNIQUE, target:1, kind:'threshold',
+    title:'First Card', desc:'Obtain your first card.', reward:{gold:50,gems:0,icon:'first_card'} },
+  { id:'perm_first_pack', scope:'permanent', track:QUEST_TRACK.PACK_BUY, target:1,
+    title:'First Pack', desc:'Open your first pack.', reward:{gold:50,gems:0,banner:'first_pack'} },
+  { id:'perm_collector', scope:'permanent', track:QUEST_TRACK.CARDS_UNIQUE, target:50, kind:'threshold',
+    title:'Collector', desc:'Obtain 50 unique cards.', reward:{gold:400,gems:5,icon:'collector'} },
+  { id:'perm_archivist', scope:'permanent', track:QUEST_TRACK.CARDS_UNIQUE, target:100, kind:'threshold',
+    title:'Archivist', desc:'Obtain 100 unique cards.', reward:{gold:900,gems:15,banner:'archivist'} },
+  { id:'perm_overlord_master', scope:'permanent', track:QUEST_TRACK.OVERLORDS_OWNED, target:2, kind:'threshold',
+    title:'Overlord Master', desc:'Obtain two overlords.', reward:{gold:600,gems:10,icon:'overlord_master'} },
+  { id:'perm_first_sale', scope:'permanent', track:QUEST_TRACK.MARKET_SALE, target:1,
+    title:'First Sale', desc:'Sell your first item.', reward:{gold:75,gems:0,banner:'first_sale'} },
+  { id:'perm_first_purchase', scope:'permanent', track:QUEST_TRACK.MARKET_PURCHASE, target:1,
+    title:'First Purchase', desc:'Buy your first item.', reward:{gold:75,gems:0} },
+  { id:'perm_merchant', scope:'permanent', track:QUEST_TRACK.MARKET_TRANSACTION, target:10,
+    title:'Merchant', desc:'Complete 10 marketplace transactions.', reward:{gold:350,gems:5,icon:'merchant'} },
+  { id:'perm_flipper', scope:'permanent', track:QUEST_TRACK.MARKET_FLIP_PROFIT, target:1,
+    title:'Flipper', desc:'Buy an item and sell it later for more than what you originally paid.', reward:{gold:200,gems:0,icon:'flipper'} },
+  { id:'perm_market_crash', scope:'permanent', track:QUEST_TRACK.MARKET_SELL_LOSS, target:1,
+    title:'Market Crash', desc:'Sell an item for less than you originally paid.', reward:{gold:100,gems:0,banner:'market_crash'} },
+  { id:'perm_hello_world', scope:'permanent', track:QUEST_TRACK.CHAT_MESSAGE, target:1,
+    title:'Hello, World', desc:'Send your first Global Chat message.', reward:{gold:50,gems:0,banner:'hello_world'} },
+  { id:'perm_popular', scope:'permanent', track:QUEST_TRACK.FRIENDS_COUNT, target:10, kind:'threshold',
+    title:'Popular', desc:'Have 10 friends.', reward:{gold:250,gems:5} },
+  { id:'perm_nemesis', scope:'permanent', track:QUEST_TRACK.NEMESIS_LOSS, target:5, kind:'threshold',
+    title:'Nemesis', desc:'Lose to the same player 5 times.', reward:{gold:150,gems:0,icon:'nemesis'} },
+  { id:'perm_guildgoer', scope:'permanent', track:QUEST_TRACK.GUILD_JOIN, target:1,
+    title:'Guildgoer', desc:'Join a Guild.', reward:{gold:75,gems:0,banner:'guildgoer'} },
+  { id:'perm_pack_rat', scope:'permanent', track:QUEST_TRACK.PACK_BUY, target:10,
+    title:'Pack Rat', desc:'Open 10 packs.', reward:{gold:150,gems:0} },
+  { id:'perm_pack_addict', scope:'permanent', track:QUEST_TRACK.PACK_BUY, target:100,
+    title:'Pack Addict', desc:'Open 100 packs.', reward:{gold:800,gems:10} },
+  { id:'perm_pack_fiend', scope:'permanent', track:QUEST_TRACK.PACK_BUY, target:1000,
+    title:'Pack Fiend', desc:'Open 1,000 packs.', reward:{gold:5000,gems:100,icon:'pack_fiend'} },
+  { id:'perm_lucky_bastard', scope:'permanent', track:QUEST_TRACK.PULL_RARITY_MYTHIC, target:1,
+    title:'Lucky Bastard', desc:'Pull a Mythic.', reward:{gold:300,gems:10,icon:'lucky_bastard'} },
+  { id:'perm_fabled_pull', scope:'permanent', track:QUEST_TRACK.PULL_OVERLORD_CARD, target:1,
+    title:'Fabled Pull', desc:'Pull an OVERLORD.', reward:{gold:500,gems:20,banner:'fabled_pull'} },
+  { id:'perm_bronze_climber', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Bronze','I'), kind:'threshold',
+    title:'Bronze Climber', desc:'Reach Bronze I.', reward:{gold:100,gems:0} },
+  { id:'perm_iron_climber', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Iron','I'), kind:'threshold',
+    title:'Iron Climber', desc:'Reach Iron I.', reward:{gold:150,gems:0} },
+  { id:'perm_gold_climber', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Gold','I'), kind:'threshold',
+    title:'Gold Climber', desc:'Reach Gold I.', reward:{gold:250,gems:5} },
+  { id:'perm_platinum_climber', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Platinum','I'), kind:'threshold',
+    title:'Platinum Climber', desc:'Reach Platinum I.', reward:{gold:400,gems:10} },
+  { id:'perm_diamond_climber', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Diamond','I'), kind:'threshold',
+    title:'Diamond Climber', desc:'Reach Diamond I.', reward:{gold:600,gems:15} },
+  { id:'perm_legendary_status', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Legend'), kind:'threshold',
+    title:'Legendary Status', desc:'Reach Legend.', reward:{gold:900,gems:25} },
+  { id:'perm_mythic_status', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Mythic'), kind:'threshold',
+    title:'Mythic Status', desc:'Reach Mythic.', reward:{gold:1300,gems:40} },
+  { id:'perm_godly', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Godly'), kind:'threshold',
+    title:'Godly', desc:'Reach Godly.', reward:{gold:1800,gems:60} },
+  { id:'perm_absolute', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Absolute'), kind:'threshold',
+    title:'Absolute', desc:'Reach Absolute.', reward:{gold:2500,gems:100,banner:'absolute'} },
+
+  // Scaffolded, not in the current list — same system, shows what else can
+  // slot in later without any further engine changes:
+  // { id:'perm_customize_profile', scope:'permanent', track:QUEST_TRACK.PROFILE_CUSTOMIZE, target:1,
+  //   title:'Make It Yours', desc:'Customize your profile.', reward:{ gold:100, gems:0 } },
+];
+const QuestById = Object.fromEntries(QUEST_DEFS.map(q => [q.id, q]));
+const questDefsForTrack = track => QUEST_DEFS.filter(q => q.track === track);
+const questDefsForScope = scope => QUEST_DEFS.filter(q => q.scope === scope);
+
+/** The bar fills from 0–100 via each completed daily/weekly quest's
+ * `points`, paying out a (placeholder, tunable) currency reward every time
+ * it crosses one of these milestones — weekly pays more than daily since
+ * its quests are harder. */
+const QUEST_BAR_MILESTONES = [20, 40, 60, 80, 100];
+const QUEST_BAR_MILESTONE_REWARDS = {
+  daily:  { 20:{gold:25}, 40:{gold:25}, 60:{gold:35}, 80:{gold:35}, 100:{gold:75,  gems:2} },
+  weekly: { 20:{gold:60}, 40:{gold:60}, 60:{gold:80}, 80:{gold:80}, 100:{gold:200, gems:8} },
+};
+
+/** UTC calendar day, e.g. '2026-08-13' — the daily reset boundary. A new
+ * key each day means a brand-new progress/bar row is simply created fresh;
+ * nothing needs to explicitly "reset" the old one. */
+function dailyPeriodKey(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+/** ISO-8601 week key, e.g. '2026-W33' — the weekly reset boundary (Monday
+ * start, first week of a year is the one containing that year's first
+ * Thursday). Same "new key = fresh row" reasoning as dailyPeriodKey. */
+function weeklyPeriodKey(now = new Date()) {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
+  d.setUTCDate(d.getUTCDate() - dayNum + 3); // shift to this ISO week's Thursday
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+/** Permanent quests never reset, so they always live under this one
+ * constant "period" rather than a rolling date/week key. */
+const PERMANENT_PERIOD_KEY = 'permanent';
+function periodKeyForScope(scope, now = new Date()) {
+  if (scope === 'daily') return dailyPeriodKey(now);
+  if (scope === 'weekly') return weeklyPeriodKey(now);
+  return PERMANENT_PERIOD_KEY;
+}
+
+/** Given a bar's already-claimed milestone list and its new point total,
+ * returns the milestones newly crossed (each only once, ever, per bar
+ * period — diffing against `claimedMilestones` rather than an old/new
+ * point delta makes this safe to call however/whenever, not just exactly
+ * once per point-add) and the combined reward to pay out for them. Does
+ * NOT mutate its inputs — the caller persists the returned claimed list.
+ * Not currently wired into server.js's live path — reaching a milestone's
+ * threshold no longer auto-pays it out, see claimBarMilestone there for
+ * the explicit-claim flow that replaced calling this on every point-add.
+ * Left here as a reusable pure helper (e.g. for a future "N milestones
+ * ready to claim" display) since the math is still exactly right. */
+function resolveBarMilestoneCrossings(scope, points, claimedMilestones) {
+  const claimed = new Set(claimedMilestones || []);
+  const rewardTable = QUEST_BAR_MILESTONE_REWARDS[scope] || {};
+  const newlyCrossed = [];
+  let reward = { gold: 0, gems: 0 };
+  for (const m of QUEST_BAR_MILESTONES) {
+    if (points >= m && !claimed.has(m)) {
+      newlyCrossed.push(m);
+      claimed.add(m);
+      const r = rewardTable[m] || {};
+      reward = { gold: reward.gold + (r.gold || 0), gems: reward.gems + (r.gems || 0) };
+    }
+  }
+  return { newlyCrossed, reward, claimedMilestones: [...claimed].sort((a, b) => a - b) };
+}
 
 module.exports = {
   CardDB, CardById, CARD_LIBRARY_HASH, CARD_LIBRARY_RAW, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
@@ -1262,5 +1427,5 @@ module.exports = {
   QUEST_BAR_MILESTONES, QUEST_BAR_MILESTONE_REWARDS, PERMANENT_PERIOD_KEY,
   dailyPeriodKey, weeklyPeriodKey, periodKeyForScope, resolveBarMilestoneCrossings,
   DECK_SIZE, MAX_CREATURES, deckClassificationOk,
-  RANK_TIERS, RANK_SUBS, RANK_POINTS_PER_SUB, RANK_POINTS_PER_TIER, RANK_MAX_POINTS, getRank,
+  RANK_TIERS, RANK_SUBS, RANK_POINTS_PER_SUB, RANK_POINTS_PER_TIER, RANK_MAX_POINTS, getRank, rankThreshold,
 };
