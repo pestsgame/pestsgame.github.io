@@ -113,7 +113,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 70,
-        "exceptElements": ["physical", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["physical", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 70 damage from Fire attacks."
     },
@@ -212,7 +212,7 @@
       "immuneEffects": ["cryo"],
       "passiveReduction": {
         "flat": 100,
-        "exceptElements": ["physical", "water", "lightning", "fire", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["physical", "water", "lightning", "fire", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 100 damage from Ice attacks. Immune to Cryo."
     },
@@ -277,7 +277,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 50,
-        "exceptElements": ["physical", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["physical", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 50 damage from Water and Fire attacks."
     },
@@ -310,7 +310,7 @@
       "effects": [],
       "passiveReduction": {
         "percent": 0.5,
-        "exceptElements": ["fire", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["physical", "fire", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Water attacks deal 50% less damage."
     },
@@ -342,7 +342,7 @@
       "value": 0,
       "effects": [],
       "passiveAmplify": {
-        "elements": ["fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"],
+        "elements": ["physical", "fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"],
         "percent": 0.25
       },
       "description": "All attacks deal 25% more damage."
@@ -593,13 +593,13 @@
   {
     "id": "flame_mage",
     "rarity": "uncommon",
-    "name": "Ignius the Flame Mage",
+    "name": "gu the Flame Mage",
     "hp": 400,
     "types": [
       "wizard"
     ],
     "classification": "normal",
-    "image": "ignius.png",
+    "image": "gu.png",
     "topEffect": {
       "type": "passive",
       "name": "Fire Wall",
@@ -879,7 +879,7 @@
     "id": "alf_wolf",
     "rarity": "common",
     "name": "Alf Wolf",
-    "hp": 200,
+    "hp": 90,
     "types": [
       "mob"
     ],
@@ -1145,7 +1145,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 100,
-        "exceptElements": ["physical", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["physical", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 100 damage from Fire attacks."
     },
@@ -1238,7 +1238,7 @@
     "topEffect": {
       "type": "attack",
       "name": "Hidden Fang",
-      "value": 150,
+      "value": 100,
       "element": "poison",
       "effects": [
         {
@@ -1249,7 +1249,7 @@
     },
     "bottomAttack": {
       "name": "Poison Strike",
-      "damage": 250,
+      "damage": 200,
       "element": "poison",
       "effects": [
         {
@@ -1931,7 +1931,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 50,
-        "exceptElements": ["fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 50 damage from Physical attacks."
     },
@@ -2402,7 +2402,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 25,
-        "exceptElements": ["fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature"]
+        "exceptElements": ["fire", "water", "lightning", "ice", "poison", "shadow", "earth", "wind", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 25 damage from Physical attacks."
     },
@@ -2461,7 +2461,7 @@
       "dragon"
     ],
     "classification": "normal",
-    "image": "Starflight.png",
+    "image": "starflight.png",
     "topEffect": {
       "type": "ability",
       "name": "Starry Night",
@@ -2774,7 +2774,7 @@
         "chance": 0.4,
         "healPercent": 0.5
       },
-      "description": "guaranteed one revive before having a 40% chance to revive after that at 50% health."
+      "description": "Guaranteed one revive before having a 40% chance to revive after that at 50% health."
     },
     "bottomAttack": {
       "name": "Skeletal Destroyer",
@@ -2866,7 +2866,7 @@
         "guaranteed": 1,
         "chance": 0.5
       },
-      "description": "guaranteed one revive before having a 50% chance to revive after that."
+      "description": "Guaranteed one revive before having a 50% chance to revive after that."
     },
     "bottomAttack": {
       "name": "Grass Throttle",
@@ -3028,7 +3028,7 @@
         "guaranteed": 2,
         "chance": 0.5
       },
-      "description": "guaranteed two revives before having a 50% chance to revive after that."
+      "description": "Guaranteed two revives before having a 50% chance to revive after that."
     },
     "bottomAttack": {
       "name": "Stick Stab",
@@ -3607,13 +3607,13 @@
   {
     "id": "sky_reaver",
     "rarity": "uncommon",
-    "name": "Aerith the Skyreaver",
+    "name": "Aeris the Skyreaver",
     "hp": 300,
     "types": [
       "dragon"
     ],
     "classification": "normal",
-    "image": "aerith.png",
+    "image": "aeris.png",
     "topEffect": {
       "type": "attack",
       "name": "Skyreave",
@@ -3659,7 +3659,7 @@
       "effects": [],
       "passiveReduction": {
         "flat": 50,
-        "exceptElements": ["physical", "fire", "water", "ice", "poison", "shadow", "earth", "arcane", "nature"]
+        "exceptElements": ["physical", "fire", "water", "ice", "poison", "shadow", "earth", "arcane", "nature", "abyss", "ruin", "judgement"]
       },
       "description": "Block 50 damage from lightning and wind attacks."
     },
@@ -4350,7 +4350,7 @@
     "name": "War Hammer",
     "flatBonus": 70,
     "maxDurability": 5,
-    "image": "war_hammer.png",
+    "image": "warhammer.png",
     "ampEffects": {
       "rocks": 25
     },
@@ -4385,7 +4385,7 @@
     "maxDurability": 8,
     "image": "storm_mace.png",
     "ampEffects": {
-      "shock": 7.5
+      "shock": { "value": 7.5, "target": "chance" }
     },
     "description": "Deal 80 more damage. Shock has +7.5% of triggering. Lasts for 8 attacks."
   },
@@ -4400,7 +4400,7 @@
     "ampEffects": {
       "confusion": 17.5
     },
-    "description": "Deal 50 more damage. Confusion has +17.5% of triggering. Lasts for 9 attacks."
+    "description": "Deal 50 more damage. Confusion has +17.5% chance of triggering. Lasts for 9 attacks."
   },
   {
     "id": "frostbrand",
@@ -4411,10 +4411,11 @@
     "maxDurability": 8,
     "image": "frostbrand.png",
     "ampEffects": {
-      "cryo": 7.5
+      "cryo": { "value": 7.5, "target": "chance" }
     },
     "description": "Deal 135 more damage. Cryo has +7.5% of triggering. Lasts for 8 attacks."
   },
+  
   {
     "id": "demonic_shield",
     "rarity": "uncommon",
@@ -4479,13 +4480,13 @@
     "rarity": "epic",
     "cardType": "defense",
     "name": "Clockwork Wall",
-    "flatBonus": 100,
+    "flatBonus": 110,
     "maxDurability": 4,
     "image": "clockwork_wall.png",
     "dampEffects": {
       "confusion": 5
     },
-    "description": "Block 100 damage. Confusion has -5% chance of triggering. Lasts for 4 attacks."
+    "description": "Block 110 damage. Confusion has -5% chance of triggering. Lasts for 4 attacks."
   },
   {
     "id": "wooden_wall",
@@ -4560,15 +4561,15 @@
     "description": "Block 85 damage. Confusion has -5% of triggering. Lasts for 5 attacks."
   },
   {
-    "id": "tidal_stone",
+    "id": "tidal_rune",
     "rarity": "common",
     "cardType": "defense",
-    "name": "Tidal Stone",
+    "name": "Tidal Rune",
     "flatBonus": 35,
     "maxDurability": 6,
-    "image": "tidal_stone.png",
+    "image": "tidal_rune.png",
     "dampEffects": {
-      "soak": 5
+      "soak": 8
     },
     "description": "Block 35 damage. Soak has -8% damage reduction and chance of triggering. Lasts for 5 attacks."
   },
@@ -4581,7 +4582,7 @@
     "maxDurability": 5,
     "image": "stormplate.png",
     "dampEffects": {
-      "shockdamage": 10
+      "shock": 10
     },
     "description": "Block 80 damage. Shock deals -10 damage upon activation. Lasts for 5 attacks."
   },
@@ -4594,7 +4595,7 @@
     "maxDurability": 7,
     "image": "stormstone.png",
     "dampEffects": {
-      "shock": 10
+      "shock": { "value": 10, "target": "chance" }
     },
     "description": "Block 120 damage. Shock has -10% of triggering. Lasts for 7 attacks."
   },
@@ -4607,7 +4608,7 @@
     "maxDurability": 5,
     "image": ".png",
     "dampEffects": {
-      "cryo": 10
+      "cryo": { "value": 10, "target": "chance" }
     },
     "description": "Block 130 damage. Cryo has -10% of triggering. Lasts for 5 attacks."
   }
