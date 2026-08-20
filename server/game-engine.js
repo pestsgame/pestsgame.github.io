@@ -1,55 +1,66 @@
 'use strict';
 /**
- * Arena of PESTS — authoritative game engine.
+ * Arena of PESTS, authoritative game engine.
  *
  * This is a DOM-free, 1:1 port of the combat/gacha rules that used to live
  * (and run, trustingly, on the attacker's own machine) inside index.html.
- * Nothing in here touches a socket or a database — it's pure data in,
- * data + events out — so it can be unit tested and so server.js stays thin.
+ * Nothing in here touches a socket or a database, it's pure data in,
+ * data + events out, so it can be unit tested and so server.js stays thin.
  *
  * Every function that used to reach into `document.getElementById(...)` to
  * play an animation now instead pushes a small serializable "event" onto an
  * `events` array that the caller returns to both clients. The client replays
  * those events through its existing Anim.* functions, so all the juice
  * (lunge, shake, floating numbers, status vfx, deaths) keeps working exactly
- * as before — it's just triggered by the server instead of trusted to it.
+ * as before, it's just triggered by the server instead of trusted to it.
  *
  * ── COMBAT RULES v2 (creature-destruction win condition) ────────────────
  * There is no more player HP win condition. A side loses the instant it has
- * zero creatures left anywhere — not deployed, not in hand, not in deck.
+ * zero creatures left anywhere, not deployed, not in hand, not in deck.
  * `sides[i].hp/maxHp` still exist on the side object purely for UI/back-
  * compat (some support abilities still top it up cosmetically) but nothing
  * in the engine ever checks it to decide a match's outcome anymore.
  *
- * Death is permanent — a dead creature never returns to the deck — with two
+ * Death is permanent, a dead creature never returns to the deck, with two
  * exceptions, both driven entirely by `topEffect` data:
  *
  *  1. An `ability`-type top effect carrying a `revive` block (instead of an
  *     `attack`) can be activated as that card's turn action to bring back
  *     any one creature from its own side's graveyard, player's choice, at a
  *     fraction of its max HP (see `executeRevive`). Like an attack, this
- *     uses up that slot's action for the turn — a deliberate player choice,
+ *     uses up that slot's action for the turn, a deliberate player choice,
  *     never automatic.
  *  2. A `passive`-type top effect carrying a `revive` block instead grants
- *     the CARD IT'S ON (and only that card) a self-revive on its own death —
+ *     the CARD IT'S ON (and only that card) a self-revive on its own death,
  *     no turn action, no player choice, no graveyard trip at all; it just
  *     comes right back in its own slot (see `tryPassiveRevive`, called from
  *     `killCard`). This is the only kind of "free"/automatic revive in the
- *     game, and it's strictly self-only — it can never bring back anything
+ *     game, and it's strictly self-only, it can never bring back anything
  *     else. `revive.guaranteed` banks N always-succeeds revives (tracked per
  *     live card instance), `revive.chance` is a 0–1 roll attempted after any
  *     guaranteed revives are exhausted (or from the very first death if
  *     there's no `guaranteed` at all), and `revive.healPercent` controls how
- *     much HP each revive restores (defaults to 1.0 — full HP — since this
+ *     much HP each revive restores (defaults to 1.0, full HP, since this
  *     is a much narrower effect than the active ability's).
  *  3. The REVIVE QUEUE (see `processReviveQueue`) is a third, independent
- *     path back from the graveyard — automatic like the passive self-revive,
+ *     path back from the graveyard, automatic like the passive self-revive,
  *     but classification-driven and NOT self-only: killing an enemy PESTS,
  *     BOSS, or OVERLORD credits your side with revive charges, which are
  *     then spent oldest-to-newest against your own graveyard (which doubles
  *     as this queue) to bring dead creatures back to hand. Entirely separate
- *     currency and trigger from the two revive mechanisms above — a card
+ *     currency and trigger from the two revive mechanisms above, a card
  *     can be brought back by whichever of the three gets there first.
+ *
+ * Non-revive `ability`-type top effects (a `heal` and/or `effects` block,
+ * see `executeAbilityEffect`) work exactly like an attack in every way that
+ * matters: a deliberate player choice, costs the acting slot's turn action,
+ * and — same as picking which enemy slot an attack hits — requires an
+ * explicit target wherever the ability is actually ambiguous about who it
+ * affects. They NEVER trigger automatically just from being deployed; there
+ * used to be an on-deploy auto-trigger for these, it's gone, deploying a
+ * card never does anything beyond placing it on the board (plus whatever
+ * passive/hazard interactions, like `rocks`, apply to any card entering a
+ * slot regardless of what's on it).
  */
 
 const crypto = require('crypto');
@@ -57,10 +68,10 @@ const fs = require('fs');
 const path = require('path');
 
 /* ── CARD DATABASE ──────────────────────────────────────────────────
- * Loaded from cards.json — the single canonical copy of every card's
+ * Loaded from cards.json, the single canonical copy of every card's
  * stats. The client fetches this exact file (see server.js's /cards.json
  * route) instead of keeping its own hardcoded copy, and the server
- * checks a hash of it during auth — so a modified/forked client can't
+ * checks a hash of it during auth, so a modified/forked client can't
  * sneak a buffed "god card" past matchmaking: either it's playing with
  * the real numbers, or its hash won't match and it's refused. */
 const CARD_LIBRARY_PATH = path.join(__dirname, 'cards.json');
@@ -73,17 +84,17 @@ const CardById = Object.fromEntries(CardDB.map(c => [c.id, c]));
  * A "set" is any group of CardDB entries sharing the same `set` string.
  * Building every single member of a set into your deck (weapon/defense
  * members included) grants +SET_STAT_BONUS max HP and +SET_STAT_BONUS
- * damage to that set's non-equipment members for the whole match —
+ * damage to that set's non-equipment members for the whole match,
  * equipment members unlock the set but never get the bonus themselves.
  * Derived once from CardDB at load, same pattern as CardById. */
-const SET_STAT_BONUS = 150;
+const SET_STAT_BONUS = 100;
 const CARD_SET_MEMBERS = {}; // setName -> [cardId, ...]
 for (const c of CardDB) { if (c.set) (CARD_SET_MEMBERS[c.set] = CARD_SET_MEMBERS[c.set] || []).push(c.id); }
 
 /** Mutates `cards` (live card instances just built for a deck) in place,
  * adding the set bonus to any card whose base definition belongs to a set
  * that's fully present among `ids` (the deck's card ids). Safe to call on
- * any deck — decks with no complete set are untouched. */
+ * any deck, decks with no complete set are untouched. */
 function applySetBonuses(cards, ids) {
   const idSet = new Set(ids);
   for (const [setName, memberIds] of Object.entries(CARD_SET_MEMBERS)) {
@@ -115,7 +126,7 @@ const PACK_DEFS = [
    weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0}, guarantees:[], filter:c=>c.types?.includes('dragon')},
   {id:'wizard',   currency:'gold', size:4, cost:180,
    weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0}, guarantees:[], filter:c=>c.types?.includes('wizard')},
-  // Armory can only give weapons/defenses, and is capped at Legendary — no Mythic weapons/defenses exist, so mythic stays at 0.
+  // Armory can only give weapons/defenses, and is capped at Legendary, no Mythic weapons/defenses exist, so mythic stays at 0.
   {id:'armory',   currency:'gold', size:5, cost:220,
    weights:{common:22,uncommon:30,rare:27,epic:15,legendary:6,mythic:0,fabled:0}, guarantees:[], filter:c=>c.cardType==='weapon'||c.cardType==='defense'},
   {id:'boss',     currency:'gems', size:7, cost:150,
@@ -182,11 +193,11 @@ function openPack(packId) {
  * ctx.skipTurn / ctx.cancelAttack and may push a {type:'vfx', ...} event
  * onto ctx.events.
  *
- * `effectInstance.ampSide`/`ampKind` — when present — is how weapon/
+ * `effectInstance.ampSide`/`ampKind`, when present, is how weapon/
  * defense amplification works: a weapon with `ampEffects: { burn: 25 }`
  * stamps which side's gear to keep re-checking onto every burn stack it
  * inflicts (see applyEffectToCard), so that stack ticks for 10+25=35 *as
- * long as* that side still has an amplifying weapon equipped — the
+ * long as* that side still has an amplifying weapon equipped, the
  * instant it breaks or gets swapped out, the very next tick reverts to
  * the effect's normal 10. Nothing about the bonus is baked in
  * permanently; see currentAmpValue/effectiveDmg/chanceFor below. A
@@ -200,14 +211,14 @@ const Effects = {
   strongPoison: { trigger:'onTurnStart', dmg:50,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'strongPoison',50), 'strongPoison');} },
   mythicPoison: { trigger:'onTurnStart', dmg:75,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'mythicPoison',75), 'mythicPoison');} },
   curse:        { trigger:'onTurnStart', logic(){} },
-  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.125) x.cancelAttack = true; } }, // its amp/damp-aware miss roll lives inline in performHit, alongside shock/soak — see missChanceFor
+  confusion:    { trigger:'onAttack',    logic(c,x){ if (Math.random()<.125) x.cancelAttack = true; } }, // its amp/damp-aware miss roll lives inline in performHit, alongside shock/soak, see missChanceFor
   sleep:        { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'sleep',ed,match); } },
   paralyze:     { trigger:'onTurnStart', logic(c,x,ed,match){ rollSkip(c,x,'paralyze',ed,match); } },
   burn:         { trigger:'onTurnStart', dmg:10,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'burn',10), 'burn');} },
   shock:        { trigger:'onTurnStart', dmg:25,  logic(c,x,ed,match){dot(c,x, effectiveDmg(match,x.side,ed,'shock',25), 'shock');} },
   soak:         { trigger:'onTurnStart', logic(){} },
   cryo:         { trigger:'onTurnStart', logic(c,x,ed,match){ dot(c,x, effectiveDmg(match,x.side,ed,'cryo',10), 'cryo'); rollSkip(c,x,'cryo',ed,match); } },
-  rocks:        { trigger:'onSwap',      logic(){} }, // no per-turn logic — see applyRocksOnSwap; this fires on swap, not on turn start
+  rocks:        { trigger:'onSwap',      logic(){} }, // no per-turn logic, see applyRocksOnSwap; this fires on swap, not on turn start
 };
 function dot(card, ctx, dmg, type) {
   card.currentHp -= dmg;
@@ -226,13 +237,13 @@ function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e
 
 /* ── WEAPON/DEFENSE EFFECT AMPLIFICATION & DAMPENING (live, additive) ──
  * Two independent, symmetric bonuses stack additively onto an effect's
- * baseline every time it's checked — never baked into the stack at the
+ * baseline every time it's checked, never baked into the stack at the
  * moment it was inflicted, so either one turns on/off immediately as gear
  * gets equipped, broken, or swapped:
  *
  *  • AMPLIFICATION (ampEffects, on a weapon OR a defense's addEffects):
  *    the INFLICTING side's currently-equipped gear adds a bonus to any
- *    effect it causes — stamped as `ampSide`/`ampKind` onto the effect
+ *    effect it causes, stamped as `ampSide`/`ampKind` onto the effect
  *    instance at infliction time (applyEffectToCard), then re-checked
  *    live via currentAmpValue() against whatever that side has equipped
  *    *right now*, which may or may not still be the same item.
@@ -240,7 +251,7 @@ function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e
  *  • DAMPENING (dampEffects, defense only): the AFFECTED side's own
  *    currently-equipped defense subtracts from any effect currently
  *    afflicting their cards, regardless of who inflicted it or whether it
- *    was itself amplified. Needs no stamping at all — every tick already
+ *    was itself amplified. Needs no stamping at all, every tick already
  *    knows which side owns the affected card (ctx.side), so it's just a
  *    live lookup of that side's own gear via currentDampValue().
  *
@@ -251,24 +262,24 @@ function hasEffect(card, type) { return !!card && card.activeEffects.some(e => e
 /** Some status effects tick damage AND roll a percentage-based chance in the
  * same effect (cryo: dmg + skip-turn chance; shock: dmg + miss-attack
  * chance). For these, a gear's `ampEffects`/`dampEffects` entry must say
- * which dimension it's boosting/reducing — `'damage'` or `'chance'` — via
+ * which dimension it's boosting/reducing, `'damage'` or `'chance'`, via
  * the object form `{ value: N, target: 'damage'|'chance' }`, since a bare
  * number would be ambiguous. Effects with only one dimension (bleed,
  * poison, burn, ... are damage-only; sleep, paralyze, confusion are
- * chance-only) never need `target` — a bare number just applies to that
+ * chance-only) never need `target`, a bare number just applies to that
  * effect's one dimension, and an object form's `target` is ignored. */
 const MULTI_DIMENSION_EFFECTS = new Set(['cryo', 'shock']);
 /** `soak` is the odd one out: it rolls TWO different percentages (the
  * chance its own carrier whiffs their attack, and the % it reduces
  * incoming damage by) but, unlike cryo/shock, they aren't a damage+chance
- * pair you can target independently — they're both percentages. So a
- * single ampEffects/dampEffects.soak value (bare number OR object form —
+ * pair you can target independently, they're both percentages. So a
+ * single ampEffects/dampEffects.soak value (bare number OR object form,
  * `target` is ignored) is applied to BOTH of soak's percentages at once. */
 const DUAL_PERCENT_EFFECTS = new Set(['soak']);
 /** Pulls the raw ampEffects/dampEffects entry for `type` (bare number,
  * `{value,target}` object, or undefined if that gear doesn't touch it) and
  * resolves it down to a plain number for the dimension being asked about
- * (`'damage'` or `'chance'`) — or `undefined` if this entry doesn't apply
+ * (`'damage'` or `'chance'`), or `undefined` if this entry doesn't apply
  * to that dimension at all (e.g. a shock amp targeting 'chance' has no
  * effect on shock's damage tick). */
 function resolveAmpDamp(entry, type, dimension) {
@@ -296,11 +307,11 @@ function currentDampValue(match, side, type, dimension) {
   return resolveAmpDamp(gear && gear.dampEffects && gear.dampEffects[type], type, dimension);
 }
 /** Damage-type effects (bleed, poison, burn, shock, cryo, ...): amp adds
- * to the effect's baseline tick damage, damp subtracts from it — e.g.
+ * to the effect's baseline tick damage, damp subtracts from it, e.g.
  * baseline 10, ampEffects:{burn:25} while equipped -> 35, and if the
  * affected side's own defense also carries dampEffects:{burn:5} while
  * equipped -> 30. For cryo/shock, only an amp/damp entry targeting
- * `'damage'` (or a bare number) applies here — one targeting `'chance'`
+ * `'damage'` (or a bare number) applies here, one targeting `'chance'`
  * is skipped. Never drops below 0. `side` is whichever side owns the
  * card the effect is ticking on (i.e. the potential dampener). */
 function effectiveDmg(match, side, ed, type, baseDmg) {
@@ -314,10 +325,10 @@ function effectiveDmg(match, side, ed, type, baseDmg) {
 /** Chance-type effects (sleep, paralyze, confusion, shock/soak's miss
  * roll, cryo's skip-turn roll, ...): ampEffects/dampEffects values are
  * 0–100 percentage POINTS added to/subtracted from the effect's baseline
- * chance — e.g. baseline 12.5%, ampEffects:{paralyze:25} while equipped
+ * chance, e.g. baseline 12.5%, ampEffects:{paralyze:25} while equipped
  * -> 37.5%, and if the affected side's defense carries
  * dampEffects:{paralyze:10} while equipped -> 27.5%. For cryo/shock, only
- * an amp/damp entry targeting `'chance'` applies here — a bare number (or
+ * an amp/damp entry targeting `'chance'` applies here, a bare number (or
  * one targeting `'damage'`) is skipped, since it's boosting the DOT tick
  * instead. Clamped to the 0–100% range either way. */
 function chanceFor(match, side, ed, type, baseChance) {
@@ -332,7 +343,7 @@ function chanceFor(match, side, ed, type, baseChance) {
  * (confusion/shock/soak causing the AFFECTED card to whiff its own
  * attack) in performHit, which look the effect instance up by type
  * instead of already holding a reference to it. `side` here is whichever
- * side owns `card` (the one possibly missing its attack) — the same side
+ * side owns `card` (the one possibly missing its attack), the same side
  * whose defense would be doing any dampening. */
 function missChanceFor(card, type, match, side, baseChance) {
   const ed = card.activeEffects.find(e => e.type === type);
@@ -341,11 +352,11 @@ function missChanceFor(card, type, match, side, baseChance) {
 
 /* ── SYNERGY PASSIVE ──────────────────────────────────────────────────
  * topEffect.synergy = {
- *   // legacy 2-card form — the only form allowed to use shareAttack:
+ *   // legacy 2-card form, the only form allowed to use shareAttack:
  *   partnerId: 'other_card_base_id',
  *   bonusHp: 20, bonusDamage: 10, shareAttack: true,
  *
- *   // multi-card form — stat buffs ONLY, no attack sharing. Lists any
+ *   // multi-card form, stat buffs ONLY, no attack sharing. Lists any
  *   // number of partner base ids; bonusHp/bonusDamage are PER PARTNER
  *   // actually present in the deck, so a 3-card ring where every card
  *   // lists the other two scales up to 2x the listed bonus when the
@@ -355,14 +366,14 @@ function missChanceFor(card, type, match, side, baseChance) {
  *   bonusHp: 10, bonusDamage: 5,
  * }
  * Applied once, at deck-build time, over every card instance on a side (deck+hand
- * combined) — so it reflects deck *composition*, not what's currently drawn/deployed. */
+ * combined), so it reflects deck *composition*, not what's currently drawn/deployed. */
 function applySynergies(cardInstances) {
   cardInstances.forEach(card => {
     if (!card || card.cardType) return; // skip weapon/defense equipment
     const syn = card.topEffect && card.topEffect.type === 'passive' && card.topEffect.synergy;
     if (!syn) return;
 
-    // Legacy single-partner form — the only one that may share an attack.
+    // Legacy single-partner form, the only one that may share an attack.
     if (syn.partnerId) {
       const partner = cardInstances.find(c => c && !c.cardType && c.baseId === syn.partnerId && c !== card);
       if (partner) {
@@ -380,7 +391,7 @@ function applySynergies(cardInstances) {
       }
     }
 
-    // Multi-card group form — stat buffs only, scales with # of partners present.
+    // Multi-card group form, stat buffs only, scales with # of partners present.
     if (Array.isArray(syn.partnerIds) && syn.partnerIds.length) {
       const matched = [];
       syn.partnerIds.forEach(pid => {
@@ -403,23 +414,23 @@ function applySynergies(cardInstances) {
 
 /** True if `target`'s own passive grants immunity to `effectType`. A passive
  * can list one or more immunities alongside its other fields (flat/percent
- * damage reduction, synergy, etc.) — e.g. `{type:'passive', passiveReduction:
+ * damage reduction, synergy, etc.), e.g. `{type:'passive', passiveReduction:
  * {flat:10}, immuneEffects:['burn']}` reduces incoming damage by 10 AND
  * shrugs off burn entirely. Immunity is checked at the moment an effect
  * would be applied, so it blocks new stacks and duration extensions alike;
  * it does nothing to a stack the card was already carrying before the
- * passive existed (there's no such case in practice — a card's passive
+ * passive existed (there's no such case in practice, a card's passive
  * never changes mid-match). */
 function isImmuneTo(target, effectType) {
   const te = target && target.topEffect;
   return !!(te && te.type === 'passive' && Array.isArray(te.immuneEffects) && te.immuneEffects.includes(effectType));
 }
 
-/** Applies a status effect to `target`. `ampSource` — when given, as
- * `{side, kind:'weapon'|'defense'}` — is the equipped gear (if any) that
+/** Applies a status effect to `target`. `ampSource`, when given, as
+ * `{side, kind:'weapon'|'defense'}`, is the equipped gear (if any) that
  * was active on the inflicting side at the moment of this attack; it gets
  * stamped onto the effect instance so future ticks/rolls can dynamically
- * re-check whether that gear (or another one like it) is still active —
+ * re-check whether that gear (or another one like it) is still active,
  * see currentAmpValue. If the target already has a stack of this type,
  * duration extends and the amp source is refreshed to whatever's active
  * right now (re-applying the same effect while amplifying gear is
@@ -443,7 +454,7 @@ function applyEffectToCard(target, effectDef, ampSource) {
   return true;
 }
 
-/** `side` (0|1) is whichever side owns `entity` — stamped onto every event so
+/** `side` (0|1) is whichever side owns `entity`, stamped onto every event so
  * a client on either side of the match can map it back to its own DOM
  * (its own board is always "player-*", the opponent's is always "enemy-*").
  * `match` is threaded through to each effect's logic() so DOT ticks and
@@ -468,14 +479,17 @@ function processEffects(match, entity, trigger, ctx, side) {
 /** Kills whatever creature is sitting in `match.sides[side][slotKey]`:
  * removes it from the active slot and pushes it onto that side's graveyard,
  * permanently, unless and until that side spends an `ability`-type revive's
- * turn action to bring it back (see `executeRevive`) — or unless the dying
- * card itself carries a self-revive `passive` (see `tryPassiveRevive`),
- * checked first, right here, before any death actually lands. Aside from
- * that self-revive passive, there is no automatic or banked revive of any
- * kind — every other revival is a deliberate player choice that costs a
- * card's action, same as an attack would.
+ * turn action to bring it back (see `executeRevive`, blocked for
+ * Boss/Overlord targets), or unless the dying card itself carries a
+ * self-revive `passive` (see `tryPassiveRevive`, NOT blocked for
+ * Boss/Overlord, since it's that card's own innate ability rather than
+ * another card spending a turn to bring it back), checked first, right
+ * here, before any death actually lands. Aside from that self-revive
+ * passive, there is no automatic or banked revive of any kind, every other
+ * revival is a deliberate player choice that costs a card's action, same
+ * as an attack would.
  * Returns `true` if the card actually died (graveyard, slot cleared), or
- * `false` if a self-revive passive saved it — callers that were about to
+ * `false` if a self-revive passive saved it, callers that were about to
  * treat this as a kill (stopping a multi-attack sequence, clearing a slot,
  * etc.) should check this before assuming the card is gone. */
 function killCard(match, side, slotKey, events) {
@@ -486,12 +500,12 @@ function killCard(match, side, slotKey, events) {
   events.push({ t:'death', side, slot: slotKey, card:card.instanceId, name:card.name });
   if (entity.activeCard === card) entity.activeCard = null;
   else if (entity.activeCard2 === card) entity.activeCard2 = null;
-  entity.graveyard.push(card); // joins the back of the Revive Queue — see processReviveQueue
+  entity.graveyard.push(card); // joins the back of the Revive Queue, see processReviveQueue
 
   // ── Revive Queue (classification-based, automatic) ──────────────────
   // Whichever side didn't just lose this creature is credited with its
-  // classification's revive charges (0 for a Normal/unclassified kill —
-  // see reviveClassFor) — this covers every death path uniformly
+  // classification's revive charges (0 for a Normal/unclassified kill,
+  // see reviveClassFor), this covers every death path uniformly
   // (attack, curse recoil, DOT, rocks), crediting the "other side" of
   // whoever died in every case. Both sides' queues are then re-checked:
   // the dying side's because it just gained a new entry that a
@@ -508,10 +522,10 @@ function killCard(match, side, slotKey, events) {
 /** ── REVIVE QUEUE ─────────────────────────────────────────────────────
  * A side's `graveyard` array doubles as its Revive Queue: pushes at death
  * time, so index 0 is always the oldest death and the array is already in
- * the right order to scan front-to-back — no separate structure needed.
+ * the right order to scan front-to-back, no separate structure needed.
  *
  * Classification -> { cost, charge } (cards.json's `"classification"` field
- * — `"normal"` is a real, explicit value here, not just "no classification"):
+ *, `"normal"` is a real, explicit value here, not just "no classification"):
  *   normal:   cost 1 to revive, grants 0 charges when killed.
  *   pests:    cost 1 to revive, grants 1 charge when killed.
  *   boss:     cost 2 to revive, grants 2 charges when killed.
@@ -530,7 +544,7 @@ function reviveClassFor(classification) {
   return REVIVE_CLASS_TABLE[classification] || REVIVE_CLASS_TABLE.normal;
 }
 /** Credits `side` with the revive charges earned for killing an enemy
- * creature of `classification` — a no-op (0 charges) for a Normal kill. */
+ * creature of `classification`, a no-op (0 charges) for a Normal kill. */
 function grantReviveCharges(match, side, classification, events) {
   const { charge } = reviveClassFor(classification);
   if (charge <= 0) return;
@@ -538,19 +552,19 @@ function grantReviveCharges(match, side, classification, events) {
   events.push({ t:'revive_charge_gain', side, amount: charge, classification, total: match.sides[side].reviveCharges });
 }
 /** Placeholder heal fraction applied to a creature the Revive Queue brings
- * back — freely tunable, nothing else depends on this number. */
+ * back, freely tunable, nothing else depends on this number. */
 const REVIVE_QUEUE_HEAL_PERCENT = 1;
 /** Walks `side`'s graveyard/Revive Queue oldest -> newest, reviving (back
  * to hand) every entry `side.reviveCharges` can fully afford and skipping
- * — never partially paying toward — any it can't, per the "no partial
+ *, never partially paying toward, any it can't, per the "no partial
  * progress on a BOSS/OVERLORD" rule. A successful revive removes that
  * entry and restarts the scan from the front, since spending charges (and
  * the queue shrinking) can change what else is now reachable; charges
  * that can't fully afford anything currently in the queue are simply left
- * sitting on `side.reviveCharges` untouched — there's nothing extra to do
+ * sitting on `side.reviveCharges` untouched, there's nothing extra to do
  * to "hold" them, since holding is just what happens when nothing gets
  * spent. That's also why this only needs to run after (a) a kill grants
- * new charges, and (b) a new death joins the queue — both are the only
+ * new charges, and (b) a new death joins the queue, both are the only
  * moments that can change what's affordable. */
 function processReviveQueue(match, side, events) {
   const entity = match.sides[side];
@@ -561,7 +575,7 @@ function processReviveQueue(match, side, events) {
       const card = entity.graveyard[i];
       const base = CardById[card.baseId];
       const { cost } = reviveClassFor(base && base.classification);
-      if (entity.reviveCharges < cost) continue; // can't fully afford it — skip in place, no partial spend
+      if (entity.reviveCharges < cost) continue; // can't fully afford it, skip in place, no partial spend
       entity.graveyard.splice(i, 1);
       entity.reviveCharges -= cost;
       card.currentHp = Math.max(1, Math.round(card.maxHp * REVIVE_QUEUE_HEAL_PERCENT));
@@ -569,7 +583,7 @@ function processReviveQueue(match, side, events) {
       entity.hand.push(card);
       events.push({ t:'queue_revive', side, card: card.instanceId, name: card.name, hp: card.currentHp, maxHp: card.maxHp, cost, chargesLeft: entity.reviveCharges });
       progressed = true;
-      break; // queue + charges both changed — rescan from the front
+      break; // queue + charges both changed, rescan from the front
     }
   }
 }
@@ -578,14 +592,22 @@ function processReviveQueue(match, side, events) {
  * with a `topEffect.revive` block) and, if it grants a revive right now,
  * applies it in place: heals the SAME card back up (never leaves its slot,
  * never touches the graveyard) and clears its lingering status effects,
- * same cleanup a normal revive gets. This is self-only by design — it never
+ * same cleanup a normal revive gets. This is self-only by design, it never
  * revives anything else, and other creatures can't trigger it for it.
+ *
+ * Unlike `executeRevive` (an `ability`-type revive bringing back a
+ * DIFFERENT dead card from the graveyard), this one is NOT blocked for
+ * Boss/Overlord cards: it's the card's own innate ability, explicitly
+ * authored into its own data (see e.g. Vemdak's "Skeletal Revival"), not
+ * the classification-driven charge economy or another card spending a
+ * turn to bring someone else back, so there's no reason for the
+ * Boss/Overlord "hard-won kill" rule to apply to a card reviving itself.
  *
  * `revive.guaranteed` (if present) is a bank of always-succeeds revives,
  * tracked per LIVE CARD INSTANCE in `card.reviveState.guaranteedLeft`
  * (seeded once at `createCard` time, so it's per-match and doesn't leak
  * between games). The guaranteed bank is always drained before any
- * `revive.chance` roll is attempted — so "N guaranteed, then a chance after
+ * `revive.chance` roll is attempted, so "N guaranteed, then a chance after
  * that" spends the guaranteed pool down first, and only starts rolling once
  * it's empty. A card with only `chance` (no `guaranteed`) rolls every single
  * death, forever, with no free revives at all.
@@ -596,13 +618,6 @@ function processReviveQueue(match, side, events) {
 function tryPassiveRevive(card, events, side, slotKey) {
   const te = card.topEffect;
   if (!te || te.type !== 'passive' || !te.revive) return false;
-  // Boss/Overlord cards never come back via a card's own revive ability
-  // (active or passive) — losing one is meant to be permanent within a
-  // match, unlike the classification-driven Revive Queue (see
-  // processReviveQueue), which is a deliberately different mechanic that
-  // DOES let charges bring a Boss/Overlord back.
-  const selfDef = CardById[card.baseId];
-  if (selfDef && (selfDef.classification === 'boss' || selfDef.classification === 'overlord')) return false;
   const rv = te.revive;
   let revived = false;
   if (card.reviveState && card.reviveState.guaranteedLeft > 0) {
@@ -624,12 +639,13 @@ function tryPassiveRevive(card, events, side, slotKey) {
  * `topEffect.type === 'ability'` with a `topEffect.revive` block present
  * (this is what distinguishes an active revive ability from an ordinary
  * on-deploy `ability` like a curse or a heal); `deadInstanceId` must name a
- * creature currently in this side's graveyard (the caller's choice —
- * earliest, latest, whichever they want) — EXCEPT a Boss or Overlord,
- * which a revive ability can never target (see tryPassiveRevive for the
- * same rule on the passive/self-revive side; the classification-driven
- * Revive Queue in processReviveQueue is deliberately exempt from this —
- * that's its whole purpose). The revived creature returns to hand at
+ * creature currently in this side's graveyard (the caller's choice,
+ * earliest, latest, whichever they want), EXCEPT a Boss or Overlord,
+ * which a revive ability can never bring back from the graveyard this way
+ * (the classification-driven Revive Queue in processReviveQueue is
+ * deliberately exempt from this, that's its whole purpose; a card's own
+ * self-revive passive, see tryPassiveRevive, is a different mechanic
+ * entirely and is NOT subject to this restriction). The revived creature returns to hand at
  * `topEffect.revive.healPercent` of its max HP (50% if unspecified) with
  * all lingering statuses cleared, and this consumes the acting card's turn
  * exactly like an attack would.
@@ -637,13 +653,13 @@ function tryPassiveRevive(card, events, side, slotKey) {
  * One-turn cooldown: the SAME acting card instance can't use its revive
  * ability again on its side's very next turn (tracked via
  * `match.turnCounter`, which increments once per runTurnStart call for
- * either side — since turns strictly alternate, "this side's next turn" is
+ * either side, since turns strictly alternate, "this side's next turn" is
  * always turnCounter+2 from whichever turnCounter it was just used on).
  * Other revive-capable cards on the same side are unaffected; this is a
  * per-card lock, not a side-wide one.
  *
- * This is unrelated to (and can't trigger) a `passive`-type self-revive —
- * see `tryPassiveRevive` — which is automatic, self-only, and never costs a
+ * This is unrelated to (and can't trigger) a `passive`-type self-revive,
+ * see `tryPassiveRevive`, which is automatic, self-only, and never costs a
  * turn action. */
 function executeRevive(match, side, slotKey, deadInstanceId) {
   const entity = match.sides[side];
@@ -683,9 +699,9 @@ function checkCardDeath(match, side, events) {
   });
 }
 
-/** Effect durations keep ticking down even on a benched (in-hand) card —
+/** Effect durations keep ticking down even on a benched (in-hand) card,
  * swapping a card out doesn't pause its clock. Only an ACTIVE card runs an
- * effect's actual per-turn logic (damage ticks, skip-turn rolls, etc. — see
+ * effect's actual per-turn logic (damage ticks, skip-turn rolls, etc., see
  * processEffects); a benched card just counts duration down toward zero and
  * has expired effects removed, same as it would while deployed. This is
  * what lets e.g. a 'rocks' stack on a card sitting in your hand still run
@@ -713,7 +729,7 @@ function createCard(baseId) {
       instanceId: crypto.randomUUID(), baseId, name: base.name, cardType: base.cardType,
       flatBonus: base.flatBonus, maxDurability: base.maxDurability,
       currentDurability: base.maxDurability, image: base.image,
-      // Optional customization — see performHit/currentAmpValue/currentDampValue:
+      // Optional customization, see performHit/currentAmpValue/currentDampValue:
       ampEffects: base.ampEffects ? { ...base.ampEffects } : null,
       dampEffects: base.dampEffects ? { ...base.dampEffects } : null,
       addEffects: base.addEffects ? base.addEffects.map(e => ({ ...e })) : null,
@@ -730,56 +746,85 @@ function createCard(baseId) {
     base.topEffect.effects.forEach(e => card.activeEffects.push({ type: e.type, duration: e.duration }));
   }
   if (base.topEffect.type === 'passive' && base.topEffect.revive) {
-    // Per-live-instance revive bank — freshly seeded every time a deck is
+    // Per-live-instance revive bank, freshly seeded every time a deck is
     // built, so it's per-match and never leaks a spent revive between games.
     card.reviveState = { guaranteedLeft: base.topEffect.revive.guaranteed || 0 };
   }
   return card;
 }
 
-/** on-deploy ability hook: existing "apply effects to enemy active card" behavior,
- * plus an optional heal ('self' | 'ally' | 'side') for support-style cards. */
-function applyDeployAbility(sides, side, card, events) {
-  if (card.topEffect?.type !== 'ability') return;
-  const otherSide = side === 0 ? 1 : 0;
-  if (card.topEffect.effects && card.topEffect.effects.length) {
-    const opp = sides[otherSide];
-    const target = opp.activeCard || opp.activeCard2;
-    if (target) {
-      card.topEffect.effects.forEach(eff => {
-        const applied = applyEffectToCard(target, eff);
-        if (applied) events.push({ t:'effect_applied', side, target: target.instanceId, effect: eff.type });
-        else events.push({ t:'immune', side: otherSide, card: target.instanceId, effect: eff.type });
-      });
-      events.push({ t:'ability', card: card.instanceId, target: target.instanceId });
-    }
-  }
-  if (card.topEffect.heal) {
-    const own = sides[side];
-    const h = card.topEffect.heal;
+/** Activates a non-revive `ability` top-effect (a `heal` block and/or an
+ * `effects` block; see the module doc, "Non-revive ability-type top
+ * effects") as
+ * `slotKey`'s action for the turn — same shape as an attack or a revive:
+ * costs the acting card's turn action, requires an explicit player-chosen
+ * target exactly where the ability is actually ambiguous about who it
+ * hits, and NEVER fires on its own just from being deployed (that on-deploy
+ * auto-trigger was the old system, entirely removed, see `deploy` in
+ * server.js and TutEngine).
+ *
+ *   heal.target === 'self' | 'side' : no target needed at all, there's only
+ *     one possible recipient (the caster itself, or the caster's whole
+ *     side's shared HP pool), `targetSlotKey` is ignored.
+ *   heal.target === 'ally'          : `targetSlotKey` must name one of the
+ *     ACTING side's own two active slots — either one, including the
+ *     caster's own slot (healing itself through an "ally" heal is allowed,
+ *     it's just a same-side heal, not specifically the *other* creature).
+ *   effects (curse/debuff, no heal)  : `targetSlotKey` must name one of the
+ *     OPPONENT's two active slots, the same choice an attack's target is.
+ *
+ * A card can carry both a `heal` and `effects` block at once (data allows
+ * it even if no current card actually does), in which case both apply to
+ * the same resolved target, exactly like the old on-deploy version did. */
+function executeAbilityEffect(match, side, slotKey, targetSlotKey) {
+  const entity = match.sides[side];
+  const events = [];
+  if (match.actedThisTurn[side].has(slotKey)) return { ok:false, reason:'already_acted', events };
+  const card = cardInSlot(entity, slotKey);
+  if (!card) return { ok:false, reason:'no_card_in_slot', events };
+  const te = card.topEffect;
+  if (!te || te.type !== 'ability' || te.revive) return { ok:false, reason:'no_usable_ability', events };
+  if (!te.heal && !(te.effects && te.effects.length)) return { ok:false, reason:'no_usable_ability', events };
+
+  if (te.heal) {
+    const h = te.heal;
     const amount = h.amount || 0;
     if (h.target === 'side') {
-      own.hp = Math.min(own.maxHp, own.hp + amount);
+      entity.hp = Math.min(entity.maxHp, entity.hp + amount);
       events.push({ t:'heal', side, slot:null, card:card.instanceId, targetCard:null, amount, target:'side' });
     } else if (h.target === 'ally') {
-      const ally = own.activeCard === card ? own.activeCard2 : own.activeCard;
-      if (ally) {
-        const before = ally.currentHp;
-        ally.currentHp = Math.min(ally.maxHp, ally.currentHp + amount);
-        events.push({ t:'heal', side, card:card.instanceId, targetCard:ally.instanceId, amount: ally.currentHp - before, target:'ally' });
-      }
+      const allyTarget = cardInSlot(entity, targetSlotKey === 'slot2' ? 'slot2' : 'slot1');
+      if (!allyTarget) return { ok:false, reason:'invalid_target', events };
+      const before = allyTarget.currentHp;
+      allyTarget.currentHp = Math.min(allyTarget.maxHp, allyTarget.currentHp + amount);
+      events.push({ t:'heal', side, card:card.instanceId, targetCard:allyTarget.instanceId, amount: allyTarget.currentHp - before, target: allyTarget===card?'self':'ally' });
     } else {
       const before = card.currentHp;
       card.currentHp = Math.min(card.maxHp, card.currentHp + amount);
       events.push({ t:'heal', side, card:card.instanceId, targetCard:card.instanceId, amount: card.currentHp - before, target:'self' });
     }
   }
+  if (te.effects && te.effects.length) {
+    const otherSide = side === 0 ? 1 : 0;
+    const opp = match.sides[otherSide];
+    const target = cardInSlot(opp, targetSlotKey === 'slot2' ? 'slot2' : 'slot1');
+    if (!target) return { ok:false, reason:'invalid_target', events };
+    te.effects.forEach(eff => {
+      const applied = applyEffectToCard(target, eff);
+      if (applied) events.push({ t:'effect_applied', side, target: target.instanceId, effect: eff.type });
+      else events.push({ t:'immune', side: otherSide, card: target.instanceId, effect: eff.type });
+    });
+    events.push({ t:'ability', card: card.instanceId, target: target.instanceId });
+  }
+
+  match.actedThisTurn[side].add(slotKey);
+  return { ok:true, events };
 }
 
 const DECK_SIZE = 12;
-/** Creatures (wizard/mob/dragon cards — anything without a cardType) are
+/** Creatures (wizard/mob/dragon cards, anything without a cardType) are
  * capped at 12 per deck (i.e. a deck can be all-creature, with equipment
- * entirely optional) — the remaining slots (down to DECK_SIZE) must be
+ * entirely optional), the remaining slots (down to DECK_SIZE) must be
  * weapon/defense equipment. */
 const MAX_CREATURES = 12;
 
@@ -799,7 +844,7 @@ function deckClassificationOk(defs) {
 
 function generateDeck(n) {
   // "Normal" and "PESTS" are both unrestricted filler classifications (see
-  // deckClassificationOk — only boss/overlord counts are capped), so both
+  // deckClassificationOk, only boss/overlord counts are capped), so both
   // pool together here. cards.json is currently all placeholder data using
   // only 'pests'; 'normal' is included too so real cards using that
   // classification (see REVIVE_CLASS_TABLE) slot in without further changes.
@@ -813,7 +858,7 @@ function generateDeck(n) {
   let creatureCount = 0;
   const addCreature = def => { defs.push(def); creatureCount++; };
 
-  // Rare chance of an Overlord deck — if so, everything else must be Normal/equipment.
+  // Rare chance of an Overlord deck, if so, everything else must be Normal/equipment.
   if (overlords.length && Math.random() < 0.08) {
     addCreature(pick(overlords));
     while (defs.length < n) {
@@ -825,7 +870,7 @@ function generateDeck(n) {
     }
     return defs.slice(0, n).map(d => createCard(d.id)).filter(Boolean);
   }
-  // Otherwise, at most one Boss, rest Normal/equipment — creatures capped at MAX_CREATURES.
+  // Otherwise, at most one Boss, rest Normal/equipment, creatures capped at MAX_CREATURES.
   if (bosses.length && Math.random() < 0.35) addCreature(pick(bosses));
   while (defs.length < n) {
     const canAddCreature = creatureCount < MAX_CREATURES && normals.length;
@@ -841,8 +886,8 @@ function generateDeck(n) {
 /** Builds a validated deck of live card instances from a list of owned card ids. */
 /** A deck is legal if it's exactly DECK_SIZE cards, every id exists in the
  * canonical library, no more than MAX_CREATURES of them are creatures, at
- * most one BOSS-or-OVERLORD creature is present, and — if that one card is
- * an OVERLORD — no PESTS or BOSS creatures ride along with it. Checked
+ * most one BOSS-or-OVERLORD creature is present, and, if that one card is
+ * an OVERLORD, no PESTS or BOSS creatures ride along with it. Checked
  * fresh every time a match is built, not just once when the deck was saved,
  * so a stale/tampered deck never quietly slips through. */
 function isDeckLegal(ids) {
@@ -854,7 +899,7 @@ function isDeckLegal(ids) {
 function buildDeckFromIds(ids) {
   const cards = isDeckLegal(ids) ? ids.map(id => createCard(id)) : generateDeck(DECK_SIZE);
   // Derive the id list from the actual cards built rather than trusting the
-  // input `ids` — covers the generateDeck(DECK_SIZE) fallback path too, so a
+  // input `ids`, covers the generateDeck(DECK_SIZE) fallback path too, so a
   // lucky random bot deck gets its set bonus exactly like a real one would.
   return applySetBonuses(cards, cards.map(c => c.baseId));
 }
@@ -873,14 +918,14 @@ function shuffleDeck(arr) {
 /* ── PLAYER SIDE FACTORY ──────────────────────────────────────────── */
 function freshSide(deck) {
   const d = [...deck];
-  applySynergies(d); // deck+hand together — synergy is about composition, not what's drawn yet, so this
-                      // runs before the shuffle below (order-independent — see applySynergies' own .find() lookups)
+  applySynergies(d); // deck+hand together, synergy is about composition, not what's drawn yet, so this
+                      // runs before the shuffle below (order-independent, see applySynergies' own .find() lookups)
   shuffleDeck(d);
   return {
-    hp: 100, maxHp: 100, // cosmetic only — see module doc; never decides the match anymore
+    hp: 100, maxHp: 100, // cosmetic only, see module doc; never decides the match anymore
     activeCard: null, activeCard2: null, weaponCard: null, defenseCard: null,
     deck: d, hand: d.splice(0, 5), // 5 random cards from the shuffled deck
-    graveyard: [], // doubles as the Revive Queue — oldest death first (see processReviveQueue)
+    graveyard: [], // doubles as the Revive Queue, oldest death first (see processReviveQueue)
     reviveCharges: 0, // spent oldest-to-newest against the graveyard/Revive Queue
   };
 }
@@ -890,7 +935,7 @@ function freshSide(deck) {
 function cardInSlot(entity, slotKey) { return slotKey === 'slot1' ? entity.activeCard : entity.activeCard2; }
 function slotOfCard(entity, card) { return entity.activeCard === card ? 'slot1' : 'slot2'; }
 
-/** Total creatures a side has left anywhere — deployed, in hand, or still in
+/** Total creatures a side has left anywhere, deployed, in hand, or still in
  * deck. This, and only this, decides the match now: hit zero and you lose. */
 function aliveCreatureCount(side) {
   const deckC = side.deck.filter(c => !c.cardType).length;
@@ -901,7 +946,7 @@ function aliveCreatureCount(side) {
 
 /**
  * Resolves which attack definition `chosenAttackIndex` refers to.
- * 0 = top attack (only valid if topEffect.type === 'attack' — which is either how
+ * 0 = top attack (only valid if topEffect.type === 'attack', which is either how
  *     the card was authored, or what its shareAttack synergy turned it into)
  * 1 = bottom attack (always available)
  * Returns null if the index isn't usable right now.
@@ -935,56 +980,46 @@ function performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side) {
 
 /** Resolves a single swing of an attack (damage or heal), including weapon/defense
  * durability, elemental passive reduction, curse recoil, and revive-bank kill checks.
- * Returns { stop:true } when the attacker or (non-revived) target died — signalling
+ * Returns { stop:true } when the attacker or (non-revived) target died, signalling
  * a multi-attack sequence should not continue.
  *
  * Weapon/defense customization:
- *  - weapon.ampEffects / defense.ampEffects: { effectType: bonus } — while this
+ *  - weapon.ampEffects / defense.ampEffects: { effectType: bonus }, while this
  *    piece of equipment is the one landing/absorbing the hit, any matching status
  *    effect it applies ticks for its normal baseline PLUS this bonus (e.g. a weapon
  *    with ampEffects:{burn:25} makes its burn deal 10+25=35/turn instead of 10), for
- *    as long as that equipment stays active — see currentAmpValue/effectiveDmg.
- *  - defense.dampEffects: { effectType: reduction } — the mirror image: while this
+ *    as long as that equipment stays active, see currentAmpValue/effectiveDmg.
+ *  - defense.dampEffects: { effectType: reduction }, the mirror image: while this
  *    defense is equipped, it subtracts from any effect currently afflicting its
  *    owner's cards, regardless of who inflicted it or whether it was itself
- *    amplified — see currentDampValue. Amp and damp stack additively and the
+ *    amplified, see currentDampValue. Amp and damp stack additively and the
  *    combined result never drops below the effect's normal floor (0 dmg / 0% chance).
- *  - weapon.addEffects / defense.addEffects: [{type, duration}, ...] — extra status
+ *  - weapon.addEffects / defense.addEffects: [{type, duration}, ...], extra status
  *    effects applied on every hit this equipment participates in, independent of
  *    whatever the attack itself already applies. A weapon's addEffects land on the
  *    target being hit; a defense's addEffects land back on the attacker (thorns). */
-function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events) {
-  if (hasEffect(ac, 'confusion') && Math.random() < missChanceFor(ac,'confusion',match,side,.125)) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false }; }
-  if (hasEffect(ac, 'shock') && Math.random() < missChanceFor(ac,'shock',match,side,.125))         { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false }; }
-  if (hasEffect(ac, 'soak') && Math.random() < missChanceFor(ac,'soak',match,side,.125))           { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false }; }
+function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events, wShare, dShare) {
+  if (hasEffect(ac, 'confusion') && Math.random() < missChanceFor(ac,'confusion',match,side,.125)) { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'confusion'}); return { stop:false, landed:false }; }
+  if (hasEffect(ac, 'shock') && Math.random() < missChanceFor(ac,'shock',match,side,.125))         { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'shock'});     return { stop:false, landed:false }; }
+  if (hasEffect(ac, 'soak') && Math.random() < missChanceFor(ac,'soak',match,side,.125))           { events.push({t:'miss',side,slot:atkSlotKey,card:ac.instanceId,cause:'soak'});      return { stop:false, landed:false }; }
 
   if (atkDef.heal) return performHeal(atkEntity, atkSlotKey, ac, atkDef, events, side);
 
   const targetCard = targetSlotKey ? cardInSlot(defEntity, targetSlotKey) : null;
 
-  let wBonus = 0, weaponRef = null;
-  if (atkEntity.weaponCard) {
-    weaponRef = atkEntity.weaponCard;
-    wBonus = weaponRef.flatBonus; weaponRef.currentDurability--;
-    events.push({ t:'weapon_use', side, bonus:wBonus, breaks: weaponRef.currentDurability<=0 });
-    if (weaponRef.currentDurability <= 0) atkEntity.weaponCard = null;
-  }
-  let dReduce = 0, defenseRef = null;
-  if (defEntity.defenseCard) {
-    defenseRef = defEntity.defenseCard;
-    dReduce = defenseRef.flatBonus; defenseRef.currentDurability--;
-    events.push({ t:'defense_use', side:defSide, bonus:dReduce, breaks: defenseRef.currentDurability<=0 });
-    if (defenseRef.currentDurability <= 0) defEntity.defenseCard = null;
-  }
-
-  let dmg = atkDef.damage + wBonus + (ac.synergyDamageBonus || 0);
+  // wShare/dShare are this swing's slice of the weapon's/defense's flat
+  // bonus, already divided across the whole multi-hit attack by the caller
+  // (see executeAttack) — a multi-hit attack is one hit as far as the
+  // equipment is concerned, so its total bonus/reduction is shared, not
+  // repeated, across every swing.
+  let dmg = atkDef.damage + (wShare || 0) + (ac.synergyDamageBonus || 0);
   if (hasEffect(ac, 'burn')) { dmg = Math.floor(dmg * .75); events.push({t:'burn_penalty', side, slot:atkSlotKey}); }
 
   if (!targetCard) {
-    // No player HP anymore — a "direct hit" into an empty slot is a no-op,
+    // No player HP anymore, a "direct hit" into an empty slot is a no-op,
     // kept only so the client's existing miss/whiff animation still fires.
     events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:null, tgtCard:null, direct:true, dmg:0, name:atkDef.name, element:atkDef.element });
-    return { stop:false };
+    return { stop:false, landed:false };
   }
 
   const tgtSlotKey = slotOfCard(defEntity, targetCard);
@@ -997,68 +1032,76 @@ function performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntit
   }
   const pr = targetCard.topEffect && targetCard.topEffect.type === 'passive' ? targetCard.topEffect.passiveReduction : null;
   if (pr) {
+    // Deliberately NOT shared/divided across a multi-hit attack's swings,
+    // unlike weapon/defense flat bonuses: passiveReduction is the target
+    // card's own ability and eats every single swing at full strength, so
+    // it's the natural counter to multi-hit attacks (e.g. a 4-swing attack
+    // into a 25-flat passiveReduction loses 100 total, not 25).
     const bypassed = pr.exceptElements && pr.exceptElements.includes(atkDef.element);
     if (!bypassed) {
       if (pr.percent) dmg = Math.floor(dmg * (1 - pr.percent));
       if (pr.flat) dmg = Math.max(0, dmg - pr.flat);
     }
   }
-  dmg = Math.max(0, dmg - dReduce);
+  dmg = Math.max(0, dmg - (dShare || 0));
   targetCard.currentHp -= dmg;
   events.push({ t:'hit', atkSide:side, atkSlot:atkSlotKey, atkCard:ac.instanceId, defSide, defSlot:tgtSlotKey, tgtCard:targetCard.instanceId, direct:false, dmg, name:atkDef.name, element:atkDef.element });
 
-  const weaponAmp = weaponRef ? { side, kind:'weapon' } : null;
-  (atkDef.effects || []).forEach(eff => {
-    const applied = applyEffectToCard(targetCard, eff, weaponAmp);
-    if (applied) events.push({ t:'effect_applied', side, target: targetCard.instanceId, effect: eff.type });
-    else events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
-  });
-  if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
-    weaponRef.addEffects.forEach(eff => {
-      const applied = applyEffectToCard(targetCard, eff, weaponAmp);
-      if (applied) events.push({ t:'effect_applied', side, target: targetCard.instanceId, effect: eff.type });
-      else events.push({ t:'immune', side: defSide, card: targetCard.instanceId, effect: eff.type });
-    });
-    events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:targetCard.instanceId });
-  }
-  if (defenseRef && defenseRef.addEffects && defenseRef.addEffects.length) {
-    const defenseAmp = { side: defSide, kind:'defense' };
-    defenseRef.addEffects.forEach(eff => {
-      const applied = applyEffectToCard(ac, eff, defenseAmp);
-      if (applied) events.push({ t:'effect_applied', side: defSide, target: ac.instanceId, effect: eff.type });
-      else events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
-    });
-    events.push({ t:'defense_effect', side:defSide, slot:tgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
-  }
+  // atkDef.effects (bleed, etc.) and weapon/defense addEffects are NOT
+  // applied per-swing anymore, they're applied once for the whole
+  // multi-hit sequence after every swing has resolved, see
+  // applyAttackEffectsOnce below/executeAttack, so a 4-swing "bleed 2"
+  // attack only ever puts 2 turns of bleed on, not 8.
 
   if (hasEffect(targetCard, 'curse')) {
+    // Reflects apply per-hit, at full strength, every swing — this is
+    // intentionally NOT shared/divided like the weapon/defense bonuses.
     const r = Math.floor(dmg * .25); ac.currentHp -= r;
     events.push({ t:'curse_recoil', side, slot:atkSlotKey, card:ac.instanceId, dmg:r });
     if (ac.currentHp <= 0) {
       const died = killCard(match, side, atkSlotKey, events);
-      if (died) return { stop:true };
+      if (died) return { stop:true, landed:true };
     }
   }
   if (targetCard.currentHp <= 0) {
+    // killCard runs tryPassiveRevive internally; if the target has a
+    // guaranteed/chance self-revive it comes right back up mid-sequence
+    // (killCard returns false, "not actually dead") and the very next
+    // swing of this same multi-hit attack lands on it again, exactly like
+    // a fresh target. Only a real (non-revived) death stops the sequence.
     const died = killCard(match, defSide, tgtSlotKey, events);
-    if (died) return { stop:true };
+    if (died) return { stop:true, landed:true };
   }
-  return { stop:false };
+  return { stop:false, landed:true };
 }
 
 /**
- * Executes one attack activation. `chosenAttackIndex` is 0 (top) or 1 (bottom) —
+ * Executes one attack activation. `chosenAttackIndex` is 0 (top) or 1 (bottom),
  * always an explicit player/opponent choice, never randomized, so this function is
  * used for both human turns and (with a server-side random index) AI/bot turns.
  *
  * If the chosen attack itself has a multiAttack config, this may resolve more than
- * one swing — it's part of the attack, not the card, so a card can have one attack
+ * one swing, it's part of the attack, not the card, so a card can have one attack
  * that always hits once and another that hits multiple times:
  *   multiAttack: {
  *     guaranteed: 2,        // always swings this many times, no rolling
  *     chance: 0.3,          // OR: chance to get another swing after each one lands
  *     maxExtra: 1,          // cap on how many bonus swings `chance` can grant (default 1)
  *   }
+ *
+ * Weapon/defense equipment treats the ENTIRE multi-hit attack as a single hit:
+ * durability is spent once for the whole activation (not once per swing) and
+ * the flat bonus/reduction is a shared budget split across however many
+ * swings actually occur (a 4-swing attack with a +100 weapon adds +25/swing,
+ * a 4-swing attack into a -100 defense blocks 25/swing), via a running-
+ * remainder split (see nextShare) so the shares always sum back to exactly
+ * the full bonus regardless of how many swings there end up being, evenly
+ * divided when it divides evenly, and rounded fairly (front-loaded) when it
+ * doesn't. passiveReduction is the deliberate exception, see performHit.
+ * The attack's own `effects` (bleed, etc.) plus weapon/defense addEffects
+ * are likewise applied once for the whole sequence, not once per swing, see
+ * the block after the swing loop below.
+ *
  * Mutates `match` in place and returns the list of events produced.
  */
 function executeAttack(match, side, atkSlotKey, targetSlotKey, chosenAttackIndex) {
@@ -1076,23 +1119,106 @@ function executeAttack(match, side, atkSlotKey, targetSlotKey, chosenAttackIndex
   const atkDef = attackDefFor(atkEntity, ac, chosenAttackIndex);
   if (!atkDef) return { ok:false, reason:'invalid_attack', events };
 
+  if (atkDef.heal) {
+    // Heals never multi-hit and don't touch weapon/defense/effects sharing.
+    performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events, 0, 0);
+    return finishAttack(match, side, atkSlotKey, events);
+  }
+
   const multi = atkDef.multiAttack;
-  let swings = (multi && multi.guaranteed) ? multi.guaranteed : 1;
+  const baseSwings = (multi && multi.guaranteed) ? multi.guaranteed : 1;
+  // Bonus-swing chance rolls are independent of each other and of whatever
+  // damage actually lands (a miss doesn't stop the roll, only a genuine
+  // stop-condition kill later does, see the loop below), so the WHOLE chain
+  // of chance rolls can be resolved upfront, before any hit happens. That
+  // gives us the final swing count before splitting the weapon/defense
+  // budget, so a "40 dmg, 30% for up to 2 more" attack that rolls both
+  // bonus swings still splits its weapon bonus evenly across all 3, instead
+  // of the first swing grabbing the whole budget before the extras were
+  // even known about.
+  let extraSwings = 0;
   const maxExtra = (multi && !multi.guaranteed && multi.chance) ? (multi.maxExtra != null ? multi.maxExtra : 1) : 0;
-  let extrasUsed = 0;
+  while (extraSwings < maxExtra && Math.random() < multi.chance) extraSwings++;
+  let swings = baseSwings + extraSwings;
+
+  let weaponRef = null, wTotal = 0;
+  if (atkEntity.weaponCard) {
+    weaponRef = atkEntity.weaponCard;
+    wTotal = weaponRef.flatBonus; weaponRef.currentDurability--;
+    events.push({ t:'weapon_use', side, bonus:wTotal, breaks: weaponRef.currentDurability<=0 });
+    if (weaponRef.currentDurability <= 0) atkEntity.weaponCard = null;
+  }
+  let defenseRef = null, dTotal = 0;
+  if (defEntity.defenseCard) {
+    defenseRef = defEntity.defenseCard;
+    dTotal = defenseRef.flatBonus; defenseRef.currentDurability--;
+    events.push({ t:'defense_use', side:defSide, bonus:dTotal, breaks: defenseRef.currentDurability<=0 });
+    if (defenseRef.currentDurability <= 0) defEntity.defenseCard = null;
+  }
+  const wBudget = { remaining: wTotal, hitsLeft: swings };
+  const dBudget = { remaining: dTotal, hitsLeft: swings };
+  // Running-remainder split: each call hands out remaining/hitsLeft (rounded)
+  // and books it against the remaining budget, so growing hitsLeft mid-attack
+  // (an extra swing triggering) just reshuffles what's left over the new
+  // total, and the shares handed out always sum to exactly the starting total.
+  function nextShare(budget) {
+    if (budget.hitsLeft <= 0) return 0;
+    const share = Math.round(budget.remaining / budget.hitsLeft);
+    budget.remaining -= share; budget.hitsLeft--;
+    return share;
+  }
 
   let i = 0;
+  let anyLanded = false;
   while (i < swings) {
-    const result = performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events);
+    // Announce a bonus swing right as it's about to happen (i.e. this index
+    // is past the guaranteed/base count), matching where the old sequential
+    // roll used to land it, even though the roll itself already happened above.
+    if (i >= baseSwings) {
+      events.push({ t:'multi_attack', side, slot:atkSlotKey, card:ac.instanceId, swing:i + 1 });
+    }
+    const wShare = nextShare(wBudget);
+    const dShare = nextShare(dBudget);
+    const result = performHit(match, side, atkSlotKey, targetSlotKey, atkDef, ac, atkEntity, defEntity, defSide, events, wShare, dShare);
     i++;
+    if (result.landed) anyLanded = true;
     if (result.stop) break;
-    if (maxExtra > 0 && extrasUsed < maxExtra && i === swings) {
-      if (Math.random() < multi.chance) {
-        swings++; extrasUsed++;
-        events.push({ t:'multi_attack', side, slot:atkSlotKey, card:ac.instanceId, swing:swings });
+  }
+
+  // Attack effects + weapon/defense addEffects apply ONCE for the whole
+  // multi-hit sequence (not once per swing), and only if the target is
+  // still there to receive them (a real, non-revived kill mid-sequence
+  // clears the slot, so there's nothing left to apply to).
+  if (anyLanded && targetSlotKey) {
+    const finalTarget = cardInSlot(defEntity, targetSlotKey);
+    if (finalTarget) {
+      const finalTgtSlotKey = slotOfCard(defEntity, finalTarget);
+      const weaponAmp = weaponRef ? { side, kind:'weapon' } : null;
+      (atkDef.effects || []).forEach(eff => {
+        const applied = applyEffectToCard(finalTarget, eff, weaponAmp);
+        if (applied) events.push({ t:'effect_applied', side, target: finalTarget.instanceId, effect: eff.type });
+        else events.push({ t:'immune', side: defSide, card: finalTarget.instanceId, effect: eff.type });
+      });
+      if (weaponRef && weaponRef.addEffects && weaponRef.addEffects.length) {
+        weaponRef.addEffects.forEach(eff => {
+          const applied = applyEffectToCard(finalTarget, eff, weaponAmp);
+          if (applied) events.push({ t:'effect_applied', side, target: finalTarget.instanceId, effect: eff.type });
+          else events.push({ t:'immune', side: defSide, card: finalTarget.instanceId, effect: eff.type });
+        });
+        events.push({ t:'weapon_effect', side, slot:atkSlotKey, weapon:weaponRef.baseId, target:finalTarget.instanceId });
+      }
+      if (defenseRef && defenseRef.addEffects && defenseRef.addEffects.length) {
+        const defenseAmp = { side: defSide, kind:'defense' };
+        defenseRef.addEffects.forEach(eff => {
+          const applied = applyEffectToCard(ac, eff, defenseAmp);
+          if (applied) events.push({ t:'effect_applied', side: defSide, target: ac.instanceId, effect: eff.type });
+          else events.push({ t:'immune', side, card: ac.instanceId, effect: eff.type });
+        });
+        events.push({ t:'defense_effect', side:defSide, slot:finalTgtSlotKey, defense:defenseRef.baseId, target:ac.instanceId });
       }
     }
   }
+
   return finishAttack(match, side, atkSlotKey, events);
 }
 function finishAttack(match, side, atkSlotKey, events) {
@@ -1101,15 +1227,15 @@ function finishAttack(match, side, atkSlotKey, events) {
 }
 
 /** 'rocks' deals 50 damage to a card carrying the effect every time it swaps
- * into OR out of an active slot — not a trap on the opposing card like it
+ * into OR out of an active slot, not a trap on the opposing card like it
  * used to be, but a hazard on the card itself. The effect isn't consumed by
  * triggering: it keeps ticking down via the normal per-turn decay (see
  * processEffects/decayHandEffects) and can fire again on every subsequent
  * swap for as long as it's still active, in or out of hand.
  * `slotKey` is whichever active slot the card is (about to be, or just was)
  * sitting in. Returns false if the card actually died from this hit (caller
- * should treat the slot as cleared already — killCard has handled that),
- * true otherwise — including when there was no 'rocks' effect to trigger at
+ * should treat the slot as cleared already, killCard has handled that),
+ * true otherwise, including when there was no 'rocks' effect to trigger at
  * all, AND when the card had lethal rocks damage but self-revived via a
  * `passive` revive block instead of dying (see `tryPassiveRevive`). */
 function applyRocksOnSwap(match, side, slotKey, events) {
@@ -1138,8 +1264,8 @@ function isMatchOver(match) {
 
 /* ── RANK SYSTEM ──────────────────────────────────────────────────────
  * Ten tiers, five sub-ranks each (V worst → I best), 5 rank points per
- * sub-rank — 25 points to climb a whole tier, 250 to run the entire ladder.
- * A win is +2 rank points, a loss is -1 (floored at 0 — see applyMatchReward
+ * sub-rank, 25 points to climb a whole tier, 250 to run the entire ladder.
+ * A win is +2 rank points, a loss is -1 (floored at 0, see applyMatchReward
  * in server.js, where rankPoints is actually persisted). This table is the
  * single source of truth for turning a raw point total into a tier/sub-rank
  * label; the client mirrors just the display table, never the math. */
@@ -1148,10 +1274,10 @@ const RANK_SUBS = ['V','IV','III','II','I']; // index 0 = worst of the tier, ind
 const RANK_POINTS_PER_SUB = 5;
 const RANK_SUBS_PER_TIER = RANK_SUBS.length;
 const RANK_POINTS_PER_TIER = RANK_POINTS_PER_SUB * RANK_SUBS_PER_TIER; // 25
-const RANK_MAX_POINTS = RANK_TIERS.length * RANK_POINTS_PER_TIER - 1;  // 249 — top of Absolute I
+const RANK_MAX_POINTS = RANK_TIERS.length * RANK_POINTS_PER_TIER - 1;  // 249, top of Absolute I
 
 /** points -> {tier, sub, label, points}. Points are clamped into the valid
- * ladder range only for the purposes of this lookup — the raw stored value
+ * ladder range only for the purposes of this lookup, the raw stored value
  * is never itself clamped/mutated, so no precision is lost once someone's
  * sitting at the very top. */
 function getRank(points) {
@@ -1165,7 +1291,7 @@ function getRank(points) {
 }
 /** Rank-points threshold for "reach `tier` `sub`" (sub omitted/null means
  * just entering the tier, i.e. its worst sub, index 0). Used by the
- * rank-climb permanent quests below — e.g. rankThreshold('Bronze','I') is
+ * rank-climb permanent quests below, e.g. rankThreshold('Bronze','I') is
  * the point total at which you've cleared all of Bronze and are one win
  * from promoting into Iron. */
 function rankThreshold(tier, sub) {
@@ -1175,35 +1301,35 @@ function rankThreshold(tier, sub) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
- * QUEST SYSTEM — pure data + pure helpers only. All progress is tracked,
+ * QUEST SYSTEM, pure data + pure helpers only. All progress is tracked,
  * persisted, and verified server-side (see server.js's player_quest_progress
  * / player_quest_bars tables + recordQuestEvent/recordQuestThreshold/
- * addQuestBarPoints) — the client is only ever told the result, never
+ * addQuestBarPoints), the client is only ever told the result, never
  * trusted to report it, same spirit as everything else in this file. Every
  * quest below pays real currency (permanent) or quest-bar points
- * (daily/weekly), so every last one of them is server-verified — nothing
+ * (daily/weekly), so every last one of them is server-verified, nothing
  * here is decorative.
  *
  * Three scopes:
- *   daily      — resets every UTC day (see dailyPeriodKey). Completing one
+ *   daily     , resets every UTC day (see dailyPeriodKey). Completing one
  *                awards `points` onto that day's Daily Quest Bar.
- *   weekly     — resets every ISO week (see weeklyPeriodKey). Same idea,
+ *   weekly    , resets every ISO week (see weeklyPeriodKey). Same idea,
  *                onto that week's Weekly Quest Bar.
- *   permanent  — never resets, completes once, ever. Pays its `reward`
+ *   permanent , never resets, completes once, ever. Pays its `reward`
  *                (currency now; `banner`/`icon` fields are placeholders for
- *                a future cosmetic-unlock system — currently a no-op if set)
+ *                a future cosmetic-unlock system, currently a no-op if set)
  *                on completion, no bar involved. Reaching a daily/weekly
- *                quest's target doesn't pay anything by itself either —
+ *                quest's target doesn't pay anything by itself either,
  *                see claim_quest/claim_milestone in server.js, nothing
  *                pays out until the player explicitly claims it.
  *
  * Two flavors of progress, both server-driven, never client-reported:
- *   cumulative — recordQuestEvent(userId, track, amount) ADDS `amount` to
+ *   cumulative, recordQuestEvent(userId, track, amount) ADDS `amount` to
  *                every active quest listening on `track` (e.g. "play 3
  *                matches", "open 15 packs").
- *   threshold  — recordQuestThreshold(userId, track, currentValue) sets
+ *   threshold , recordQuestThreshold(userId, track, currentValue) sets
  *                progress to max(existing progress, currentValue) instead
- *                of adding — for "reach/have/hold N" style quests (gold
+ *                of adding, for "reach/have/hold N" style quests (gold
  *                held, friend count, unique cards owned, rank points, the
  *                highest loss-streak against any single opponent) where
  *                what matters is the best value ever observed, not a tally
@@ -1224,6 +1350,7 @@ const QUEST_TRACK = {
   MARKET_FLIP_PROFIT: 'market_flip_profit',  // event: sold something for more than its last-bought price
   MARKET_SELL_LOSS: 'market_sell_loss',      // event: sold something for less than its last-bought price
   GOLD_HELD: 'gold_held',                    // threshold: current gold balance
+  GOLD_EARNED: 'gold_earned',                 // additive: gold actually gained (match wins, market sales, ...), NOT balance
   PACK_BUY: 'pack_buy',
   PACK_VARIETY: 'pack_variety',              // threshold: count of distinct pack ids ever opened
   FRIEND_DUEL: 'friend_duel',
@@ -1255,8 +1382,8 @@ const QUEST_DEFS = [
     title:'Pack Opener', desc:'Open 1 pack.' },
   { id:'daily_shopping_spree', scope:'daily', track:QUEST_TRACK.MARKET_PURCHASE, target:2, points:20,
     title:'Shopping Spree', desc:'Purchase 2 marketplace items.' },
-  { id:'daily_rich_guy', scope:'daily', track:QUEST_TRACK.GOLD_HELD, target:200, points:10, kind:'threshold',
-    title:'Rich Guy', desc:'Get 200 coins.' },
+  { id:'daily_rich_guy', scope:'daily', track:QUEST_TRACK.GOLD_EARNED, target:200, points:10,
+    title:'Rich Guy', desc:'Earn 200 coins today.' },
 
   // ── WEEKLY (9) ─────────────────────────────────────────────────────
   { id:'weekly_arena_conquerer', scope:'weekly', track:QUEST_TRACK.MATCH_PLAY, target:15, points:10,
@@ -1275,12 +1402,12 @@ const QUEST_DEFS = [
     title:'Pack Variety', desc:'Open at least one pack of 5 different types.' },
   { id:'weekly_old_friends', scope:'weekly', track:QUEST_TRACK.FRIEND_DUEL, target:1, points:10,
     title:'Old Friends', desc:'Duel a friend one time.' },
-  { id:'weekly_golden_guy', scope:'weekly', track:QUEST_TRACK.GOLD_HELD, target:1000, points:20, kind:'threshold',
-    title:'Golden Guy', desc:'Get 1000 coins.' },
+  { id:'weekly_golden_guy', scope:'weekly', track:QUEST_TRACK.GOLD_EARNED, target:1000, points:20,
+    title:'Golden Guy', desc:'Earn 1000 coins this week.' },
 
-  // ── PERMANENT (28) — reward amounts are placeholder/tunable; several
+  // ── PERMANENT (28), reward amounts are placeholder/tunable; several
   // carry a reward.icon or reward.banner too (unlocking a quest-locked
-  // profile cosmetic — see PROFILE_ICONS_LOCKED/PROFILE_BANNERS_LOCKED in
+  // profile cosmetic, see PROFILE_ICONS_LOCKED/PROFILE_BANNERS_LOCKED in
   // server.js and ICON_SVGS/banner-* CSS in docs/index.html), granted
   // alongside the currency the instant the quest completes, same as spec:
   // "permanent quests give immediate currency... and profile
@@ -1342,18 +1469,30 @@ const QUEST_DEFS = [
   { id:'perm_absolute', scope:'permanent', track:QUEST_TRACK.RANK_POINTS, target:rankThreshold('Absolute'), kind:'threshold',
     title:'Absolute', desc:'Reach Absolute.', reward:{gold:2500,gems:100,banner:'absolute'} },
 
-  // Scaffolded, not in the current list — same system, shows what else can
+  // Scaffolded, not in the current list, same system, shows what else can
   // slot in later without any further engine changes:
   // { id:'perm_customize_profile', scope:'permanent', track:QUEST_TRACK.PROFILE_CUSTOMIZE, target:1,
   //   title:'Make It Yours', desc:'Customize your profile.', reward:{ gold:100, gems:0 } },
 ];
+
+/** The permanent quest descriptions above intentionally don't spell out the
+ * cosmetic reward inline (easier to author/scan as a flat list), so patch
+ * that in here: any def with a reward.icon/reward.banner gets it appended
+ * to its desc, in the exact wording the client displays verbatim. Keeps
+ * the reward text always in sync with the actual reward object instead of
+ * being hand-typed (and liable to drift) in two places. */
+function titleCaseCosmeticId(id){ return id.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+QUEST_DEFS.forEach(q=>{
+  if(q.reward?.icon) q.desc += ` Reward includes the '${titleCaseCosmeticId(q.reward.icon)}' profile icon.`;
+  if(q.reward?.banner) q.desc += ` Reward includes the '${titleCaseCosmeticId(q.reward.banner)}' profile banner.`;
+});
 const QuestById = Object.fromEntries(QUEST_DEFS.map(q => [q.id, q]));
 const questDefsForTrack = track => QUEST_DEFS.filter(q => q.track === track);
 const questDefsForScope = scope => QUEST_DEFS.filter(q => q.scope === scope);
 
 /** The bar fills from 0–100 via each completed daily/weekly quest's
  * `points`, paying out a (placeholder, tunable) currency reward every time
- * it crosses one of these milestones — weekly pays more than daily since
+ * it crosses one of these milestones, weekly pays more than daily since
  * its quests are harder. */
 const QUEST_BAR_MILESTONES = [20, 40, 60, 80, 100];
 const QUEST_BAR_MILESTONE_REWARDS = {
@@ -1361,13 +1500,13 @@ const QUEST_BAR_MILESTONE_REWARDS = {
   weekly: { 20:{gold:60}, 40:{gold:60}, 60:{gold:80}, 80:{gold:80}, 100:{gold:200, gems:8} },
 };
 
-/** UTC calendar day, e.g. '2026-08-13' — the daily reset boundary. A new
+/** UTC calendar day, e.g. '2026-08-13', the daily reset boundary. A new
  * key each day means a brand-new progress/bar row is simply created fresh;
  * nothing needs to explicitly "reset" the old one. */
 function dailyPeriodKey(now = new Date()) {
   return now.toISOString().slice(0, 10);
 }
-/** ISO-8601 week key, e.g. '2026-W33' — the weekly reset boundary (Monday
+/** ISO-8601 week key, e.g. '2026-W33', the weekly reset boundary (Monday
  * start, first week of a year is the one containing that year's first
  * Thursday). Same "new key = fresh row" reasoning as dailyPeriodKey. */
 function weeklyPeriodKey(now = new Date()) {
@@ -1389,11 +1528,11 @@ function periodKeyForScope(scope, now = new Date()) {
 
 /** Given a bar's already-claimed milestone list and its new point total,
  * returns the milestones newly crossed (each only once, ever, per bar
- * period — diffing against `claimedMilestones` rather than an old/new
+ * period, diffing against `claimedMilestones` rather than an old/new
  * point delta makes this safe to call however/whenever, not just exactly
  * once per point-add) and the combined reward to pay out for them. Does
- * NOT mutate its inputs — the caller persists the returned claimed list.
- * Not currently wired into server.js's live path — reaching a milestone's
+ * NOT mutate its inputs, the caller persists the returned claimed list.
+ * Not currently wired into server.js's live path, reaching a milestone's
  * threshold no longer auto-pays it out, see claimBarMilestone there for
  * the explicit-claim flow that replaced calling this on every point-add.
  * Left here as a reusable pure helper (e.g. for a future "N milestones
@@ -1418,7 +1557,7 @@ module.exports = {
   CardDB, CardById, CARD_LIBRARY_HASH, CARD_LIBRARY_RAW, PACK_DEFS, PackById, RARITY_ORDER, rarityRank,
   Effects, hasEffect, applyEffectToCard, isImmuneTo, processEffects, checkCardDeath, decayHandEffects,
   createCard, generateDeck, buildDeckFromIds, isDeckLegal, freshSide,
-  executeAttack, applyRocksOnSwap, isMatchOver, applyDeployAbility,
+  executeAttack, applyRocksOnSwap, isMatchOver, executeAbilityEffect, cardInSlot,
   killCard, executeRevive, applySynergies, attackDefFor, aliveCreatureCount,
   reviveClassFor, grantReviveCharges, processReviveQueue, REVIVE_CLASS_TABLE,
   applySetBonuses, CARD_SET_MEMBERS, SET_STAT_BONUS,
