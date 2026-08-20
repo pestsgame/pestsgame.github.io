@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Arena of PESTS — realtime combat server.
+ * Arena of PESTS, realtime combat server.
  *
  * - Transport: raw `ws` WebSockets (no socket.io tax, no polling fallback).
  *   Messages are small JSON objects; permessage-deflate is disabled because
@@ -27,7 +27,7 @@ const Engine = require('./game-engine');
 
 /* ── CHAT IMAGE CATALOG ───────────────────────────────────────────────
  * The server's own copy of the same image.json the client's chat-image
- * picker reads from (docs/chat-images/image.json) — kept as a separate
+ * picker reads from (docs/chat-images/image.json), kept as a separate
  * file here on purpose, so this validation never depends on trusting
  * whatever a connecting client claims its catalog looks like. The actual
  * image files are never touched or served by this server (they're static
@@ -41,7 +41,7 @@ const CHAT_IMAGE_IDS = new Set(Object.keys(JSON.parse(fs.readFileSync(CHAT_IMAGE
 const CHAT_IMAGE_TOKEN_RE = /^\{image:([a-zA-Z0-9_-]{1,64})\}$/;
 /** True for ordinary text (nothing shaped like an image token) or a token
  * naming a real catalog id; false only for a token naming an id that isn't
- * in the official catalog — the one case every chat send path must block. */
+ * in the official catalog, the one case every chat send path must block. */
 function isAllowedChatText(text) {
   const m = String(text || '').trim().match(CHAT_IMAGE_TOKEN_RE);
   return !m || CHAT_IMAGE_IDS.has(m[1]);
@@ -72,7 +72,7 @@ try {
   const parsed = JSON.parse(raw);
   if (Array.isArray(parsed) && parsed.length) BOT_NAMES = parsed;
 } catch (e) {
-  console.warn('[arena] names.json missing/invalid — falling back to a tiny built-in name list.');
+  console.warn('[arena] names.json missing/invalid, falling back to a tiny built-in name list.');
 }
 const recentBotNames = []; // small rolling window to avoid back-to-back repeats
 function pickBotName() {
@@ -92,7 +92,7 @@ const supabase = HAS_SUPABASE
   : null;
 
 if (!HAS_SUPABASE) {
-  console.warn('[arena] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — running in GUEST-ONLY mode.');
+  console.warn('[arena] SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set, running in GUEST-ONLY mode.');
   console.warn('[arena] Wins/losses/gold/gems/collection will NOT persist. See .env.example.');
 }
 
@@ -100,7 +100,7 @@ if (!HAS_SUPABASE) {
  * server's own image.json. That table exists solely so the global-chat
  * insert policy (global chat is written directly by the client to
  * Supabase and never touches this server) can reject a `{image:<id>}`
- * token naming anything outside the official catalog — battle/guild/DM
+ * token naming anything outside the official catalog, battle/guild/DM
  * chat get the same check in-process via isAllowedChatText, but global
  * chat has no server in the loop to ask, so the check has to live in the
  * database itself. image.json here stays the single source of truth;
@@ -122,7 +122,7 @@ async function syncChatImageCatalog() {
     }
     console.log(`[arena] chat image catalog synced (${ids.length} official image${ids.length === 1 ? '' : 's'})`);
   } catch (e) {
-    console.error('[arena] chat image catalog sync failed — global chat image posts may be rejected until this is fixed', e);
+    console.error('[arena] chat image catalog sync failed, global chat image posts may be rejected until this is fixed', e);
   }
 }
 
@@ -133,7 +133,7 @@ const connections = new Map();
 const activeMatchByUser = new Map();
 /** matchId -> Match */
 const matches = new Map();
-/** FIFO queues of userIds waiting for an opponent — kept separate so a
+/** FIFO queues of userIds waiting for an opponent, kept separate so a
  * ranked player is never paired against someone who queued casual, and
  * vice versa. */
 const rankedQueue = [];
@@ -144,7 +144,7 @@ const casualQueue = [];
 const queueMode = new Map();
 function queueForMode(mode) { return mode === 'casual' ? casualQueue : rankedQueue; }
 /** Removes a user from whichever queue (if any) they're currently sitting
- * in. Safe to call unconditionally — used from every place a user needs to
+ * in. Safe to call unconditionally, used from every place a user needs to
  * be pulled out of matchmaking (leave, disconnect, duel accept, etc). */
 function removeFromQueues(userId) {
   const mode = queueMode.get(userId);
@@ -155,24 +155,24 @@ function removeFromQueues(userId) {
 }
 /** userId -> pending bot-fallback Timeout, armed while that user sits in a queue */
 const queueTimers = new Map();
-/** targetUserId -> requesterUserId — at most one live incoming duel invite
+/** targetUserId -> requesterUserId, at most one live incoming duel invite
  * tracked per target; a newer invite simply replaces an older unanswered one. */
 const pendingDuels = new Map();
-/** targetUserId -> requesterUserId — same shape as pendingDuels, but for
+/** targetUserId -> requesterUserId, same shape as pendingDuels, but for
  * trade invites. A player can have at most one pending trade AND one
  * pending duel at a time, tracked independently. */
 const pendingTrades = new Map();
-/** tradeId -> TradeSession — live trade negotiations. */
+/** tradeId -> TradeSession, live trade negotiations. */
 const tradeSessions = new Map();
-/** userId -> TradeSession — at most one active trade per user, mirroring
+/** userId -> TradeSession, at most one active trade per user, mirroring
  * activeMatchByUser so "already trading"/"already in a match" checks read
  * the same way everywhere. */
 const activeTradeByUser = new Map();
-/** userId -> matchId — at most one live spectate session per viewer;
+/** userId -> matchId, at most one live spectate session per viewer;
  * starting a new one silently replaces whatever they were watching before. */
 const spectatingUserMatch = new Map();
 
-/** Sends to literally every connected client — used only for the
+/** Sends to literally every connected client, used only for the
  * lightweight "this player is now in/out of a match" presence blip that
  * powers the purple spectate-eye indicator client-side. Small enough scale
  * here that a full broadcast is simpler and cheaper than targeted fan-out. */
@@ -187,10 +187,10 @@ function broadcastAll(payload) {
  * server instances, per the design in supabase-schema.sql. */
 const PRESENCE_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000; // no heartbeat in this long => offline
 const PRESENCE_SWEEP_MS = 60 * 1000;
-const guestPresence = new Map(); // userId -> { lastHeartbeat, online } — only used when Supabase isn't configured
-const guestFriendships = new Map(); // pairKey -> { status:'pending'|'accepted', requestedBy, createdAt } — guest-mode fallback
+const guestPresence = new Map(); // userId -> { lastHeartbeat, online }, only used when Supabase isn't configured
+const guestFriendships = new Map(); // pairKey -> { status:'pending'|'accepted', requestedBy, createdAt }, guest-mode fallback
 
-/** Guild registries — only used when Supabase isn't configured. Mirrors the
+/** Guild registries, only used when Supabase isn't configured. Mirrors the
  * shape of the real tables closely enough that the data-layer functions
  * below can branch on HAS_SUPABASE the same way every other feature does. */
 const guestGuilds = new Map();              // guildId -> { id, name, leaderId, icon, frame, visibility, joinFeeEnabled, joinFeeCurrency, joinFeeAmount, createdAt }
@@ -203,7 +203,7 @@ const guestUserInvite = new Map();           // userId -> guildId (at most one p
 const guestGuildChatMessages = new Map();    // guildId -> Array<{ id, userId, message, createdAt }>, oldest first
 const guildChatLastSentAt = new Map();       // userId -> ms timestamp of their last chat message (simple per-user rate limit)
 
-/** Marketplace registries — only used when Supabase isn't configured.
+/** Marketplace registries, only used when Supabase isn't configured.
  * Mirrors marketplace_listings/marketplace_bids/direct_messages closely
  * enough that the data-layer functions below branch on HAS_SUPABASE the
  * same way every other feature does. */
@@ -212,7 +212,7 @@ const guestBids = new Map();                 // listingId -> Array<{id,bidderId,
 const guestDMs = new Map();                  // pairKey(a,b) -> Array<message>, oldest first
 const guestDMArchived = new Map();           // `${ownerId}|${otherId}` -> archivedAt ISO string
 
-/** Tournament registries — only used when Supabase isn't configured.
+/** Tournament registries, only used when Supabase isn't configured.
  * Mirrors tournament_events/tournament_registrations/tournament_brackets
  * closely enough that the data-layer functions below branch on
  * HAS_SUPABASE the same way every other feature does. */
@@ -220,7 +220,7 @@ const guestTournamentEvents = new Map();         // eventId -> event object (cam
 const guestTournamentRegistrations = new Map();  // eventId -> Map(userId -> registration object)
 const guestTournamentBrackets = new Map();       // bracketId -> bracket object (camelCase, see rowToBracket shape)
 
-/** Quest registries — only used when Supabase isn't configured. Mirrors
+/** Quest registries, only used when Supabase isn't configured. Mirrors
  * player_quest_progress/player_quest_bars, keyed the same way the real
  * tables are (owner_id+quest_id+period_key / owner_id+scope+period_key)
  * so the data-layer functions below branch on HAS_SUPABASE like everything
@@ -232,16 +232,16 @@ let nextGuestId = 1;
 
 /* ── PROFILE CUSTOMIZATION (validated allow-lists) ────────────────── */
 // The server is the only thing that ever writes these fields, and it only
-// ever accepts values from these lists — an emoji/theme the client didn't
+// ever accepts values from these lists, an emoji/theme the client didn't
 // offer never reaches Postgres, no matter what a modified client sends.
-// Icon values are ids (not emoji) — the client maps each id to a custom SVG
+// Icon values are ids (not emoji), the client maps each id to a custom SVG
 // glyph it draws itself. Keep this list in sync with ICON_SVGS in docs/index.html.
 const PROFILE_ICONS_FREE = ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'];
 const PROFILE_BANNERS_FREE = ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'];
-// Quest-locked cosmetics — only reachable by completing the matching
+// Quest-locked cosmetics, only reachable by completing the matching
 // permanent quest (see game-engine.js's QUEST_DEFS reward.icon/reward.banner
 // fields, and grantQuestCosmetics, which is what actually unlocks these).
-// Valid to EQUIP only once actually unlocked (see updateProfile) — being in
+// Valid to EQUIP only once actually unlocked (see updateProfile), being in
 // this list just means the id exists/is drawable, same as the free set.
 const PROFILE_ICONS_LOCKED = ['first_card','collector','overlord_master','merchant','flipper','nemesis','pack_fiend','lucky_bastard'];
 const PROFILE_BANNERS_LOCKED = ['first_pack','archivist','first_sale','market_crash','hello_world','guildgoer','fabled_pull','absolute'];
@@ -256,7 +256,7 @@ const FAVORITES_MAX = 3;
  * tables: server-only source of truth for which quest-locked icons/banners
  * a player has actually earned (see grantQuestCosmetics, called from
  * recordQuestEvent/recordQuestThreshold the moment a permanent quest with
- * a reward.icon/reward.banner completes — NOT gated behind claim_quest,
+ * a reward.icon/reward.banner completes, NOT gated behind claim_quest,
  * same as that quest's currency: "permanent quests give immediate
  * currency... and profile banners/icons" per spec). */
 const guestCosmeticUnlocks = new Map(); // userId -> { icons:Set, banners:Set }
@@ -280,7 +280,7 @@ async function getCosmeticUnlocks(userId) {
   for (const row of (data || [])) (row.kind === 'icon' ? icons : banners).push(row.item_id);
   return { icons, banners };
 }
-/** Called wherever a permanent quest's completion is processed — grants
+/** Called wherever a permanent quest's completion is processed, grants
  * any icon/banner named in its reward. A no-op for quests whose reward is
  * currency-only (most of them). */
 async function grantQuestCosmetics(userId, reward) {
@@ -291,7 +291,7 @@ async function grantQuestCosmetics(userId, reward) {
 
 /* ── GUILDS (validated allow-lists, same posture as profile icons/banners) ─
  * `icon` is the emblem drawn in the middle (reuses the same hand-drawn SVG
- * glyph set as player profiles — never emoji). `frame` is a separate
+ * glyph set as player profiles, never emoji). `frame` is a separate
  * decorative border drawn around it; the client maps each id to its own
  * SVG ring/border shape. Keep both lists in sync with GUILD_ICON_SVGS /
  * GUILD_FRAME_SVGS in docs/index.html. */
@@ -328,14 +328,14 @@ const DM_CLEANUP_SWEEP_MS = 10 * 60 * 1000;              // how often that purge
  *   - official_daily / official_weekly: the server keeps exactly one
  *     upcoming slot of each open for registration at all times (see
  *     ensureUpcomingOfficialEvents). Cheap, fixed entry fee, always caps
- *     each actual bracket at TOURNAMENT_BRACKET_SIZE players — an event
+ *     each actual bracket at TOURNAMENT_BRACKET_SIZE players, an event
  *     that draws more entrants than that just produces more brackets, all
  *     running in parallel, each with its own independent prize pool.
  *   - unofficial: a player sets everything (name/cap/cut/time/fee) and
  *     registration itself is capped at their chosen player count, so an
  *     unofficial event is always exactly one bracket.
- * Both kinds share the exact same lock/shard/bracket/payout machinery —
- * see lockAndShardEvent() — they only differ in where their settings came
+ * Both kinds share the exact same lock/shard/bracket/payout machinery,
+ * see lockAndShardEvent(), they only differ in where their settings came
  * from (fixed constants vs. a validated player submission). */
 const TOURNAMENT_BRACKET_SIZE = 16;                 // official bracket cap; also the max an unofficial host can choose
 const TOURNAMENT_OFFICIAL_PRIZE_PERCENT = 80;        // official: winner takes 80% of the pool, 20% is a currency sink (same idea as bazaar tax)
@@ -344,10 +344,10 @@ const TOURNAMENT_WEEKLY_ENTRY_GEMS = Number(process.env.TOURNAMENT_WEEKLY_ENTRY_
 const TOURNAMENT_DAILY_HOUR_UTC = Number(process.env.TOURNAMENT_DAILY_HOUR_UTC ?? 20);       // 20:00 UTC daily
 const TOURNAMENT_WEEKLY_DAY_UTC = Number(process.env.TOURNAMENT_WEEKLY_DAY_UTC ?? 0);        // 0 = Sunday
 const TOURNAMENT_WEEKLY_HOUR_UTC = Number(process.env.TOURNAMENT_WEEKLY_HOUR_UTC ?? 20);
-const TOURNAMENT_MIN_PLAYERS_TO_RUN = 2;             // fewer checked-in than this and the whole event just refunds + cancels — there's no bracket to run
+const TOURNAMENT_MIN_PLAYERS_TO_RUN = 2;             // fewer checked-in than this and the whole event just refunds + cancels, there's no bracket to run
 const TOURNAMENT_UNOFFICIAL_MIN_PLAYERS = 2;
 const TOURNAMENT_UNOFFICIAL_MAX_PLAYERS = TOURNAMENT_BRACKET_SIZE;
-const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN = 50;  // floor exists so a host can't pocket almost the whole pool and leave players playing for scraps — the rest above the winner's cut goes to the host, not burned
+const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN = 50;  // floor exists so a host can't pocket almost the whole pool and leave players playing for scraps, the rest above the winner's cut goes to the host, not burned
 const TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX = 100;
 const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD = 5000;
 const TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS = 500;
@@ -375,7 +375,7 @@ function sanitizeProfileFields(msg) {
   return out;
 }
 
-/** Favorite cards must actually be owned — checked against the caller's own
+/** Favorite cards must actually be owned, checked against the caller's own
  * collection, never trusted from the client. */
 function sanitizeFavorites(favoriteCards, ownedSet) {
   if (!Array.isArray(favoriteCards)) return undefined;
@@ -389,8 +389,8 @@ async function fetchProfile(userId, fallbackName) {
   if (!HAS_SUPABASE) {
     if (!guestProfiles.has(userId)) {
       guestProfiles.set(userId, { id: userId, username: fallbackName || `Guest${nextGuestId++}`,
-        gold: 500, gems: 25, wins: 0, losses: 0, rankPoints: 0, icon: 'star', banner: 'violet', bio: '', favoriteCards: [],
-        collection: seedStarterIds(), deck: [] });
+        gold: 0, gems: 0, wins: 0, losses: 0, rankPoints: 0, icon: 'star', banner: 'violet', bio: '', favoriteCards: [],
+        collection: seedStarterIds(), deck: [], tutorialBonusClaimed: false });
     }
     const p = guestProfiles.get(userId);
     const unlocks = await getCosmeticUnlocks(userId);
@@ -400,11 +400,11 @@ async function fetchProfile(userId, fallbackName) {
   let { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
   if (!profile) {
-    const insert = { id: userId, username: fallbackName || `Pestmaster${nextGuestId++}`, gold: 500, gems: 25, wins: 0, losses: 0, rank_points: 0 };
+    const insert = { id: userId, username: fallbackName || `Pestmaster${nextGuestId++}`, gold: 0, gems: 0, wins: 0, losses: 0, rank_points: 0 };
     const { data: created, error: insErr } = await supabase.from('profiles').insert(insert).select('*').single();
     if (insErr) throw insErr;
     profile = created;
-    // seed starter collection for brand-new accounts — one jsonb row, not
+    // seed starter collection for brand-new accounts, one jsonb row, not
     // one row per starter card
     const starter = seedStarterIds();
     await supabase.from('player_cards').upsert(
@@ -435,7 +435,7 @@ async function updateProfile(userId, msg, ownedSet) {
   const fields = sanitizeProfileFields(msg);
   const favoriteCards = sanitizeFavorites(msg.favoriteCards, ownedSet);
 
-  // Icon/banner must actually be UNLOCKED, not just a recognized id —
+  // Icon/banner must actually be UNLOCKED, not just a recognized id,
   // sanitizeProfileFields already guarantees it's a real id from
   // PROFILE_ICONS/PROFILE_BANNERS, but a quest-locked one additionally
   // requires having actually completed its quest. A modified client
@@ -473,7 +473,7 @@ async function updateProfile(userId, msg, ownedSet) {
 }
 /* ── FRIENDS + PRESENCE LAYER (Supabase-backed, guest fallback) ───────
  * Every mutation still flows through a WebSocket message like everything
- * else in this file — this just decides where the resulting row lives.
+ * else in this file, this just decides where the resulting row lives.
  * Presence and the friendships themselves persist in Supabase (see
  * supabase-schema.sql); friend requests, accept/decline, unfriend, and
  * duels are ordinary WS request/response, same as deploy/attack/end_turn. */
@@ -495,7 +495,7 @@ async function findUserIdByUsername(username) {
   return data ? data.id : null;
 }
 
-/** Lightweight {username,icon} lookup for many ids at once — a friends
+/** Lightweight {username,icon} lookup for many ids at once, a friends
  * list has no business pulling everyone's full collection/deck the way
  * fetchProfile does. */
 async function fetchProfileSummaries(userIds) {
@@ -546,7 +546,7 @@ async function acceptFriendRequest(userId, otherId) {
   if (error) throw error;
 }
 
-/** Deletes the relationship regardless of status — covers unfriending an
+/** Deletes the relationship regardless of status, covers unfriending an
  * accepted friend, cancelling your own outgoing request, and declining an
  * incoming one, since none of those need a lingering row. */
 async function deleteFriendship(userId, otherId) {
@@ -587,7 +587,7 @@ async function markPresenceOffline(userId) {
   if (error) throw error;
 }
 
-/** Batched online check — a user counts as online only if their presence
+/** Batched online check, a user counts as online only if their presence
  * row says so AND its heartbeat hasn't gone stale. */
 async function onlineStatusBatch(userIds) {
   const ids = [...new Set(userIds)];
@@ -610,7 +610,7 @@ async function onlineStatusBatch(userIds) {
   return out;
 }
 
-/** Pushes a presence flip to every online friend's live connection —
+/** Pushes a presence flip to every online friend's live connection,
  * there's no need to persist this event, only the resulting row. */
 async function broadcastPresence(userId, online) {
   try {
@@ -652,7 +652,7 @@ async function buildFriendsList(userId) {
  * A player is in at most one guild at a time (enforced by the unique
  * `user_id` constraint on guild_members, and by the guest-mode maps
  * mirroring it). Everything here is an ordinary WS request/response, same
- * as friends — the client never talks to these tables directly. */
+ * as friends, the client never talks to these tables directly. */
 
 /** Case-insensitive exact-name lookup, used to reject duplicate guild names
  * before ever attempting an insert. */
@@ -702,7 +702,7 @@ async function countGuildMembers(guildId) {
 }
 
 /** Full enriched roster: userId/username/icon/online/role/joinedAt, sorted
- * leader-first then alphabetically — same "who's actually here" shape the
+ * leader-first then alphabetically, same "who's actually here" shape the
  * friends list already gives the client. */
 async function listGuildMembers(guildId) {
   let rows;
@@ -779,7 +779,7 @@ async function deleteGuild(guildId) {
   if (error) throw error;
 }
 
-/** Validated field extraction shared by guild_create — throws with a `.code`
+/** Validated field extraction shared by guild_create, throws with a `.code`
  * the client can key off of, same convention as saveDeck/grantPack. */
 function sanitizeGuildCreateFields(msg) {
   const name = String(msg.name || '').trim();
@@ -802,7 +802,7 @@ function sanitizeGuildCreateFields(msg) {
 
 /** Creates a new guild, deducting the flat gem cost from the founder first.
  * Founder becomes leader and member #1. Throws with `.code` on any failure
- * (insufficient funds, duplicate name, already in a guild, bad fields) —
+ * (insufficient funds, duplicate name, already in a guild, bad fields),
  * nothing is created or charged unless every check passes. */
 async function createGuild(userId, msg) {
   const existing = await getGuildMembership(userId);
@@ -945,7 +945,7 @@ async function deleteInvite(guildId, userId) {
   if (error) throw error;
 }
 
-/** Everyone a guild has outstanding invites out to right now — shown only
+/** Everyone a guild has outstanding invites out to right now, shown only
  * to the leader, so they can see (and cancel) invites they've sent instead
  * of them just silently sitting there until the invitee responds. */
 async function listGuildInvites(guildId) {
@@ -962,7 +962,7 @@ async function listGuildInvites(guildId) {
 }
 
 /* ── Guild chat. Persisted, but pruned after 7 days (see the hourly
- * cleanupExpiredGuildChatMessages sweep near server startup below) — the
+ * cleanupExpiredGuildChatMessages sweep near server startup below), the
  * read path also defensively re-filters to the last 7 days on every fetch,
  * so a delayed cleanup pass can never surface a stale message either. ── */
 async function cleanupExpiredGuildChatMessages() {
@@ -996,7 +996,7 @@ async function listGuildChatMessages(guildId) {
   }));
 }
 
-/** Inserts one message and returns it fully enriched (username/icon) —
+/** Inserts one message and returns it fully enriched (username/icon),
  * exactly the shape the client needs to render it immediately, whether
  * from guild_chat_history or a live guild_chat_message broadcast. */
 async function sendGuildChatMessage(guildId, userId, text) {
@@ -1088,7 +1088,7 @@ async function sendGuildState(userId) {
 }
 
 /** Pushes a fresh guild_state to every currently-connected member of a
- * guild — used after any join/leave/kick/disband/leadership-change so
+ * guild, used after any join/leave/kick/disband/leadership-change so
  * every open client's roster stays in sync without polling. */
 async function broadcastGuildState(guildId) {
   try {
@@ -1108,7 +1108,7 @@ async function broadcastGuildState(guildId) {
  * Tax: 10% normal, 5% if buyer + seller share a guild at the moment the
  * deal locks in (bid time for auctions, purchase/offer-accept time for
  * price listings). The buyer pays price+tax; the seller receives
- * price-tax — both cuts use the same rate. Once locked into a listing
+ * price-tax, both cuts use the same rate. Once locked into a listing
  * (tax_rate column), that rate is reused at settlement rather than
  * recomputed, so a bid made while sharing a guild doesn't retroactively
  * lose its discount if someone leaves the guild before the auction ends.
@@ -1142,7 +1142,7 @@ function listingToRow(l) {
     created_at: l.createdAt, expires_at: l.expiresAt, settled_at: l.settledAt,
   };
 }
-/** Client-facing shape for a listing — adds display names/icons (from a
+/** Client-facing shape for a listing, adds display names/icons (from a
  * pre-fetched summaries Map) and never leaks internal escrow bookkeeping
  * (current_bid_escrow) beyond what the UI needs. */
 function marketListingPayload(l, summaries) {
@@ -1209,7 +1209,7 @@ async function recordBid(listingId, bidderId, amount) {
  * the seller's collection, and persists the row. Returns { error } on any
  * validation failure, never throws for bad input. */
 /* ── Marketplace quest hooks (Merchant/Shopping Spree/Flipper/etc.) ──
- * Small bits of bookkeeping that only exist to feed the quest system —
+ * Small bits of bookkeeping that only exist to feed the quest system,
  * see game-engine.js's QUEST_TRACK for what each of these means. */
 const guestCardBuyPrice = new Map(); // `${userId}|${cardId}` -> {price, currency}
 async function setCardBuyPrice(userId, cardId, price, currency) {
@@ -1237,29 +1237,32 @@ async function computeCollectionQuestThresholds(userId) {
   await recordQuestThreshold(userId, Engine.QUEST_TRACK.OVERLORDS_OWNED, overlordCount);
 }
 /** Shared by every marketplace settlement path (direct buy, auction
- * buyout, auction expiry-with-winner) — everything quest-related that
+ * buyout, auction expiry-with-winner), everything quest-related that
  * happens once a sale actually completes. `grossAmount` is what the buyer
  * paid before marketplace tax (what "sold it for more/less than you paid"
- * should compare against, not the seller's after-tax take). */
-async function onMarketSaleCompleted({ buyerId, sellerId, cardId, grossAmount, currency }) {
+ * should compare against, not the seller's after-tax take); `sellerNet`
+ * (only meaningful when `currency === 'gold'`) is what the seller actually
+ * received after tax, the real amount to credit toward Rich Guy/Golden Guy
+ * (QUEST_TRACK.GOLD_EARNED), which is about coins actually gained, not the
+ * gross sale price and not the seller's resulting balance. */
+async function onMarketSaleCompleted({ buyerId, sellerId, cardId, grossAmount, sellerNet, currency }) {
   try {
     await recordQuestEvent(buyerId, Engine.QUEST_TRACK.MARKET_PURCHASE, 1);
     await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_SALE, 1);
     await recordQuestEvent(buyerId, Engine.QUEST_TRACK.MARKET_TRANSACTION, 1);
     await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_TRANSACTION, 1);
     await computeCollectionQuestThresholds(buyerId);
-    if (currency === 'gold') {
-      const sellerProfile = await fetchProfile(sellerId);
-      await recordQuestThreshold(sellerId, Engine.QUEST_TRACK.GOLD_HELD, sellerProfile.gold);
+    if (currency === 'gold' && sellerNet) {
+      await recordQuestEvent(sellerId, Engine.QUEST_TRACK.GOLD_EARNED, sellerNet);
     }
-    // Flipper / Market Crash — compare against the seller's last known buy
-    // price for this exact card id (a simplified cost basis — see schema).
+    // Flipper / Market Crash, compare against the seller's last known buy
+    // price for this exact card id (a simplified cost basis, see schema).
     const prevBuy = await getCardBuyPrice(sellerId, cardId);
     if (prevBuy && prevBuy.currency === currency) {
       if (grossAmount > prevBuy.price) await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_FLIP_PROFIT, 1);
       else if (grossAmount < prevBuy.price) await recordQuestEvent(sellerId, Engine.QUEST_TRACK.MARKET_SELL_LOSS, 1);
     }
-    // The buyer now owns this card at this price — that's their new cost
+    // The buyer now owns this card at this price, that's their new cost
     // basis if THEY resell it later.
     await setCardBuyPrice(buyerId, cardId, grossAmount, currency);
   } catch (e) { console.error('[arena] market sale quest hooks failed', e); }
@@ -1364,7 +1367,7 @@ async function buyListing(userId, listingId) {
   listing.status = 'sold'; listing.currentBidderId = userId; listing.currentBid = amount;
   listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
   await saveListing(listing);
-  await onMarketSaleCompleted({ buyerId: userId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, currency: listing.currency });
+  await onMarketSaleCompleted({ buyerId: userId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, sellerNet, currency: listing.currency });
   return { ok: true, listing, sellerNet, taxAmt };
 }
 
@@ -1393,7 +1396,7 @@ async function executeAuctionBuyout(listing, buyerId, taxRate) {
   listing.status = 'sold'; listing.currentBid = amount; listing.currentBidderId = buyerId;
   listing.currentBidEscrow = totalCost; listing.taxRate = taxRate; listing.settledAt = new Date().toISOString();
   await saveListing(listing);
-  await onMarketSaleCompleted({ buyerId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, currency: listing.currency });
+  await onMarketSaleCompleted({ buyerId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: amount, sellerNet, currency: listing.currency });
   return { ok: true, listing, bought: true, previousBidderId };
 }
 
@@ -1441,7 +1444,7 @@ async function placeBid(userId, listingId, amountRaw) {
 }
 
 /** Settles every listing whose expires_at has passed: auctions with a bid
- * go to the highest bidder (their escrow already covers it in full — see
+ * go to the highest bidder (their escrow already covers it in full, see
  * placeBid), everything else returns the card to the seller. */
 async function settleExpiredListings() {
   let candidates;
@@ -1463,7 +1466,7 @@ async function settleExpiredListings() {
         await adjustCardQuantity(listing.currentBidderId, listing.cardId, 1);
         listing.status = 'sold'; listing.settledAt = new Date().toISOString();
         await saveListing(listing);
-        await onMarketSaleCompleted({ buyerId: listing.currentBidderId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: listing.currentBid, currency: listing.currency });
+        await onMarketSaleCompleted({ buyerId: listing.currentBidderId, sellerId: listing.sellerId, cardId: listing.cardId, grossAmount: listing.currentBid, sellerNet, currency: listing.currency });
         notifyUser(listing.currentBidderId, { type: 'market_auction_won', listingId: listing.id, cardId: listing.cardId, amount: listing.currentBid, currency: listing.currency });
         notifyUser(listing.sellerId, { type: 'market_item_sold', listingId: listing.id, cardId: listing.cardId, amount: sellerNet, currency: listing.currency });
       } else {
@@ -1476,7 +1479,7 @@ async function settleExpiredListings() {
   }
 }
 
-/* ── Direct messages (marketplace negotiation only — not a general inbox) ── */
+/* ── Direct messages (marketplace negotiation only, not a general inbox) ── */
 function rowToDM(row) {
   return {
     id: row.id, fromId: row.from_id, toId: row.to_id, listingId: row.listing_id, message: row.message,
@@ -1520,7 +1523,7 @@ async function markMessagesRead(ids, guestRowsRef) {
   const { error } = await supabase.from('direct_messages').update({ read: true }).in('id', ids);
   if (error) throw error;
 }
-/** Per-viewer archive flag for a DM conversation — see the
+/** Per-viewer archive flag for a DM conversation, see the
  * player_dm_archived schema comment for the full "auto-un-archives on a
  * new message" behavior, implemented in dmConversations below by simply
  * comparing timestamps rather than needing to clear this on every send. */
@@ -1588,7 +1591,7 @@ async function dmConversations(userId) {
   }
   // A conversation this player archived stays hidden from their own list
   // (see the player_dm_archived schema comment) UNLESS its last message
-  // came in/went out AFTER the archive — i.e. archiving only hides it
+  // came in/went out AFTER the archive, i.e. archiving only hides it
   // until something new happens, same as most chat apps' "archive" (not
   // "block" or "delete") behavior. This is also exactly what makes a
   // finished trade's conversation actually leave the list once archived,
@@ -1604,7 +1607,7 @@ async function dmConversations(userId) {
     .slice(0, DM_CONVERSATIONS_LIMIT);
 }
 
-/** Sends a DM. `listingId`/`offerAmount`/`offerCurrency` are optional — an
+/** Sends a DM. `listingId`/`offerAmount`/`offerCurrency` are optional, an
  * offer is just a message that also carries a proposed price the *seller*
  * can accept to trigger an immediate sale via acceptOffer(). Only ever
  * used for 'price' listings; auctions negotiate through bids only. */
@@ -1679,7 +1682,7 @@ async function acceptOffer(userId, messageId) {
 
 /** Purges DM messages tied to a listing once that listing has been settled
  * (sold/expired/cancelled) for over an hour. The point of a listing-linked
- * message is negotiating THAT sale — once it's resolved, keeping the offer
+ * message is negotiating THAT sale, once it's resolved, keeping the offer
  * back-and-forth around forever just clutters the thread the next time you
  * message the same seller about a different card. Plain messages with no
  * listingId (and messages on a still-active listing) are never touched. */
@@ -1707,14 +1710,26 @@ async function cleanupExpiredListingDMs() {
   if (error) console.error('[arena] DM cleanup failed', error);
 }
 
+/** Starter collection for brand-new accounts, exactly 12 card ids (matches
+ * Engine.DECK_SIZE, so it doubles as a ready-to-save starter deck). This is
+ * the one place to edit to change what new players start with — just swap
+ * the ids below for whatever cards.json ids you want; nothing else needs
+ * to know about it. Placeholder list, not final: 3 equipment + 9 creatures. */
+const STARTER_CARD_IDS = [
+  'crystal_sword', 'rainbow_blade', 'scythe',
+  'obsidian_dragon', 'lightning_dragon', 'giant_imp', 'storm_cleaver',
+  'sun_whisperer', 'moon_disciple', 'blizzard_king', 'crystal_king', 'rockfire_dragon',
+];
 function seedStarterIds() {
-  // All-equipment-plus-PESTS-creatures starter set contains no Boss/Overlord
-  // cards at all, so it's legal by construction under Engine.deckClassificationOk
-  // — a new player can save their whole starter collection as their first deck.
-  // Capped at Engine.MAX_CREATURES creatures, same rule a real deck must follow.
-  const equipment = Engine.CardDB.filter(c => c.cardType === 'weapon' || c.cardType === 'defense').map(c => c.id);
-  const normals = Engine.CardDB.filter(c => !c.cardType && c.classification === 'pests').map(c => c.id).slice(0, Engine.MAX_CREATURES);
-  return [...equipment, ...normals].slice(0, Engine.DECK_SIZE);
+  // Guard against a hand-edited id typo silently shrinking someone's starter
+  // collection: drop anything that isn't actually in cards.json.
+  const validIds = new Set(Engine.CardDB.map(c => c.id));
+  const ids = STARTER_CARD_IDS.filter(id => validIds.has(id));
+  if (ids.length !== STARTER_CARD_IDS.length) {
+    console.warn('[arena] seedStarterIds: one or more STARTER_CARD_IDS entries not found in cards.json, dropped:',
+      STARTER_CARD_IDS.filter(id => !validIds.has(id)));
+  }
+  return ids;
 }
 
 async function saveDeck(userId, cardIds, ownedSet) {
@@ -1738,7 +1753,7 @@ async function saveDeck(userId, cardIds, ownedSet) {
 }
 
 async function grantPack(userId, packId) {
-  const result = Engine.openPack(packId); // throws on bad packId — validated server-side, client can't fake odds
+  const result = Engine.openPack(packId); // throws on bad packId, validated server-side, client can't fake odds
   const profile = await fetchProfile(userId);
   const balance = result.currency === 'gems' ? profile.gems : profile.gold;
   if (balance < result.cost) { const e = new Error('insufficient_funds'); e.code = 'insufficient_funds'; throw e; }
@@ -1753,7 +1768,7 @@ async function grantPack(userId, packId) {
     const { error } = await supabase.from('profiles').update({ [field]: newBalance }).eq('id', userId);
     if (error) throw error;
     // bump quantities: one read + one write for the whole pack, regardless
-    // of how many distinct cards it contained — all of it lives in the
+    // of how many distinct cards it contained, all of it lives in the
     // single jsonb blob for this player now.
     const counts = {};
     result.cards.forEach(c => { counts[c.id] = (counts[c.id] || 0) + 1; });
@@ -1765,7 +1780,7 @@ async function grantPack(userId, packId) {
   recordQuestEvent(userId, Engine.QUEST_TRACK.PACK_BUY, 1).catch(e => console.error('[arena] pack_buy quest event failed', e));
   (async () => {
     try {
-      // Pack Variety — distinct pack ids ever opened, at least once.
+      // Pack Variety, distinct pack ids ever opened, at least once.
       if (!HAS_SUPABASE) {
         let set = guestPackTypes.get(userId);
         if (!set) { set = new Set(); guestPackTypes.set(userId, set); }
@@ -1776,18 +1791,18 @@ async function grantPack(userId, packId) {
         const { count } = await supabase.from('player_pack_types').select('pack_id', { count: 'exact', head: true }).eq('owner_id', userId);
         await recordQuestThreshold(userId, Engine.QUEST_TRACK.PACK_VARIETY, count || 0);
       }
-      // Lucky Bastard / Fabled Pull — did this specific pack contain one?
+      // Lucky Bastard / Fabled Pull, did this specific pack contain one?
       if (result.cards.some(c => c.rarity === 'mythic')) await recordQuestEvent(userId, Engine.QUEST_TRACK.PULL_RARITY_MYTHIC, 1);
       if (result.cards.some(c => c.classification === 'overlord')) await recordQuestEvent(userId, Engine.QUEST_TRACK.PULL_OVERLORD_CARD, 1);
-      // Collector / Archivist / Overlord Master — recompute from the live collection.
+      // Collector / Archivist / Overlord Master, recompute from the live collection.
       await computeCollectionQuestThresholds(userId);
     } catch (e) { console.error('[arena] pack quest hooks failed', e); }
   })();
   return { cards: result.cards, newBalance, currency: result.currency };
 }
-const guestPackTypes = new Map(); // userId -> Set(packId) — guest-mode fallback for Pack Variety
+const guestPackTypes = new Map(); // userId -> Set(packId), guest-mode fallback for Pack Variety
 
-/** Bot opponents get a `bot:<uuid>` userId — never a real profile row, so
+/** Bot opponents get a `bot:<uuid>` userId, never a real profile row, so
  * nothing here should try to read/write one as if it belonged to a player. */
 const isBotId = id => typeof id === 'string' && id.startsWith('bot:');
 
@@ -1800,50 +1815,75 @@ async function applyMatchReward(winnerId, loserId, ranked = true) {
     if (w) { w.wins++; w.gold += WIN_GOLD_REWARD; if (ranked) w.rankPoints = Math.max(0, (w.rankPoints || 0) + RANK_POINTS_WIN); winnerGold = w.gold; winnerRank = w.rankPoints; }
     if (l) { l.losses++; if (ranked) l.rankPoints = Math.max(0, (l.rankPoints || 0) + RANK_POINTS_LOSS); loserRank = l.rankPoints; }
   } else {
-    if (!isBotId(winnerId)) {
-      const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
-      if (winner) {
+    // The winner's profile update, the loser's, and the match-history insert
+    // are three entirely independent writes (different rows, no data one
+    // depends on another for), so they run concurrently rather than as three
+    // sequential round trips — this alone used to account for a good chunk
+    // of the delay between a match actually ending and match_over reaching
+    // the loser, most noticeably against a bot, where the winner's side of
+    // this is normally skipped instantly (isBotId) and so didn't hide how
+    // slow the loser's side alone already was.
+    const [winnerResult, loserResult] = await Promise.all([
+      (async () => {
+        if (isBotId(winnerId)) return null;
+        const { data: winner } = await supabase.from('profiles').select('gold,wins,rank_points').eq('id', winnerId).maybeSingle();
+        if (!winner) return null;
         const update = { gold: winner.gold + WIN_GOLD_REWARD, wins: winner.wins + 1 };
         if (ranked) update.rank_points = Math.max(0, (winner.rank_points || 0) + RANK_POINTS_WIN);
         await supabase.from('profiles').update(update).eq('id', winnerId);
-        winnerGold = update.gold; winnerRank = update.rank_points != null ? update.rank_points : winner.rank_points;
-      }
-    }
-    if (!isBotId(loserId)) {
-      const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
-      if (loser) {
+        return { gold: update.gold, rank: update.rank_points != null ? update.rank_points : winner.rank_points };
+      })(),
+      (async () => {
+        if (isBotId(loserId)) return null;
+        const { data: loser } = await supabase.from('profiles').select('losses,rank_points').eq('id', loserId).maybeSingle();
+        if (!loser) return null;
         const update = { losses: loser.losses + 1 };
         if (ranked) update.rank_points = Math.max(0, (loser.rank_points || 0) + RANK_POINTS_LOSS);
         await supabase.from('profiles').update(update).eq('id', loserId);
-        loserRank = update.rank_points != null ? update.rank_points : loser.rank_points;
-      }
-    }
-    // don't log fake matches against a bot into permanent match history
-    if (!isBotId(winnerId) && !isBotId(loserId)) {
-      await supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked });
-    }
+        return { rank: update.rank_points != null ? update.rank_points : loser.rank_points };
+      })(),
+      // don't log fake matches against a bot into permanent match history
+      (!isBotId(winnerId) && !isBotId(loserId))
+        ? supabase.from('match_history').insert({ player_a: winnerId, player_b: loserId, winner: winnerId, reward_gold: WIN_GOLD_REWARD, reward_gems: 0, ranked })
+        : Promise.resolve(null),
+    ]);
+    if (winnerResult) { winnerGold = winnerResult.gold; winnerRank = winnerResult.rank; }
+    if (loserResult) loserRank = loserResult.rank;
   }
 
-  // ── Quest hooks — every match, win or lose, ranked or not ──────────
-  await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_PLAY, 1);
-  await recordQuestEvent(loserId, Engine.QUEST_TRACK.MATCH_PLAY, 1);
-  await recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_WIN, 1);
+  // ── Quest hooks, every match, win or lose, ranked or not ──────────
+  // Every one of these targets a different quest track (a different set of
+  // DB rows), so none of them depend on any other's result — same
+  // reasoning as above, run them together instead of one at a time. Each
+  // call already handles its own errors internally (see recordQuestEvent/
+  // recordQuestThreshold's per-def try/catch), so one failing can't take
+  // the others down with it.
+  const questHooks = [
+    recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_PLAY, 1),
+    recordQuestEvent(loserId, Engine.QUEST_TRACK.MATCH_PLAY, 1),
+    recordQuestEvent(winnerId, Engine.QUEST_TRACK.MATCH_WIN, 1),
+  ];
   if (ranked) {
-    await recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1);
-    await recordQuestEvent(loserId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1);
-    await recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_WIN, 1);
-    if (winnerRank != null) await recordQuestThreshold(winnerId, Engine.QUEST_TRACK.RANK_POINTS, winnerRank);
-    if (loserRank != null) await recordQuestThreshold(loserId, Engine.QUEST_TRACK.RANK_POINTS, loserRank);
+    questHooks.push(
+      recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1),
+      recordQuestEvent(loserId, Engine.QUEST_TRACK.RANKED_MATCH_PLAY, 1),
+      recordQuestEvent(winnerId, Engine.QUEST_TRACK.RANKED_MATCH_WIN, 1),
+    );
+    if (winnerRank != null) questHooks.push(recordQuestThreshold(winnerId, Engine.QUEST_TRACK.RANK_POINTS, winnerRank));
+    if (loserRank != null) questHooks.push(recordQuestThreshold(loserId, Engine.QUEST_TRACK.RANK_POINTS, loserRank));
   }
-  if (winnerGold != null) await recordQuestThreshold(winnerId, Engine.QUEST_TRACK.GOLD_HELD, winnerGold);
+  if (winnerGold != null) questHooks.push(recordQuestEvent(winnerId, Engine.QUEST_TRACK.GOLD_EARNED, WIN_GOLD_REWARD));
   // Nemesis: track the loser's worst per-opponent loss streak. Skipped for
-  // bot matches — "the same player" doesn't mean much against a bot.
+  // bot matches, "the same player" doesn't mean much against a bot.
   if (!isBotId(winnerId) && !isBotId(loserId)) {
-    try {
-      const streak = await bumpNemesisLoss(loserId, winnerId);
-      await recordQuestThreshold(loserId, Engine.QUEST_TRACK.NEMESIS_LOSS, streak);
-    } catch (e) { console.error('[arena] nemesis tracking failed', e); }
+    questHooks.push((async () => {
+      try {
+        const streak = await bumpNemesisLoss(loserId, winnerId);
+        await recordQuestThreshold(loserId, Engine.QUEST_TRACK.NEMESIS_LOSS, streak);
+      } catch (e) { console.error('[arena] nemesis tracking failed', e); }
+    })());
   }
+  await Promise.all(questHooks);
 
   return { gold: WIN_GOLD_REWARD, gems: 0 };
 }
@@ -1853,7 +1893,7 @@ async function applyMatchReward(winnerId, loserId, ranked = true) {
  * opponent. */
 const guestNemesisLosses = new Map();
 /** Increments and returns `loserId`'s loss count specifically against
- * `winnerId` — the "worst streak against any single opponent" the Nemesis
+ * `winnerId`, the "worst streak against any single opponent" the Nemesis
  * quest tracks is the max of these across all opponents (see
  * recordQuestThreshold, which only ever keeps the highest value it's
  * ever been given). */
@@ -1873,18 +1913,18 @@ async function bumpNemesisLoss(loserId, winnerId) {
 /* ══════════════════════════════════════════════════════════════════════
  * QUEST SYSTEM
  * Definitions (target/points/reward/track) are static data in game-engine.js
- * (Engine.QUEST_DEFS) — everything here is just per-player PROGRESS,
+ * (Engine.QUEST_DEFS), everything here is just per-player PROGRESS,
  * persisted server-side and only ever mutated by these functions in
  * response to a real server-observed event, never a client-reported one.
  *
  * The one entry point every game-event hook below calls is
- * recordQuestEvent(userId, track, amount) — it fans out to every currently
+ * recordQuestEvent(userId, track, amount), it fans out to every currently
  * active quest (any scope) listening on that track. Nothing else needs to
  * know which quests exist or care about daily/weekly/permanent bookkeeping.
  * ══════════════════════════════════════════════════════════════════════ */
 
 /** Adds a currency reward (gold/gems, either optional) to a player's
- * balance — the same small operation quest completions and quest-bar
+ * balance, the same small operation quest completions and quest-bar
  * milestones both need, factored out once. Silently no-ops for bot ids. */
 async function grantQuestCurrency(userId, reward) {
   if (isBotId(userId) || !reward) return;
@@ -1898,6 +1938,25 @@ async function grantQuestCurrency(userId, reward) {
   const { data: profile } = await supabase.from('profiles').select('gold,gems').eq('id', userId).maybeSingle();
   if (!profile) return;
   await supabase.from('profiles').update({ gold: profile.gold + gold, gems: profile.gems + gems }).eq('id', userId);
+}
+
+/** One-time reward for going through the tutorial (see Tutorial.exit() client-side,
+ * fires on any exit, early-quit included, not gated on finishing every step). The
+ * dedupe (so it's only ever granted once per account) lives here, not the client. */
+const TUTORIAL_BONUS_GEMS = 75;
+async function grantTutorialBonus(userId) {
+  if (isBotId(userId)) return { granted: false };
+  if (!HAS_SUPABASE) {
+    const p = guestProfiles.get(userId);
+    if (!p || p.tutorialBonusClaimed) return { granted: false };
+    p.tutorialBonusClaimed = true;
+    p.gems += TUTORIAL_BONUS_GEMS;
+    return { granted: true };
+  }
+  const { data: profile } = await supabase.from('profiles').select('gems,tutorial_bonus_claimed').eq('id', userId).maybeSingle();
+  if (!profile || profile.tutorial_bonus_claimed) return { granted: false };
+  await supabase.from('profiles').update({ gems: profile.gems + TUTORIAL_BONUS_GEMS, tutorial_bonus_claimed: true }).eq('id', userId);
+  return { granted: true };
 }
 
 async function getQuestProgressRow(userId, questId, periodKey) {
@@ -1932,12 +1991,12 @@ async function putQuestBarRow(userId, scope, periodKey, row) {
 }
 
 /** Adds `pointsToAdd` to `scope`'s ('daily'|'weekly') quest bar for the
- * CURRENT period. Purely arithmetic — does NOT resolve or pay out any
+ * CURRENT period. Purely arithmetic, does NOT resolve or pay out any
  * milestone crossed in the process; that's claim_milestone's job alone
  * (a milestone being numerically reachable and it being PAID are two
- * different things now — see claimBarMilestone). Only ever called from
+ * different things now, see claimBarMilestone). Only ever called from
  * claimQuestReward, i.e. only when the player has explicitly claimed a
- * completed daily/weekly quest — reaching a quest's target does not, by
+ * completed daily/weekly quest, reaching a quest's target does not, by
  * itself, move the bar at all. */
 async function addQuestBarPoints(userId, scope, pointsToAdd) {
   if (isBotId(userId) || pointsToAdd <= 0) return;
@@ -1949,17 +2008,17 @@ async function addQuestBarPoints(userId, scope, pointsToAdd) {
 
 /** The one entry point game-event hooks call. Fans `amount` progress out to
  * every currently-active quest def listening on `track`, regardless of
- * scope — each one independently handles its own period key. Reaching a
+ * scope, each one independently handles its own period key. Reaching a
  * quest's target only flips `completed` here; for daily/weekly quests
  * nothing is paid out and the bar doesn't move until the player explicitly
  * claims it (see claimQuestReward). Permanent quests are the one
- * exception — their currency has always paid out immediately on
+ * exception, their currency has always paid out immediately on
  * completion (see spec: "permanent quests should give you immediate
  * currency"), `claim_quest` for those just flips `claimed` for the UI.
  * Safe to call for a track nothing currently listens on (a no-op), and
  * safe to call for bot ids (also a no-op). */
 /** Pushes a fresh quest_state to this player's live connection, if they
- * have one open right now — covers events a request/response round-trip
+ * have one open right now, covers events a request/response round-trip
  * can't (like the global-chat/marketplace/rank watchers, which fire from
  * places with no originating WS request to reply to) so the Quest Journal
  * updates in real time instead of only on next manual open. */
@@ -1971,12 +2030,12 @@ async function pushLiveQuestState(userId) {
 }
 
 /** The entry point for CUMULATIVE quest tracks (see the "two flavors"
- * doc in game-engine.js) — fans `amount` progress out to every currently
+ * doc in game-engine.js), fans `amount` progress out to every currently
  * active `kind !== 'threshold'` quest def listening on `track`, regardless
  * of scope. Reaching a quest's target only flips `completed` here; for
  * daily/weekly quests nothing is paid out and the bar doesn't move until
  * the player explicitly claims it (see claimQuestReward). Permanent quests
- * are the one exception — their currency has always paid out immediately
+ * are the one exception, their currency has always paid out immediately
  * on completion, `claim_quest` for those just flips `claimed` for the UI.
  * Safe to call for a track nothing currently listens on (a no-op), and
  * safe to call for bot ids (also a no-op). */
@@ -1984,11 +2043,16 @@ async function recordQuestEvent(userId, track, amount = 1) {
   if (isBotId(userId) || !userId) return;
   const defs = Engine.questDefsForTrack(track).filter(d => d.kind !== 'threshold');
   if (!defs.length) return;
-  for (const def of defs) {
+  // Every def here is a separate DB row (own quest id + period key), so
+  // they don't need to wait on each other — see applyMatchReward's own
+  // comment on why this matters for how long a losing player waits to see
+  // the defeat screen. Each iteration already catches its own error, so a
+  // single def failing can't take the others down with it.
+  await Promise.all(defs.map(async def => {
     try {
       const periodKey = Engine.periodKeyForScope(def.scope);
       const row = await getQuestProgressRow(userId, def.id, periodKey);
-      if (row.completed) continue; // already done for this period — nothing further to add
+      if (row.completed) return; // already done for this period, nothing further to add
       const newProgress = Math.min(def.target, row.progress + amount);
       const justCompleted = newProgress >= def.target;
       await putQuestProgressRow(userId, def.id, periodKey, {
@@ -1997,27 +2061,33 @@ async function recordQuestEvent(userId, track, amount = 1) {
       });
       if (justCompleted && def.scope === 'permanent') { await grantQuestCurrency(userId, def.reward); await grantQuestCosmetics(userId, def.reward); }
     } catch (e) { console.error(`[arena] quest progress failed (${def.id})`, e); }
-  }
+  }));
   await pushLiveQuestState(userId);
 }
 
 /** The entry point for THRESHOLD quest tracks (see the "two flavors" doc
- * in game-engine.js) — sets progress to max(existing, currentValue) for
+ * in game-engine.js), sets progress to max(existing, currentValue) for
  * every currently active `kind === 'threshold'` quest def listening on
- * `track`, instead of adding. For "reach/have/hold N" quests (gold held,
- * friends, unique cards, rank points, concurrent listings, worst
+ * `track`, instead of adding. For "reach/have/hold N" quests (rank points,
+ * friends, unique cards, overlords owned, concurrent listings, worst
  * per-opponent loss streak) where what matters is the best value ever
- * observed, not a tally of discrete events. Same completion/payout rules
- * as recordQuestEvent otherwise. */
+ * observed, not a tally of discrete events — NOT for anything phrased as
+ * "earn"/"gain" (e.g. Rich Guy/Golden Guy, QUEST_TRACK.GOLD_EARNED), which
+ * wants recordQuestEvent instead: a threshold on a balance that can rise
+ * for reasons unrelated to the quest's own period (already having gold
+ * from a previous day, say) completes itself on nothing but a login, which
+ * is exactly the bug this distinction exists to avoid. Same completion/
+ * payout rules as recordQuestEvent otherwise. */
 async function recordQuestThreshold(userId, track, currentValue) {
   if (isBotId(userId) || !userId) return;
   const defs = Engine.questDefsForTrack(track).filter(d => d.kind === 'threshold');
   if (!defs.length) return;
-  for (const def of defs) {
+  // Same reasoning as recordQuestEvent: independent rows, run together.
+  await Promise.all(defs.map(async def => {
     try {
       const periodKey = Engine.periodKeyForScope(def.scope);
       const row = await getQuestProgressRow(userId, def.id, periodKey);
-      if (row.completed) continue;
+      if (row.completed) return;
       const newProgress = Math.min(def.target, Math.max(row.progress, currentValue));
       const justCompleted = newProgress >= def.target;
       await putQuestProgressRow(userId, def.id, periodKey, {
@@ -2026,12 +2096,12 @@ async function recordQuestThreshold(userId, track, currentValue) {
       });
       if (justCompleted && def.scope === 'permanent') { await grantQuestCurrency(userId, def.reward); await grantQuestCosmetics(userId, def.reward); }
     } catch (e) { console.error(`[arena] quest threshold failed (${def.id})`, e); }
-  }
+  }));
   await pushLiveQuestState(userId);
 }
 
 /** Handles a player explicitly claiming a completed quest (case
- * 'claim_quest') — this is what actually credits a daily/weekly quest's
+ * 'claim_quest'), this is what actually credits a daily/weekly quest's
  * points onto its bar (permanent quests already paid their currency at
  * completion time; this just flips `claimed` for those). Re-verifies
  * completion and non-double-claiming server-side regardless of what the
@@ -2049,7 +2119,7 @@ async function claimQuestReward(userId, questId) {
 }
 
 /** Handles a player explicitly claiming a reached quest-bar milestone
- * (case 'claim_milestone') — this is what actually pays out the
+ * (case 'claim_milestone'), this is what actually pays out the
  * milestone's currency reward; being numerically past the threshold
  * (`bar.points >= milestone`) alone pays nothing. Re-verifies both the
  * threshold and non-double-claiming server-side. */
@@ -2088,7 +2158,7 @@ async function buildQuestState(userId) {
   return {
     quests,
     // `rewards` mirrors QUEST_BAR_MILESTONE_REWARDS[scope] purely so the
-    // client can render an accurate "+N gold" on each milestone diamond —
+    // client can render an accurate "+N gold" on each milestone diamond,
     // the actual currency isn't credited until claim_milestone is called
     // for it (see claimBarMilestone), this is display-only ahead of that.
     dailyBar: { points: dailyBar.points, claimedMilestones: dailyBar.claimedMilestones, milestones: Engine.QUEST_BAR_MILESTONES, rewards: Engine.QUEST_BAR_MILESTONE_REWARDS.daily, periodKey: dailyKey },
@@ -2098,12 +2168,12 @@ async function buildQuestState(userId) {
 
 /** Global chat is written client -> Supabase directly (see index.html's
  * GlobalChat.sb.from('global_chat_messages').insert), never through this
- * server's own WebSocket — so counting messages for the chat_message quest
+ * server's own WebSocket, so counting messages for the chat_message quest
  * track can't hook a WS message handler the way every other quest track
  * does. Instead the server subscribes to the table itself (service role,
  * same posture as everything else here: verification lives server-side
  * even though the write path doesn't funnel through server.js) and treats
- * each real INSERT row as the event. No-ops entirely without Supabase —
+ * each real INSERT row as the event. No-ops entirely without Supabase,
  * guest mode has no persisted global chat to observe anyway. */
 function startGlobalChatQuestWatcher() {
   if (!HAS_SUPABASE) return;
@@ -2111,7 +2181,7 @@ function startGlobalChatQuestWatcher() {
     .channel('quest-global-chat-watch')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, payload => {
       // The table's actual sender column is `sender_id` (see index.html's
-      // GlobalChat inserts / supabase-schema.sql) — it's the same stable
+      // GlobalChat inserts / supabase-schema.sql), it's the same stable
       // guestId used to authenticate with this WS server, not a `user_id`
       // column (that name doesn't exist on this table).
       const userId = payload?.new?.sender_id;
@@ -2144,19 +2214,19 @@ class Match {
     /** Whether a win/loss here moves rankPoints. Casual queue matches set
      * this false; duels, tournaments, and ranked-queue matches leave it at
      * the default true. Gold reward and win/loss counts are unaffected
-     * either way — only the rank ladder cares about this flag. */
+     * either way, only the rank ladder cares about this flag. */
     this.ranked = ranked !== false;
     this.sides = [Engine.freshSide(deckA), Engine.freshSide(deckB)];
     this.actedThisTurn = [new Set(), new Set()];
     this.phase = 'SETUP';
     this.turn = 0; // side index whose turn it is (meaningless during SETUP)
-    this.turnCounter = 0; // increments once per runTurnStart call (both sides combined) — lets a per-card
+    this.turnCounter = 0; // increments once per runTurnStart call (both sides combined), lets a per-card
                            // effect (e.g. a revive ability's one-turn cooldown) know "this side's next turn"
                            // as turnCounter+2, since turns strictly alternate 0,1,0,1,...
     this.readyForBattle = [false, false];
     this.timer = null;
     this.disconnectTimers = [null, null];
-    /** userIds currently spectating this match — see addSpectator/removeSpectator. */
+    /** userIds currently spectating this match, see addSpectator/removeSpectator. */
     this.spectators = new Set();
     matches.set(this.id, this);
     this.users.forEach(u => activeMatchByUser.set(u, this));
@@ -2170,7 +2240,7 @@ class Match {
 
   conn(side) { return connections.get(this.users[side]) || null; }
 
-  /** Relays a chat line to both participants in this match only — never
+  /** Relays a chat line to both participants in this match only, never
    * broadcast anywhere else. Silently drops empty/oversized text instead
    * of erroring, since a stray keystroke shouldn't need a round trip. */
   handleChat(userId, text) {
@@ -2202,7 +2272,7 @@ class Match {
     this.broadcastToSpectators(events);
   }
 
-  /** Public, hidden-hand-free view of both sides — spectators never see
+  /** Public, hidden-hand-free view of both sides, spectators never see
    * either player's hand, only counts, matching how the opponent's hand is
    * already hidden from a normal player. */
   spectatorView() {
@@ -2230,7 +2300,7 @@ class Match {
     for (const uid of this.spectators) connections.get(uid)?.send(payload);
   }
 
-  /** Notify every current spectator the match is over, and forget them —
+  /** Notify every current spectator the match is over, and forget them,
    * called right before the match itself is torn down. */
   clearSpectators(reason) {
     for (const uid of this.spectators) {
@@ -2240,7 +2310,7 @@ class Match {
     this.spectators.clear();
   }
 
-  /** Never leak the opponent's hand contents — only its count. Your own
+  /** Never leak the opponent's hand contents, only its count. Your own
    * graveyard is sent in full (you need to see it to pick a revive target);
    * the opponent's is just a count, same treatment as their hand. */
   perspective(side) {
@@ -2315,10 +2385,12 @@ class Match {
   /** Scans a just-resolved action's events for `effect_applied` entries and
    * credits whichever side actually caused each one (a defense reflecting
    * an effect back onto the attacker is credited to the defender, not the
-   * attacker — see the `side` on each effect_applied event, set in
-   * game-engine.js's performHit/applyDeployAbility) toward the Status
-   * Report quest. Called after both handleAttack and handleDeploy, since
-   * either can trigger an on-hit or on-deploy effect. */
+   * attacker, see the `side` on each effect_applied event, set in
+   * game-engine.js's performHit/executeAbilityEffect) toward the Status
+   * Report quest. Called after handleAttack, handleDeploy (rocks-on-swap
+   * only, deploy itself never carries an ability anymore) and
+   * handleUseAbility, since any of those can produce an on-hit or
+   * on-ability effect. */
   recordStatusEffectQuests(events) {
     const bySide = {};
     for (const e of events) { if (e.t === 'effect_applied') bySide[e.side] = (bySide[e.side] || 0) + 1; }
@@ -2347,29 +2419,28 @@ class Match {
       events.push({ t:'deploy', side, slotType:'defense', card });
     } else if (!entity.activeCard) {
       entity.activeCard = card; entity.hand.splice(idx, 1);
-      if (Engine.applyRocksOnSwap(this, side, 'slot1', events) && entity.activeCard === card) {
-        Engine.applyDeployAbility(this.sides, side, card, events);
-      }
+      Engine.applyRocksOnSwap(this, side, 'slot1', events);
       events.push({ t:'deploy', side, slotType:'slot1', card, swapped:false });
     } else if (!entity.activeCard2) {
       entity.activeCard2 = card; entity.hand.splice(idx, 1);
-      if (Engine.applyRocksOnSwap(this, side, 'slot2', events) && entity.activeCard2 === card) {
-        Engine.applyDeployAbility(this.sides, side, card, events);
-      }
+      Engine.applyRocksOnSwap(this, side, 'slot2', events);
       events.push({ t:'deploy', side, slotType:'slot2', card, swapped:false });
     } else {
-      // swap into slot1 — the outgoing card takes its own 'rocks' hit on the
-      // way out (if it's carrying that effect), then the incoming card takes
-      // its own 'rocks' hit on the way in — same effect, two independent
-      // triggers, exactly like swapping past any other hazard would.
-      events.push({ t:'deploy', side, slotType:'slot1', card, swapped:true });
-      const old = entity.activeCard; // capture before the rocks check, since killCard would null this slot
-      const oldSurvived = Engine.applyRocksOnSwap(this, side, 'slot1', events);
-      entity.activeCard = card; entity.hand.splice(idx, 1);
+      // Both slots are full, so this is really a swap. Which slot gets swapped is the
+      // client's choice ('Swap Slot 1' vs 'Swap Slot 2' in the inspect panel), sent as
+      // msg.slot; default to slot1 only if the client didn't specify one (older client).
+      const swapSlot = (msg.slot === 'slot2') ? 'slot2' : 'slot1';
+      const activeKey = swapSlot === 'slot2' ? 'activeCard2' : 'activeCard';
+      // the outgoing card takes its own 'rocks' hit on the way out (if it's carrying
+      // that effect), then the incoming card takes its own 'rocks' hit on the way in,
+      // same effect, two independent triggers, exactly like swapping past any other
+      // hazard would.
+      events.push({ t:'deploy', side, slotType:swapSlot, card, swapped:true });
+      const old = entity[activeKey]; // capture before the rocks check, since killCard would null this slot
+      const oldSurvived = Engine.applyRocksOnSwap(this, side, swapSlot, events);
+      entity[activeKey] = card; entity.hand.splice(idx, 1);
       if (oldSurvived) entity.hand.push(old);
-      if (Engine.applyRocksOnSwap(this, side, 'slot1', events) && entity.activeCard === card) {
-        Engine.applyDeployAbility(this.sides, side, card, events);
-      }
+      Engine.applyRocksOnSwap(this, side, swapSlot, events);
       Engine.checkCardDeath(this, side, events);
     }
     this.recordStatusEffectQuests(events);
@@ -2408,18 +2479,30 @@ class Match {
 
   /** A card whose top effect is an `ability` carrying a `revive` block
    * (instead of e.g. an on-deploy curse/heal `ability`) can spend its turn
-   * action reviving any one creature from this side's own graveyard —
+   * action reviving any one creature from this side's own graveyard,
    * player's choice of which, not automatic/earliest-first. `msg.target` is
    * the dead creature's instanceId. (A `passive`-type self-revive is a
-   * completely separate, fully automatic mechanic — see
-   * `Engine.tryPassiveRevive` — and never goes through this handler.) */
+   * completely separate, fully automatic mechanic, see
+   * `Engine.tryPassiveRevive`, and never goes through this handler.) */
   handleUseAbility(userId, msg) {
     const side = this.sideOf(userId); if (side === -1) return this.errTo(userId, 'not_in_match');
     if (this.phase !== 'MAIN' || this.turn !== side) return this.errTo(userId, 'not_your_turn');
     const slot = msg.slot === 'slot2' ? 'slot2' : 'slot1';
+    const actingCard = Engine.cardInSlot(this.sides[side], slot);
+    if (!actingCard) return this.errTo(userId, 'no_card_in_slot');
 
-    const result = Engine.executeRevive(this, side, slot, msg.target);
+    // Two entirely different ability shapes share this one message type:
+    // a revive (msg.target is a dead card's instanceId, from the graveyard
+    // picker) vs a heal/effects ability (msg.target is a board slot key,
+    // 'slot1'/'slot2', from clicking a creature on the board — see
+    // chooseAbilityTarget client-side). Which one a given card even offers
+    // is entirely determined by its own topEffect, not by anything the
+    // client claims, so dispatch off the card's own data, not msg shape.
+    const result = actingCard.topEffect?.revive
+      ? Engine.executeRevive(this, side, slot, msg.target)
+      : Engine.executeAbilityEffect(this, side, slot, msg.target);
     if (!result.ok) return this.errTo(userId, result.reason);
+    this.recordStatusEffectQuests(result.events);
     this.broadcastState(result.events);
 
     const slot1Done = !this.sides[side].activeCard || this.actedThisTurn[side].has('slot1');
@@ -2477,7 +2560,7 @@ class Match {
     try { reward = await applyMatchReward(winnerId, loserId, this.ranked); }
     catch (e) { console.error('[arena] reward write failed', e); }
     // (match_play/match_win/ranked/gold/rank/nemesis quest hooks all live
-    // inside applyMatchReward now — it already has clean access to the
+    // inside applyMatchReward now, it already has clean access to the
     // final gold/rank values needed for the threshold-style ones)
 
     let tournamentSummary = null;
@@ -2486,17 +2569,19 @@ class Match {
       catch (e) { console.error('[arena] tournament advance failed', e); }
     }
 
-    for (let side = 0; side < 2; side++) {
+    // The two sides' fetchProfile calls are independent reads, run them
+    // together rather than one after another.
+    await Promise.all([0, 1].map(async side => {
       const c = this.conn(side);
-      if (!c) continue;
+      if (!c) return;
       const won = this.users[side] === winnerId;
       let profile = null;
       try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
       c.send({ type:'match_over', result: won ? 'win' : 'loss', reward: won ? reward : { gold:0, gems:0 }, profile, tournament: tournamentSummary, ranked: this.ranked });
-    }
+    }));
   }
 
-  /** Both sides ran out of creatures on the same exchange — e.g. a curse
+  /** Both sides ran out of creatures on the same exchange, e.g. a curse
    * recoil kills the attacker's last creature on the same swing that kills
    * the defender's last creature. Nobody wins; no reward either side. */
   async finishDraw() {
@@ -2508,19 +2593,19 @@ class Match {
     matches.delete(this.id);
     this.users.forEach(u => activeMatchByUser.delete(u));
     if (this.tournamentMeta) {
-      // A draw can't leave a bracket slot undecided — start an immediate
+      // A draw can't leave a bracket slot undecided, start an immediate
       // rematch instead of the normal no-reward draw teardown below.
       for (let side = 0; side < 2; side++) this.conn(side)?.send({ type:'tournament_rematch', bracketId: this.tournamentMeta.bracketId });
       try { await rematchTournamentMatch(this); } catch (e) { console.error('[arena] tournament rematch failed', e); }
       return;
     }
-    for (let side = 0; side < 2; side++) {
+    await Promise.all([0, 1].map(async side => {
       const c = this.conn(side);
-      if (!c) continue;
+      if (!c) return;
       let profile = null;
       try { profile = await fetchProfile(this.users[side]); } catch (e) { /* best effort */ }
       c.send({ type:'match_over', result:'draw', reward:{ gold:0, gems:0 }, profile });
-    }
+    }));
   }
 }
 
@@ -2566,7 +2651,7 @@ function pickBotDeployCard(entity) {
 }
 
 /** Drives a bot side through an otherwise-normal Match: sets up its board
- * during SETUP, then plays/attacks/ends turn during MAIN — all through the
+ * during SETUP, then plays/attacks/ends turn during MAIN, all through the
  * same handle* methods a real client's messages would hit, just with
  * human-like pauses instead of instant, robotic timing. */
 function attachBotAI(match) {
@@ -2613,9 +2698,10 @@ function attachBotAI(match) {
         if (!card || match.actedThisTurn[botSide].has(slotKey)) continue;
         await sleep(randMs(700, 1900));
         if (!stillBotsTurn()) break;
+        const oppEntity = match.sides[humanSide];
         if (card.topEffect?.type === 'ability' && card.topEffect?.revive && entity.graveyard.length && Math.random() < 0.7) {
           // Boss/Overlord graveyard entries aren't legal revive targets (see
-          // executeRevive) — filter them out of the bot's candidate pool so
+          // executeRevive), filter them out of the bot's candidate pool so
           // it doesn't waste its whole turn on a guaranteed-rejected attempt.
           const revivable = entity.graveyard.filter(c => {
             const def = Engine.CardById[c.baseId];
@@ -2627,7 +2713,37 @@ function attachBotAI(match) {
             continue;
           }
         }
-        const oppEntity = match.sides[humanSide];
+        // Non-revive ability (heal/effects): the bot uses it about as often
+        // as it would otherwise attack with that slot, same as a human
+        // choosing between the two from the inspect panel. Which target it
+        // needs (a board slot key, or none at all) depends entirely on the
+        // ability's own shape, exactly like executeAbilityEffect requires.
+        if (card.topEffect?.type === 'ability' && !card.topEffect?.revive && Math.random() < 0.6) {
+          const heal = card.topEffect.heal;
+          const effects = card.topEffect.effects;
+          if (heal && heal.target === 'ally') {
+            const candidates = ['slot1', 'slot2'].filter(sk => (sk === 'slot1' ? entity.activeCard : entity.activeCard2));
+            if (candidates.length) {
+              // heal whichever of its own two creatures is proportionally lower on HP, itself included
+              candidates.sort((a, b) => {
+                const ca = a === 'slot1' ? entity.activeCard : entity.activeCard2;
+                const cb = b === 'slot1' ? entity.activeCard : entity.activeCard2;
+                return (ca.currentHp / ca.maxHp) - (cb.currentHp / cb.maxHp);
+              });
+              match.handleUseAbility(match.botUserId, { slot: slotKey, target: candidates[0] });
+              continue;
+            }
+          } else if (heal) { // 'self' or 'side', no target needed at all
+            match.handleUseAbility(match.botUserId, { slot: slotKey });
+            continue;
+          } else if (effects && effects.length) {
+            const targetSlot = oppEntity.activeCard ? 'slot1' : (oppEntity.activeCard2 ? 'slot2' : null);
+            if (targetSlot) {
+              match.handleUseAbility(match.botUserId, { slot: slotKey, target: targetSlot });
+              continue;
+            }
+          }
+        }
         const targetSlot = oppEntity.activeCard ? 'slot1' : (oppEntity.activeCard2 ? 'slot2' : null);
         const atkIndex = (card.topEffect?.type === 'attack' && Math.random() < 0.5) ? 0 : 1;
         match.handleAttack(match.botUserId, { slot: slotKey, target: targetSlot, atkIndex });
@@ -2650,7 +2766,7 @@ function attachBotAI(match) {
 }
 
 /** Pulled from the queue once its randomized search window has elapsed with
- * no real opponent found. Builds a normal two-sided Match — the human's
+ * no real opponent found. Builds a normal two-sided Match, the human's
  * client only ever sees a `match_found` with a human-sounding opponent name
  * and never learns the other "player" is server-controlled. */
 async function startBotMatch(userId, mode) {
@@ -2667,7 +2783,7 @@ async function startBotMatch(userId, mode) {
 
   try {
     const profile = await fetchProfile(userId, conn.username);
-    // Deck legality is already checked at queue_join time, but re-check here too —
+    // Deck legality is already checked at queue_join time, but re-check here too,
     // this fires after a randomized delay, so the deck could have been edited (or a
     // stale one desynced) in the meantime. Block rather than silently handing out a
     // random deck.
@@ -2677,7 +2793,7 @@ async function startBotMatch(userId, mode) {
       return;
     }
     const humanDeck = Engine.buildDeckFromIds(profile.deck);
-    const botDeck = Engine.buildDeckFromIds(null); // the bot's own deck is always freshly randomized — this isn't a fallback
+    const botDeck = Engine.buildDeckFromIds(null); // the bot's own deck is always freshly randomized, this isn't a fallback
     const botUserId = `bot:${crypto.randomUUID()}`;
     const botName = pickBotName();
     const humanSide = Math.random() < 0.5 ? 0 : 1;
@@ -2703,7 +2819,7 @@ async function startBotMatch(userId, mode) {
   }
 }
 
-/** Starts a direct match between two friends who both agreed to a duel —
+/** Starts a direct match between two friends who both agreed to a duel,
  * same match-creation shape as tryMatch/startBotMatch, just without the
  * queue or bot-fallback machinery around it. */
 async function startDuelMatch(uA, uB) {
@@ -2726,7 +2842,7 @@ async function startDuelMatch(uA, uB) {
     connB?.send({ type: 'match_found', matchId: match.id, youAre: 1, opponentName: profileA.username, opponentIcon: profileA.icon || 'star', opponentRank: profileA.rank });
     match.broadcastState([]);
     // This path only ever runs for the friends-only duel_request/duel_respond
-    // flow (see the case handlers above) — never for random matchmaking —
+    // flow (see the case handlers above), never for random matchmaking,
     // so both sides count toward the "Duel a friend" quest.
     recordQuestEvent(uA, Engine.QUEST_TRACK.FRIEND_DUEL, 1).catch(e => console.error('[arena] friend_duel quest failed', e));
     recordQuestEvent(uB, Engine.QUEST_TRACK.FRIEND_DUEL, 1).catch(e => console.error('[arena] friend_duel quest failed', e));
@@ -2739,19 +2855,19 @@ async function startDuelMatch(uA, uB) {
 
 /* ── TOURNAMENTS ──────────────────────────────────────────────────────
  * An "event" is what players register (and pay an entry fee) into ahead
- * of time — either a recurring official Daily/Weekly slot the server
+ * of time, either a recurring official Daily/Weekly slot the server
  * maintains for itself (ensureUpcomingOfficialEvents) or a player-hosted
  * lobby (createUnofficialTournament). At its scheduled start_at,
  * tournamentSweep locks the event, keeps only the registrants who were
  * actually online right that instant (that's the whole "automatically
- * disqualified for not showing up" rule — see lockAndShardEvent), and
+ * disqualified for not showing up" rule, see lockAndShardEvent), and
  * splits the rest into one or more brackets: official events shard into
  * groups of at most TOURNAMENT_BRACKET_SIZE, unofficial events are always
  * exactly one bracket (registration itself is capped at the host's chosen
  * player count). Both kinds share the exact same downstream machinery.
  *
  * A bracket match is just a normal Match (see the Match class above),
- * tagged with `tournamentMeta` — turn timers, reconnect grace, and normal
+ * tagged with `tournamentMeta`, turn timers, reconnect grace, and normal
  * win/loss rewards all keep working unmodified. The only two places this
  * file's match code needs to know tournaments exist are the two hooks in
  * Match#finish()/#finishDraw() below.
@@ -2825,7 +2941,7 @@ async function setTournamentEventStatus(eventId, status) {
   if (!HAS_SUPABASE) { const e = guestTournamentEvents.get(eventId); if (e) e.status = status; return; }
   await supabase.from('tournament_events').update({ status }).eq('id', eventId);
 }
-/** Latest (by start_at) event of a given kind, any status — used to decide whether a fresh official slot needs creating yet. */
+/** Latest (by start_at) event of a given kind, any status, used to decide whether a fresh official slot needs creating yet. */
 async function eventsByStatus(statuses, { kinds = null, limit = 100 } = {}) {
   if (!HAS_SUPABASE) {
     let list = [...guestTournamentEvents.values()].filter(e => statuses.includes(e.status) && (!kinds || kinds.includes(e.kind)));
@@ -2881,7 +2997,7 @@ async function markRegistrationRefunded(eventId, userId) {
   if (!HAS_SUPABASE) { const r = guestTournamentRegistrations.get(eventId)?.get(userId); if (r) r.refunded = true; return; }
   await supabase.from('tournament_registrations').update({ refunded: true }).eq('event_id', eventId).eq('user_id', userId);
 }
-/** Every event id (most recent first) this user has ever registered for — powers the "My Tournaments" list. */
+/** Every event id (most recent first) this user has ever registered for, powers the "My Tournaments" list. */
 async function listUserRegisteredEventIds(userId, limit) {
   if (!HAS_SUPABASE) {
     const ids = [];
@@ -2957,10 +3073,10 @@ function formatEventTime(date) {
   return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) + ' UTC';
 }
 function officialEventName(kind, date) {
-  return `${kind === 'official_daily' ? 'Daily Tournament' : 'Weekly Championship'} — ${formatEventTime(date)}`;
+  return `${kind === 'official_daily' ? 'Daily Tournament' : 'Weekly Championship'}, ${formatEventTime(date)}`;
 }
 /** Keeps exactly one upcoming (status='scheduled') event of each official
- * kind available to register for at all times. Cheap to call often — it's
+ * kind available to register for at all times. Cheap to call often, it's
  * a no-op unless the currently-latest event of that kind isn't the slot
  * that should exist right now (i.e. the previous one just locked). */
 async function ensureUpcomingOfficialEvents() {
@@ -2968,8 +3084,8 @@ async function ensureUpcomingOfficialEvents() {
   for (const [kind, slotFn] of [['official_daily', nextDailySlot], ['official_weekly', nextWeeklySlot]]) {
     const slot = slotFn(now);
     const slotIso = slot.toISOString();
-    // Fetch every currently-'scheduled' event of this kind — not just the
-    // latest — so a duplicate created by a race (two server processes, or
+    // Fetch every currently-'scheduled' event of this kind, not just the
+    // latest, so a duplicate created by a race (two server processes, or
     // two overlapping sweeps, both seeing "none exists yet" and both
     // inserting) gets cleaned up here instead of quietly persisting as two
     // simultaneous joinable daily/weekly tournaments.
@@ -2982,7 +3098,7 @@ async function ensureUpcomingOfficialEvents() {
     }
     if (forCorrectSlot.length >= 1) {
       // Also clean up any stray 'scheduled' rows of this kind that don't
-      // match the correct slot (e.g. left over from a clock/config change) —
+      // match the correct slot (e.g. left over from a clock/config change),
       // there should only ever be one joinable event per kind at a time.
       for (const stray of scheduled.filter(e => e.startAt !== slotIso)) await cancelDuplicateOfficialEvent(stray);
       continue;
@@ -2997,7 +3113,7 @@ async function ensureUpcomingOfficialEvents() {
     } catch (e) {
       // A unique constraint (tournament_events_one_scheduled_per_kind, see
       // supabase-schema.sql) rejects a second concurrent insert for the same
-      // kind — that means another process just created it a moment ago,
+      // kind, that means another process just created it a moment ago,
       // which is fine; nothing to do here.
       if (!isUniqueViolation(e)) throw e;
     }
@@ -3093,18 +3209,18 @@ async function cancelUnofficialTournament(userId, eventId) {
 
 /* -- single-elimination bracket, with byes for non-power-of-2 sizes.
  * "Seed" here just means "slot position", assigned by a random shuffle
- * (see shuffleParticipants) — not a skill ranking. It still uses the
+ * (see shuffleParticipants), not a skill ranking. It still uses the
  * standard recursive tournament-seeding construction real sports brackets
  * use (so slot 1 and slot 2 can only ever meet in the final, slots 1-4
  * can't meet before the semifinal, etc.), but purely because that
- * construction is what guarantees byes never collide — not for
+ * construction is what guarantees byes never collide, not for
  * competitive fairness, which isn't a goal here. The load-bearing
  * property for byes: because bracketSize is always the *smallest* power of
  * two >= the real player count n, the number of byes (bracketSize-n) is
- * always strictly less than bracketSize/2 — which makes it mathematically
+ * always strictly less than bracketSize/2, which makes it mathematically
  * impossible for two byes to ever land in the same first-round pair (a
  * bye-vs-bye pair would need two seed numbers x, y with x+y=bracketSize+1
- * and both x,y>n, which requires n<=bracketSize/2 — the opposite of what's
+ * and both x,y>n, which requires n<=bracketSize/2, the opposite of what's
  * guaranteed). So a bye can never produce a dead "nobody vs nobody" match,
  * every bye is always real-player-vs-empty-slot and auto-resolves clean. */
 function nextPow2(n) { let p = 1; while (p < n) p *= 2; return p; }
@@ -3154,7 +3270,7 @@ function participantByUserId(match, userId) {
 }
 /** Records a decided result and, if there's a next round, advances the
  * winner into it. Returns true if this was the bracket's last match. Pure
- * and synchronous — never touches the DB or network. */
+ * and synchronous, never touches the DB or network. */
 function recordBracketResult(bracket, roundIdx, matchIdx, winnerId, loserId, isBye) {
   const m = bracket.rounds[roundIdx][matchIdx];
   const winner = participantByUserId(m, winnerId) || { userId: winnerId };
@@ -3166,12 +3282,12 @@ function recordBracketResult(bracket, roundIdx, matchIdx, winnerId, loserId, isB
   return false;
 }
 /** Auto-resolves every real-player-vs-empty-bye match. Byes only ever
- * exist in round 0 — that's the only round whose empty slots come
+ * exist in round 0, that's the only round whose empty slots come
  * directly from the seeding (a missing seed number), so it's the only
  * round where "one side filled" reliably means "bye" rather than "this
  * match just hasn't been decided by an earlier round yet". Scanning any
  * later round for a lone-filled slot would incorrectly auto-advance a
- * real player before their actual opponent is even decided — round 0 is
+ * real player before their actual opponent is even decided, round 0 is
  * the whole story, no cascading needed (see the big comment above for why
  * a bye can never chain into producing another bye downstream). */
 function resolveByesAndAdvance(bracket) {
@@ -3192,7 +3308,7 @@ function isPlayerAvailable(userId) {
   return !!c && c.ws && c.ws.readyState === c.ws.OPEN && !activeMatchByUser.has(userId);
 }
 /** Turns a bracket slot with both players filled into a real live Match
- * (reusing the Match class real duels use, unmodified) — UNLESS one or
+ * (reusing the Match class real duels use, unmodified), UNLESS one or
  * both players have gone AWOL since their previous round, in which case
  * it's an instant walkover: the same "didn't show up = disqualified" rule
  * applied every round, not just at the very start of the event. */
@@ -3202,7 +3318,7 @@ async function startTournamentBracketMatch(bracket, roundIdx, matchIdx) {
   const aOnline = isPlayerAvailable(uA), bOnline = isPlayerAvailable(uB);
   if (!aOnline || !bOnline) {
     let winnerId, loserId;
-    if (!aOnline && !bOnline) { // both AWOL — deterministic walkover (lower slot number) so this can never be gamed, not a skill judgment
+    if (!aOnline && !bOnline) { // both AWOL, deterministic walkover (lower slot number) so this can never be gamed, not a skill judgment
       const aSeed = m.a.seed ?? 999, bSeed = m.b.seed ?? 999;
       winnerId = aSeed <= bSeed ? uA : uB; loserId = winnerId === uA ? uB : uA;
     } else if (!aOnline) { winnerId = uB; loserId = uA; }
@@ -3227,7 +3343,7 @@ async function startTournamentBracketMatch(bracket, roundIdx, matchIdx) {
     match.broadcastState([]);
   } catch (e) {
     console.error('[arena] tournament match start failed', e);
-    // don't strand the bracket — matchId was never set, so the next sweep's startReadyMatches() pass retries this slot
+    // don't strand the bracket, matchId was never set, so the next sweep's startReadyMatches() pass retries this slot
   }
 }
 /** Scans every round for a match that's ready to play (both slots filled,
@@ -3241,7 +3357,7 @@ async function startReadyMatches(bracket) {
     }
   }
 }
-/** Shared tail-end for "a bracket match just got decided" — whether that
+/** Shared tail-end for "a bracket match just got decided", whether that
  * decision came from a real completed Match, a bye, or a walkover. Pays
  * the champion the instant the final match resolves. */
 async function finishBracketMatch(bracket, roundIdx, matchIdx, winnerId, loserId, isBye) {
@@ -3291,7 +3407,7 @@ async function onTournamentMatchFinished(match, winnerId, loserId) {
     nextRoundLabel: tournamentComplete ? null : roundLabel(roundIdx + 1, totalRounds),
   };
 }
-/** A draw can't be allowed to leave a bracket slot undecided — instead of
+/** A draw can't be allowed to leave a bracket slot undecided, instead of
  * the normal no-reward draw teardown, immediately start a fresh Match for
  * the same slot. Called from Match#finishDraw(). */
 async function rematchTournamentMatch(match) {
@@ -3304,7 +3420,7 @@ async function rematchTournamentMatch(match) {
 }
 
 /* -- locking + sharding at start time --------------------------------------- */
-/** Plain Fisher-Yates shuffle — brackets are seeded fully at random, not by
+/** Plain Fisher-Yates shuffle, brackets are seeded fully at random, not by
  * rank. Single elimination needs exactly n-1 matches to produce a champion
  * from n players no matter how those n are grouped or ordered, so there's
  * no match-count cost to this; it's purely "who plays who" that's random. */
@@ -3313,7 +3429,7 @@ function shuffleParticipants(list) {
   return list;
 }
 /** Chops an already-shuffled list into groups of at most `bracketSizeCap`
- * — the "as many brackets as needed" part for an official event that
+ *, the "as many brackets as needed" part for an official event that
  * draws more than one bracket's worth of players. No attempt to balance
  * who ends up in which group beyond the initial shuffle. */
 function shardParticipants(shuffled, bracketSizeCap) {
@@ -3323,7 +3439,7 @@ function shardParticipants(shuffled, bracketSizeCap) {
 }
 let tournamentSweepBusy = false;
 async function lockAndShardEvent(event) {
-  const current = await getTournamentEvent(event.id); // re-check right before locking — cheap compare-and-set against a double-processed event
+  const current = await getTournamentEvent(event.id); // re-check right before locking, cheap compare-and-set against a double-processed event
   if (!current || current.status !== 'scheduled') return;
   await setTournamentEventStatus(event.id, 'locked');
 
@@ -3332,7 +3448,7 @@ async function lockAndShardEvent(event) {
   for (const reg of regs) (isPlayerAvailable(reg.userId) ? checkedIn : noShows).push(reg);
   await Promise.all(checkedIn.map(r => setRegistrationCheckedIn(event.id, r.userId, true)));
   await Promise.all(noShows.map(r => setRegistrationCheckedIn(event.id, r.userId, false)));
-  // no-shows forfeit their entry fee — never refunded, same convention as any forfeited deposit
+  // no-shows forfeit their entry fee, never refunded, same convention as any forfeited deposit
   noShows.forEach(r => notifyUser(r.userId, { type: 'tournament_disqualified', eventId: event.id, reason: 'no_show' }));
 
   if (checkedIn.length < TOURNAMENT_MIN_PLAYERS_TO_RUN) {
@@ -3357,7 +3473,7 @@ async function lockAndShardEvent(event) {
     const winnerPayout = Math.floor(prizePool * event.prizePoolPercent / 100);
     // Official tournaments burn the remainder as a currency sink (see
     // TOURNAMENT_OFFICIAL_PRIZE_PERCENT). Unofficial (player-hosted) events
-    // instead route the remainder to the host — they picked the prize % and
+    // instead route the remainder to the host, they picked the prize % and
     // put the tournament together, so anything not paid to the winner is
     // their compensation for hosting, not a waste.
     const isUnofficial = event.kind === 'unofficial' && event.hostId;
@@ -3378,7 +3494,7 @@ async function lockAndShardEvent(event) {
   await setTournamentEventStatus(event.id, 'running');
 }
 async function tournamentSweep() {
-  if (tournamentSweepBusy) return; // single-process guard — avoid two overlapping sweeps double-processing the same event
+  if (tournamentSweepBusy) return; // single-process guard, avoid two overlapping sweeps double-processing the same event
   tournamentSweepBusy = true;
   try {
     await ensureUpcomingOfficialEvents();
@@ -3411,7 +3527,7 @@ async function buildTournamentListPayload(userId) {
   // Official tab shows only the single currently-joinable event of each kind
   // (ensureUpcomingOfficialEvents guarantees exactly one 'scheduled' event
   // per kind exists at a time). A previous daily/weekly that's already
-  // locked/running is intentionally NOT included here — showing it
+  // locked/running is intentionally NOT included here, showing it
   // alongside the new joinable one made it look like two daily/weekly
   // tournaments were open at once. Anyone registered in that in-progress
   // one can still find it under "My Tournaments".
@@ -3436,8 +3552,8 @@ async function buildTournamentListPayload(userId) {
  * A trade is a live negotiation between two connected players: each side
  * builds an "offer" (some cards + gold + gems taken from their own
  * collection/wallet), both sides must explicitly mark themselves ready,
- * and then both sides must explicitly *confirm* — matching the client's
- * "are you sure?" prompt — before anything is actually moved. Every offer
+ * and then both sides must explicitly *confirm*, matching the client's
+ * "are you sure?" prompt, before anything is actually moved. Every offer
  * is re-validated server-side against a fresh profile snapshot both when
  * it's submitted and again right before the swap executes, so a stale
  * client (or a spent-in-between-messages race, like buying a pack mid
@@ -3472,7 +3588,7 @@ function sanitizeTradeOffer(raw, ownedCounts, gold, gems) {
   return { cards, gold: Math.min(goldOffer, gold), gems: Math.min(gemsOffer, gems) };
 }
 
-/** Final, authoritative check right before cards/currency actually move —
+/** Final, authoritative check right before cards/currency actually move,
  * re-checks against a *fresh* profile fetch, not whatever was true when the
  * offer was last submitted. */
 function tradeOfferIsValid(offer, profile) {
@@ -3494,7 +3610,7 @@ function broadcastTradeState(session) {
   const payload = tradeStatePayload(session);
   for (const uid of session.users) connections.get(uid)?.send(payload);
 }
-/** Any offer change invalidates both sides' ready/confirm state — same
+/** Any offer change invalidates both sides' ready/confirm state, same
  * "if terms change, everyone has to re-agree" rule real trade UIs use. */
 function resetTradeProgress(session) {
   for (const uid of session.users) { session.ready[uid] = false; session.confirmed[uid] = false; }
@@ -3508,7 +3624,7 @@ function cancelTrade(session, byUserId, reason = 'cancelled') {
   for (const uid of session.users) connections.get(uid)?.send({ type: 'trade_cancelled', tradeId: session.id, byUserId, reason });
 }
 
-/** Starts a live trade session between two already-agreed players — same
+/** Starts a live trade session between two already-agreed players, same
  * request/response shape as startDuelMatch, just opening a negotiation
  * instead of a battle. */
 async function startTradeSession(uA, uB) {
@@ -3538,7 +3654,7 @@ async function startTradeSession(uA, uB) {
   }
 }
 
-/** +delta gives copies to userId, -delta removes them — used for both
+/** +delta gives copies to userId, -delta removes them, used for both
  * sides of a trade swap. Guest mode mutates the in-memory flat array;
  * Supabase mode updates one key inside the player's single jsonb cards row. */
 async function adjustCardQuantity(userId, cardId, delta) {
@@ -3572,7 +3688,7 @@ async function adjustWallet(userId, goldDelta, gemsDelta) {
   await supabase.from('profiles').update({ gold: data.gold + goldDelta, gems: data.gems + gemsDelta }).eq('id', userId);
 }
 
-/** The actual swap — only ever called once both sides have confirmed.
+/** The actual swap, only ever called once both sides have confirmed.
  * Re-validates both offers against fresh profiles first (defends against
  * e.g. spending gold on a pack mid-negotiation), and throws rather than
  * moving anything if either side no longer checks out. */
@@ -3594,7 +3710,7 @@ async function executeTrade(session) {
         offer_a: { cards: offerA.cards, gold: offerA.gold, gems: offerA.gems },
         offer_b: { cards: offerB.cards, gold: offerB.gold, gems: offerB.gems },
       });
-    } catch (e) { /* history logging is best-effort — never blocks the trade itself */ }
+    } catch (e) { /* history logging is best-effort, never blocks the trade itself */ }
   }
 }
 
@@ -3643,7 +3759,7 @@ async function tryMatch(mode) {
 const server = http.createServer((req, res) => {
   if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({ ok:true, matches: matches.size, queue: rankedQueue.length + casualQueue.length, rankedQueue: rankedQueue.length, casualQueue: casualQueue.length })); return; }
   if (req.url === '/cards.hash') {
-    // Tiny endpoint for the "have I already got this?" check — a client with
+    // Tiny endpoint for the "have I already got this?" check, a client with
     // a cached copy in localStorage hits this instead of re-downloading the
     // whole library on every load. Full body only comes down from /cards.json
     // when this hash doesn't match what's cached.
@@ -3656,7 +3772,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.url === '/cards.json') {
-    // The single canonical card library — the client fetches this instead of keeping
+    // The single canonical card library, the client fetches this instead of keeping
     // its own hardcoded copy, so there's only ever one place "god card" stats could live.
     res.writeHead(200, {
       'content-type': 'application/json',
@@ -3681,7 +3797,7 @@ wss.on('connection', (ws) => {
     // ── auth must come first ──
     if (msg.type === 'auth') {
       try {
-        // Every client must be running the exact same card library we are — this is the
+        // Every client must be running the exact same card library we are, this is the
         // one gate that keeps a modified/forked client from ever getting to matchmake or
         // play with buffed "god card" stats: if the hash of its cards.json doesn't match
         // ours byte-for-byte, it never gets far enough to send a deploy/attack at all.
@@ -3695,7 +3811,7 @@ wss.on('connection', (ws) => {
           userId = data.user.id;
           username = data.user.user_metadata?.username || data.user.email || `Player${userId.slice(0,6)}`;
         } else {
-          // guest path — stable id per socket session, not persisted server-restart
+          // guest path, stable id per socket session, not persisted server-restart
           userId = msg.guestId && typeof msg.guestId === 'string' ? msg.guestId : crypto.randomUUID();
           username = (msg.name || 'Guest').slice(0, 24);
         }
@@ -3713,11 +3829,13 @@ wss.on('connection', (ws) => {
         conn.icon = profile.icon || 'star';
         // Threshold quests that depend on "what you currently have" (not a
         // discrete event) need a checkpoint even if nothing changed this
-        // session — a returning player who already owns 60 unique cards or
-        // already has 250 gold should see Collector/Rich Guy etc. reflect
-        // that on login, not only the next time a pack/match/sale nudges it.
+        // session, a returning player who already owns 60 unique cards
+        // should see Collector etc. reflect that on login, not only the
+        // next time a pack/match/sale nudges it. Gold isn't in this group
+        // any more (Rich Guy / Golden Guy track actual earnings now, see
+        // QUEST_TRACK.GOLD_EARNED, not standing balance), so there's
+        // nothing gold-related to checkpoint here.
         computeCollectionQuestThresholds(userId).catch(e => console.error('[arena] login collection quest check failed', e));
-        recordQuestThreshold(userId, Engine.QUEST_TRACK.GOLD_HELD, profile.gold).catch(e => console.error('[arena] login gold quest check failed', e));
         if (profile.rankPoints) recordQuestThreshold(userId, Engine.QUEST_TRACK.RANK_POINTS, profile.rankPoints).catch(e => console.error('[arena] login rank quest check failed', e));
         conn.send({ type:'auth_ok', userId, profile, profileOptions: { icons: PROFILE_ICONS, banners: PROFILE_BANNERS, bioMax: BIO_MAX, usernameMax: USERNAME_MAX, favoritesMax: FAVORITES_MAX }, guildOptions: { icons: GUILD_ICONS, frames: GUILD_FRAMES, nameMin: GUILD_NAME_MIN, nameMax: GUILD_NAME_MAX, maxMembers: GUILD_MAX_MEMBERS, createCostGems: GUILD_CREATE_COST_GEMS, joinFeeMaxGold: GUILD_JOIN_FEE_MAX_GOLD, joinFeeMaxGems: GUILD_JOIN_FEE_MAX_GEMS, chatMessageMax: GUILD_CHAT_MESSAGE_MAX, chatRetentionDays: GUILD_CHAT_RETENTION_MS / (24*60*60*1000) }, tournamentOptions: { bracketSize: TOURNAMENT_BRACKET_SIZE, officialPrizePercent: TOURNAMENT_OFFICIAL_PRIZE_PERCENT, dailyEntryGold: TOURNAMENT_DAILY_ENTRY_GOLD, weeklyEntryGems: TOURNAMENT_WEEKLY_ENTRY_GEMS, unofficialMinPlayers: TOURNAMENT_UNOFFICIAL_MIN_PLAYERS, unofficialMaxPlayers: TOURNAMENT_UNOFFICIAL_MAX_PLAYERS, unofficialPrizePercentMin: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MIN, unofficialPrizePercentMax: TOURNAMENT_UNOFFICIAL_PRIZE_PERCENT_MAX, unofficialEntryMaxGold: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GOLD, unofficialEntryMaxGems: TOURNAMENT_UNOFFICIAL_ENTRY_MAX_GEMS, unofficialMinLeadMs: TOURNAMENT_UNOFFICIAL_MIN_LEAD_MS, unofficialMaxLeadMs: TOURNAMENT_UNOFFICIAL_MAX_LEAD_MS, nameMin: TOURNAMENT_NAME_MIN, nameMax: TOURNAMENT_NAME_MAX }, inMatchUserIds: [...activeMatchByUser.keys()] });
       } catch (e) {
@@ -3735,11 +3853,11 @@ wss.on('connection', (ws) => {
         if (activeMatchByUser.has(userId)) return conn.send({ type:'error', reason:'already_in_match' });
         // Re-check now, not just at auth: covers a server-side cards.json hot-reload that
         // happened mid-session, and applies identically whether this queue_join ends up
-        // pairing with a real opponent or falling back to a bot — same gate, same code path.
+        // pairing with a real opponent or falling back to a bot, same gate, same code path.
         if (conn.cardLibraryHash !== Engine.CARD_LIBRARY_HASH) {
           return conn.send({ type:'error', reason:'card_library_mismatch', expectedHash: Engine.CARD_LIBRARY_HASH });
         }
-        // A deck must be exactly DECK_SIZE legal cards to queue at all — no more handing
+        // A deck must be exactly DECK_SIZE legal cards to queue at all, no more handing
         // out a random deck as a silent stand-in. Block here with a clear reason so the
         // client can point the player at the deck builder instead of starting a match
         // they never actually built.
@@ -3800,7 +3918,7 @@ wss.on('connection', (ws) => {
       }
       case 'view_profile': {
         // Read-only lookup of any player's profile (self or an opponent/
-        // friend) — strips wallet balances and the full collection/deck,
+        // friend), strips wallet balances and the full collection/deck,
         // since only the requesting player's own client should ever see
         // those for themselves via `get_profile`/`auth_ok`.
         try {
@@ -3875,9 +3993,16 @@ wss.on('connection', (ws) => {
       /* ── SOCIAL: friends + presence (data lives in Supabase; every
        * mutation is still an ordinary WS request/response like everything
        * above) ── */
+      case 'tutorial_bonus': {
+        try {
+          const result = await grantTutorialBonus(userId);
+          if (result.granted) conn.send({ type:'tutorial_bonus_granted', gems: TUTORIAL_BONUS_GEMS, profile: await fetchProfile(userId) });
+        } catch (e) { console.error('[arena] tutorial_bonus failed', e); }
+        break;
+      }
       case 'heartbeat': {
         // The client only ever sends this after it has explicitly "gotten
-        // on" — auth alone never implies presence, by design.
+        // on", auth alone never implies presence, by design.
         try {
           const wasOnline = conn.presenceOnline;
           conn.presenceOnline = true;
@@ -3948,7 +4073,7 @@ wss.on('connection', (ws) => {
       }
 
       /* ── SOCIAL: guilds. Same request/response posture as everything
-       * above — every mutation re-validates from scratch server-side
+       * above, every mutation re-validates from scratch server-side
        * (membership, capacity, funds) rather than trusting client state. ── */
       case 'guild_state': {
         try { conn.send({ type:'guild_state', ...(await buildGuildState(userId)) }); }
@@ -4001,7 +4126,7 @@ wss.on('connection', (ws) => {
           if ((await countGuildMembers(guildId)) >= GUILD_MAX_MEMBERS) return conn.send({ type:'error', reason:'guild_full' });
           await createApplication(guildId, userId);
           await sendGuildState(userId);
-          // notify the leader (and only the leader — no officer role yet) if online
+          // notify the leader (and only the leader, no officer role yet) if online
           const leaderConn = connections.get(guild.leaderId);
           if (leaderConn) sendGuildState(guild.leaderId);
         } catch (e) { console.error('[arena] guild_apply failed', e); conn.send({ type:'error', reason:'guild_apply_failed' }); }
@@ -4033,7 +4158,7 @@ wss.on('connection', (ws) => {
               await broadcastGuildState(membership.guildId);
             } catch (e) {
               // applicant can no longer be seated (guild filled up, or they can't
-              // afford the fee anymore) — tell them plainly instead of silently
+              // afford the fee anymore), tell them plainly instead of silently
               // dropping their application.
               connections.get(applicantId)?.send({ type:'error', reason: e.code === 'insufficient_funds' ? 'guild_application_accepted_but_underfunded' : (e.code || 'guild_application_accept_failed') });
             }
@@ -4168,7 +4293,7 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      /* ── SOCIAL: duels (1v1 challenges) — plain WS request/response,
+      /* ── SOCIAL: duels (1v1 challenges), plain WS request/response,
        * exactly like matchmaking; nothing about a duel invite is persisted. ── */
       case 'duel_request': {
         const targetId = msg.userId;
@@ -4208,7 +4333,7 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      /* ── SOCIAL: trading — a live negotiation, not a one-shot request
+      /* ── SOCIAL: trading, a live negotiation, not a one-shot request
        * like a duel. Anybody currently connected can be traded with (no
        * friendship requirement), same as pressing "Trade" from any
        * profile view client-side. ── */
@@ -4553,7 +4678,7 @@ const guildChatCleanup = setInterval(() => {
 wss.on('close', () => clearInterval(guildChatCleanup));
 
 /* marketplace sweep: settles any listing/auction whose expires_at has
- * passed — auctions with a bid go to the highest bidder, everything else
+ * passed, auctions with a bid go to the highest bidder, everything else
  * (no-bid auctions, unsold price listings) returns the card to the seller.
  * Runs frequently since listings can be as short as 1 day and players
  * shouldn't wait an hour to get an expired card back. */
@@ -4563,7 +4688,7 @@ const marketSweep = setInterval(() => {
 }, MARKET_SWEEP_MS);
 wss.on('close', () => clearInterval(marketSweep));
 
-/* purges listing-linked DM clutter ~1hr after that listing settles — see
+/* purges listing-linked DM clutter ~1hr after that listing settles, see
  * cleanupExpiredListingDMs() for why. */
 setTimeout(() => cleanupExpiredListingDMs().catch(e => console.error('[arena] DM cleanup failed', e)), 15_000);
 const dmCleanupSweep = setInterval(() => {
@@ -4573,7 +4698,7 @@ wss.on('close', () => clearInterval(dmCleanupSweep));
 
 /* keeps official Daily/Weekly tournament slots open for registration and
  * locks+shards any event (official or player-hosted) whose start_at has
- * arrived — see tournamentSweep(). Runs once immediately so the official
+ * arrived, see tournamentSweep(). Runs once immediately so the official
  * slots exist right at boot rather than waiting for the first tick. */
 tournamentSweep().catch(e => console.error('[arena] initial tournament sweep failed', e));
 const tournamentSweepTimer = setInterval(() => {
@@ -4585,5 +4710,5 @@ syncChatImageCatalog();
 startGlobalChatQuestWatcher();
 
 server.listen(PORT, () => {
-  console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF — guest mode'})`);
+  console.log(`[arena] listening on :${PORT} (supabase ${HAS_SUPABASE ? 'ON' : 'OFF, guest mode'})`);
 });
