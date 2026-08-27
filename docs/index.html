@@ -403,7 +403,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   display:flex;align-items:center;justify-content:center;
   color:var(--txt-muted);font-size:0.6rem;font-weight:600;letter-spacing:0.07em;
 }
-.bf-slot.has-card{border:none;padding:0;min-height:unset;background:transparent;cursor:pointer;}
+.bf-slot.has-card{border:none;padding:0;min-height:unset;background:transparent;}
 
 /* equipment side slots, same size, with a labelled empty state */
 .eq-slot{
@@ -413,7 +413,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   gap:6px;
   color:rgba(255,255,255,0.07);font-size:0.52rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
 }
-.eq-slot.has-card{border:none;padding:0;min-height:unset;gap:0;cursor:pointer;}
+.eq-slot.has-card{border:none;padding:0;min-height:unset;gap:0;}
 
 /* card border, player=blue, enemy=red */
 .card.bf-active      { border-color:#3b82f6; box-shadow:0 0 20px rgba(59,130,246,0.45); }
@@ -3128,26 +3128,26 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
       <!-- ENEMY HALF -->
       <div class="arena-half enemy-half">
-        <div class="eq-slot" id="enemy-weapon-slot" onclick="boardSlotClick('enemy','weapon')"><span>Weapon</span></div>
+        <div class="eq-slot" id="enemy-weapon-slot"><span>Weapon</span></div>
         <div class="centre-zone">
           <div class="center-cards">
             <div class="bf-slot" id="enemy-active-slot" onclick="boardSlotClick('enemy','slot1')">EMPTY</div>
             <div class="bf-slot" id="enemy-active-slot-2" onclick="boardSlotClick('enemy','slot2')">EMPTY</div>
           </div>
         </div>
-        <div class="eq-slot" id="enemy-defense-slot" onclick="boardSlotClick('enemy','defense')"><span>Armour</span></div>
+        <div class="eq-slot" id="enemy-defense-slot"><span>Armour</span></div>
       </div>
 
       <!-- PLAYER HALF -->
       <div class="arena-half player-half">
-        <div class="eq-slot" id="player-weapon-slot" onclick="boardSlotClick('player','weapon')"><span>Weapon</span></div>
+        <div class="eq-slot" id="player-weapon-slot"><span>Weapon</span></div>
         <div class="centre-zone">
           <div class="center-cards">
             <div class="bf-slot" id="player-active-slot" onclick="boardSlotClick('player','slot1')">EMPTY</div>
             <div class="bf-slot" id="player-active-slot-2" onclick="boardSlotClick('player','slot2')">EMPTY</div>
           </div>
         </div>
-        <div class="eq-slot" id="player-defense-slot" onclick="boardSlotClick('player','defense')"><span>Armour</span></div>
+        <div class="eq-slot" id="player-defense-slot"><span>Armour</span></div>
       </div>
 
     </div><!-- /arena-table -->
@@ -3858,27 +3858,31 @@ const Anim={
     requestAnimationFrame(tick);
   },
 
-  burst(x,y,count,pw){
+  /* colorA/colorB let callers (e.g. the pack impact reveal) tint the burst
+     to match a specific rarity color instead of the neutral silver/white
+     combat default — pass nothing to get the original in-battle look. */
+  burst(x,y,count,pw,colorA,colorB){
     if(!this.layer)return;
+    const cA=colorA||this.NC, cB=colorB||this.NW;
     const sz=[5,9,16][pw-1]||5;
     const sp=[4,8,14][pw-1]||4;
     const li=[22,38,58][pw-1]||22;
     for(let i=0;i<count;i++){
       const a=(i/count)*Math.PI*2+Math.random()*.7;
       const s=sp*(.4+Math.random()*.9);
-      const col=Math.random()<.55?this.NC:this.NW;
+      const col=Math.random()<.55?cA:cB;
       this.particle(x,y,col,sz*(.5+Math.random()),Math.cos(a)*s,Math.sin(a)*s,li+Math.random()*12);
     }
     if(pw>=2){
       for(let i=0;i<Math.ceil(count*.35);i++){
         const a=Math.random()*Math.PI*2;
-        this.particle(x,y,this.NW,sz*.4,Math.cos(a)*sp*2,Math.sin(a)*sp*2,li*.45);
+        this.particle(x,y,cB,sz*.4,Math.cos(a)*sp*2,Math.sin(a)*sp*2,li*.45);
       }
-      this.ring(x,y,this.NC,90,32);
+      this.ring(x,y,cA,90,32);
     }
     if(pw>=3){
-      setTimeout(()=>this.ring(x,y,this.NW,155,30),85);
-      setTimeout(()=>this.ring(x,y,this.NC,220,27),170);
+      setTimeout(()=>this.ring(x,y,cB,155,30),85);
+      setTimeout(()=>this.ring(x,y,cA,220,27),170);
     }
   },
 
@@ -4405,8 +4409,8 @@ function inspectCard(index){
  * acted yet. */
 function inspectBoardCard(side,slot){
   const card=side==='player'
-    ?(slot==='slot1'?State.player.activeCard:slot==='slot2'?State.player.activeCard2:slot==='weapon'?State.player.weaponCard:State.player.defenseCard)
-    :(slot==='slot1'?State.enemy.activeCard:slot==='slot2'?State.enemy.activeCard2:slot==='weapon'?State.enemy.weaponCard:State.enemy.defenseCard);
+    ?(slot==='slot1'?State.player.activeCard:State.player.activeCard2)
+    :(slot==='slot1'?State.enemy.activeCard:State.enemy.activeCard2);
   if(!card)return; // empty slot, nothing to inspect
   _inspectIndex=-1; // not a hand index
 
@@ -4427,9 +4431,7 @@ function inspectBoardCard(side,slot){
   const acts=document.getElementById('inspect-actions');
   acts.classList.remove('ready');
 
-  // Equipped weapon/defense cards are passive gear, not actors: they never
-  // get action buttons, only the slot1/slot2 creature slots can act.
-  const canActNow=(slot==='slot1'||slot==='slot2')&&side==='player'&&State.turn==='PLAYER'&&State.phase==='MAIN'&&!State.actedThisTurn.has(slot);
+  const canActNow=side==='player'&&State.turn==='PLAYER'&&State.phase==='MAIN'&&!State.actedThisTurn.has(slot);
   let btns='';
   if(canActNow){
     const te=card.topEffect;
@@ -4481,7 +4483,7 @@ function deployFromInspect(target){
   // `slot` disambiguates which active slot the player meant (only matters when both slot1 and
   // slot2 are already occupied and this is really a swap: the server has no other way to tell
   // "Swap Slot 1" from "Swap Slot 2" apart, see handleDeploy).
-  Net.send({type:'deploy', instanceId:card.instanceId, slot:(target==='slot1'||target==='slot2')?target:undefined});
+  GameNet.send({type:'deploy', instanceId:card.instanceId, slot:(target==='slot1'||target==='slot2')?target:undefined});
 }
 
 function renderHandTray(){
@@ -4532,7 +4534,7 @@ function initHandTray(){
 }
 
 function readyToBattle(){
-  Net.send({type:'ready_battle'});
+  GameNet.send({type:'ready_battle'});
   showToast('Waiting for opponent...');
 }
 
@@ -4553,7 +4555,7 @@ function readyToBattle(){
 
 let _autoEndTurnTimer=null;
 function endPlayerTurn(){
-  if(State.turn==='PLAYER') Net.send({type:'end_turn'});
+  if(State.turn==='PLAYER') GameNet.send({type:'end_turn'});
 }
 
 function clearPendingAction(){
@@ -4576,19 +4578,19 @@ function boardSlotClick(side,slot){
     if(State.pendingAbilityTargetKind==='ally'&&side==='player'){
       const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
       if(!card)return;
-      Net.send({type:'use_ability', slot:State.selectedSlot, target:slot});
+      GameNet.send({type:'use_ability', slot:State.selectedSlot, target:slot});
       clearPendingAction(); updateUI(); return;
     }
     if(State.pendingAtkIndex!==null&&side==='enemy'){
       const card=slot==='slot1'?State.enemy.activeCard:State.enemy.activeCard2;
       if(!card)return;
-      Net.send({type:'attack', slot:State.selectedSlot, target:slot, atkIndex:State.pendingAtkIndex});
+      GameNet.send({type:'attack', slot:State.selectedSlot, target:slot, atkIndex:State.pendingAtkIndex});
       clearPendingAction(); updateUI(); return;
     }
     if(State.pendingAbilityTargetKind==='enemy'&&side==='enemy'){
       const card=slot==='slot1'?State.enemy.activeCard:State.enemy.activeCard2;
       if(!card)return;
-      Net.send({type:'use_ability', slot:State.selectedSlot, target:slot});
+      GameNet.send({type:'use_ability', slot:State.selectedSlot, target:slot});
       clearPendingAction(); updateUI(); return;
     }
     if(side==='player'&&slot===State.selectedSlot){ clearPendingAction(); updateUI(); return; }
@@ -4624,7 +4626,7 @@ function chooseAbility(slot){
   closeInspect();
   State.selectedSlot=slot;
   if(te.heal&&(te.heal.target==='self'||te.heal.target==='side')){
-    Net.send({type:'use_ability', slot});
+    GameNet.send({type:'use_ability', slot});
     clearPendingAction(); updateUI(); return;
   }
   if(te.heal&&te.heal.target==='ally'){ State.pendingAbilityTargetKind='ally'; updateUI(); return; }
@@ -4654,7 +4656,7 @@ function showRevivePickerInInspect(slot){
 }
 
 function chooseReviveTarget(slot,deadInstanceId){
-  Net.send({type:'use_ability', slot, target:deadInstanceId});
+  GameNet.send({type:'use_ability', slot, target:deadInstanceId});
   closeInspect();
 }
 
@@ -4828,12 +4830,22 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   const rowCls=isWpn?'wpn':'def';
   const typeLabel=isWpn?'WEAPON':'DEFENSE';
   const bonusLabel=isWpn?'DMG +':'DEF ';
-  // No auto-generated summary here (durability lives in the corner badge
-  // above): show the card's actual authored description from cards.json
-  // instead, same fallback pattern cardSetBarHtml uses for `set` on live
-  // instances that only carry baseId, not the full base def.
-  const baseDef=CardById[card.baseId||card.id];
-  const description=card.description||baseDef?.description||'';
+  const effName=t=>Effects[t]?.name||t;
+  // sleep/paralyze/confusion are pure chance effects (skip-turn or miss-your-attack
+  // rolls), their amp/damp numbers are percentage POINTS. Everything else here is a
+  // damage-over-time tick, where the number is flat bonus/penalty damage per turn.
+  // (shock/soak/cryo carry both a dmg tick and a chance roll server-side, but no
+  // shipped card amplifies/dampens those yet, so the damage phrasing is the sane
+  // default until one does.)
+  const CHANCE_EFFECT_TYPES=new Set(['sleep','paralyze','confusion']);
+  const ampBits=card.ampEffects?Object.entries(card.ampEffects).map(([t,d])=>
+    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance +${d}%` : `${effName(t)} damage +${d}/turn`
+  ):[];
+  const dampBits=card.dampEffects?Object.entries(card.dampEffects).map(([t,d])=>
+    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance -${d}%` : `${effName(t)} damage -${d}/turn`
+  ):[];
+  const addBits=(card.addEffects||[]).map(e=>`+${effName(e.type)} (${e.duration>=9999?'permanent':e.duration+' turns'}) on every hit`);
+  const customSfx=[...ampBits,...dampBits,...addBits].join(' · ');
   return`<div class="card ${ic} ${extraClass}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
@@ -4847,7 +4859,8 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
         <span class="eff-name">${bonusLabel}${card.flatBonus} flat</span>
         <span class="eff-val" style="color:${accent}">${card.flatBonus}</span>
       </div>
-      ${description?`<div class="eff-sfx">${escapeHtml(description)}</div>`:''}
+      <div class="eff-sfx">Durability: ${card.currentDurability} / ${card.maxDurability} attacks</div>
+      ${customSfx?`<div class="eff-sfx">${customSfx}</div>`:''}
     </div>
     ${cardSetBarHtml(card)}
   </div>`;
@@ -5195,7 +5208,7 @@ function sendChatImageToken(imageId){
     const now=Date.now();
     if(now-BattleChat.lastSentAt<400) return;
     BattleChat.lastSentAt=now;
-    Net.send({type:'battle_chat', text:token});
+    GameNet.send({type:'battle_chat', text:token});
   } else if(kind==='global'){
     if(!GlobalChat.enabled){ showToast("Global chat isn't configured on this deployment."); return; }
     const now=Date.now();
@@ -7344,14 +7357,19 @@ function playTradeCompleteFx(onDone){
    straight into renderCard()), just never a hand, for either side.
 ══════════════════════════════════════ */
 let SpectateState=null;
+// Persistent mirror of spectatorView(), same idea as ServerStateMirror
+// above for a real player's own perspective() - see applySpectateState.
+let SpectatorStateMirror=null;
 
 function spectateUser(userId){
   if(!userId) return;
+  showToast('Connecting to spectate…', 2000);
   Net.send({type:'spectate_request', userId});
 }
 
 function openSpectateOverlay(msg){
   SpectateState={ matchId: msg.matchId, players: msg.players||[{},{}], _maxSeen:[0,0] };
+  SpectatorStateMirror=null; // fresh mirror for this spectate session; msg.full=true rebuilds it below
   const [pa,pb]=SpectateState.players;
   document.getElementById('spec-top-hp-label').innerHTML=`${escapeHtml(pa?.username||'Player')}'s Creatures ${renderRankBadge(pa?.rank)}`;
   document.getElementById('spec-bottom-hp-label').innerHTML=`${escapeHtml(pb?.username||'Player')}'s Creatures ${renderRankBadge(pb?.rank)}`;
@@ -7372,16 +7390,19 @@ function closeSpectateOverlay(){
 }
 
 function leaveSpectate(){
-  if(SpectateState) Net.send({type:'spectate_leave'});
-  GameNet.close(); // intentional: don't let the ws 'close' this triggers try to reconnect
+  if(SpectateState) GameNet.close();
   closeSpectateOverlay();
 }
 
 function applySpectateState(msg){
   if(!SpectateState || msg.matchId!==SpectateState.matchId) return;
+  // spectate_started (msg.full===true) hands a complete spectatorView();
+  // every spectate_state after that is a patch against it - see
+  // applySpectatorPatch and shared/state-diff.js's diffSpectatorView.
+  SpectatorStateMirror = msg.full ? sdClone(msg.state) : applySpectatorPatch(SpectatorStateMirror, msg.state);
   SpectateState.phase=msg.phase; SpectateState.turn=msg.turn;
-  renderSpectateHalf('top', msg.state.sideA, 'bf-enemy', 'bf-enemy-wpn', 'bf-enemy-def', 0);
-  renderSpectateHalf('bottom', msg.state.sideB, 'bf-active', 'bf-weapon', 'bf-defense', 1);
+  renderSpectateHalf('top', SpectatorStateMirror.sideA, 'bf-enemy', 'bf-enemy-wpn', 'bf-enemy-def', 0);
+  renderSpectateHalf('bottom', SpectatorStateMirror.sideB, 'bf-active', 'bf-weapon', 'bf-defense', 1);
   const status=document.getElementById('spectate-footer-status');
   const [pa,pb]=SpectateState.players;
   if(msg.phase==='SETUP') status.textContent='Both players are setting up their board…';
@@ -7489,7 +7510,7 @@ function showMenu(){
 }
 
 function returnToMenu(){
-  if(State.mp&&!State._mpOver){ Net.send({type:'forfeit'}); State.mp=false; }
+  if(State.mp&&!State._mpOver){ GameNet.send({type:'forfeit'}); State.mp=false; }
   showMenu();
 }
 
@@ -8308,7 +8329,7 @@ function handleDeckClick(){
   if(!_deckFaceUp){
     const def=_packCards[_deckPointer];
     const r=(def?.rarity||'common').toLowerCase();
-    const isGood=r==='legendary'||r==='mythic';
+    const isGood=r==='legendary'||r==='mythic'||r==='fabled';
 
     if(isGood){
       _revealInProgress=true;
@@ -8397,11 +8418,17 @@ function firePackParticles(bestRarity){
   if(!wrap) return;
   const rect=wrap.getBoundingClientRect();
   const originX=rect.left+rect.width/2,originY=rect.top+52;
-  const count=bestRarity==='mythic'?120:bestRarity==='legendary'?90:bestRarity==='epic'?65:bestRarity==='rare'?40:22;
+  // Explicit per-rarity table (rather than a chained ternary) so fabled —
+  // the rarest tier — can't silently fall through to the generic "else"
+  // bucket the way it used to and end up weaker-looking than mythic.
+  const COUNT_BY_RARITY   ={fabled:170, mythic:120, legendary:90, epic:65, rare:40};
+  const SPEED_BOOST_BY_RARITY={fabled:4,   mythic:3,   legendary:2,  epic:1};
+  const SIZE_BOOST_BY_RARITY ={fabled:2.6, mythic:2,   legendary:1.5};
+  const count=COUNT_BY_RARITY[bestRarity]||22;
   for(let i=0;i<count;i++){
     const angle=-Math.PI+Math.random()*Math.PI;
-    const speed=1.5+Math.random()*4.5+(bestRarity==='mythic'?3:bestRarity==='legendary'?2:bestRarity==='epic'?1:0);
-    const size=1.5+Math.random()*3+(bestRarity==='mythic'?2:bestRarity==='legendary'?1.5:0);
+    const speed=1.5+Math.random()*4.5+(SPEED_BOOST_BY_RARITY[bestRarity]||0);
+    const size=1.5+Math.random()*3+(SIZE_BOOST_BY_RARITY[bestRarity]||0);
     _particles.push({
       x:originX+(Math.random()-.5)*30,y:originY,
       vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-1,
@@ -8610,12 +8637,30 @@ function playLoadingEnterTransition(el){
 ══════════════════════════════════════ */
 
 const IMPACT_CFG={
+  /* starColor is the comet's hot core — this stays a plain white for
+     every rarity (that's just how a bright light "shines white at the
+     very center" regardless of what color it's glowing). starGlow is
+     what actually needs to read as the rarity's own color: it now
+     matches each rarity's real RARITY_CONFIG color exactly (legendary
+     red, mythic magenta, fabled cyan) instead of the old amber that
+     had accidentally been copied over from epic's color. starGlow2 is
+     just a secondary accent shade from the same hue family (except
+     fabled, which intentionally mixes in gold — that's the same
+     cyan/magenta/gold shimmer already used on the Fabled rarity badge
+     elsewhere in the app, not a mistake). */
   legendary: {shakeAmp:20, zoom:false, color:'#ef4444', colorRgb:'239,68,68',
-    starColor:'#fff3e0', starGlow:'#f59e0b', starGlow2:'#ef4444', starSpeed:760, starAccel:2200, blackoutMs:420, coreSize:8,  sparkle:false},
+    starColor:'#ffffff', starGlow:'#ef4444', starGlow2:'#fca5a5', starSpeed:760, starAccel:2200, blackoutMs:420, coreSize:8,  sparkle:false,
+    starCount:2},
   mythic:    {shakeAmp:30, zoom:true,  color:'#d946ef', colorRgb:'217,70,239',
-    starColor:'#fdf4ff', starGlow:'#e879f9', starGlow2:'#7c3aed', starSpeed:640, starAccel:2800, blackoutMs:560, coreSize:10, sparkle:true},
-  fabled:    {shakeAmp:40, zoom:true,  color:'#22d3ee', colorRgb:'34,211,238',
-    starColor:'#ecfeff', starGlow:'#67e8f9', starGlow2:'#22d3ee', starSpeed:560, starAccel:3200, blackoutMs:640, coreSize:12, sparkle:true},
+    starColor:'#ffffff', starGlow:'#d946ef', starGlow2:'#7c3aed', starSpeed:640, starAccel:2800, blackoutMs:560, coreSize:10, sparkle:true,
+    starCount:2},
+  /* Fabled is the rarest pull in the game, so its reveal is deliberately
+     the biggest in the file: six comets converge instead of two, every
+     hold frame runs longer than legendary/mythic's, and there's an extra
+     "encore" burst once the card lands (see runImpactReveal). */
+  fabled:    {shakeAmp:46, zoom:true,  color:'#22d3ee', colorRgb:'34,211,238',
+    starColor:'#ffffff', starGlow:'#22d3ee', starGlow2:'#facc15', starSpeed:520, starAccel:2600, blackoutMs:820, coreSize:13, sparkle:true,
+    starCount:6, frame1Ms:170, frame2Ms:260, stage2Ms:560, encore:true},
 };
 
 const PK_SCALE=1.85; // must match #pack-deck-scene-inner's base CSS scale
@@ -8746,7 +8791,18 @@ function drawCometCore(ctx,x,y,cfg,scale){
   ctx.restore();
 }
 
+/* Dispatcher: legendary/mythic keep the exact original two-comet
+   left/right collision (runCometFlightDuo, untouched), while fabled
+   (cfg.starCount>2) gets the new multi-comet convergence below. */
 function runCometFlight(ctx,W,H,cx,cy,cfg,onCollide){
+  if((cfg.starCount||2)>2){
+    runCometFlightMulti(ctx,W,H,cx,cy,cfg,onCollide);
+  } else {
+    runCometFlightDuo(ctx,W,H,cx,cy,cfg,onCollide);
+  }
+}
+
+function runCometFlightDuo(ctx,W,H,cx,cy,cfg,onCollide){
   const leftQuarterX=W*0.25, rightQuarterX=W*0.75;
   const L={x:-70,y:cy,speed:cfg.starSpeed,accelerating:false,trail:[]};
   const R={x:W+70,y:cy,speed:cfg.starSpeed,accelerating:false,trail:[]};
@@ -8805,6 +8861,84 @@ function runCometFlight(ctx,W,H,cx,cy,cfg,onCollide){
   _starRaf=requestAnimationFrame(frame);
 }
 
+/* ── FABLED: SIX-STAR CONVERGENCE ─────────────────────────────
+   Instead of two comets racing in from the left/right edges, six
+   comets are spaced evenly around the whole screen (one starts
+   pointing straight up) and all race inward along their own radius
+   toward the card's exact center at once. Each is tracked by its own
+   remaining distance rather than a fixed x-threshold, so the same
+   "accelerate once you're a quarter of the way in" beat from the
+   legendary/mythic version carries over here for any screen size or
+   card position, it just now applies to every star at once. Because
+   the six starting points are further from center than a simple
+   left/right pair, and fabled's own starSpeed/starAccel run slower
+   to start, the whole flight naturally takes noticeably longer than
+   legendary or mythic's — before the extra frame1/frame2/stage2
+   holds add even more time on top of that. */
+function runCometFlightMulti(ctx,W,H,cx,cy,cfg,onCollide){
+  const n=cfg.starCount;
+  const dist0=Math.hypot(W,H)*0.62+140; // origin comfortably off every edge
+  const stars=[];
+  for(let i=0;i<n;i++){
+    const angle=(Math.PI*2/n)*i-Math.PI/2; // first star spawns straight above
+    stars.push({
+      x:cx+Math.cos(angle)*dist0, y:cy+Math.sin(angle)*dist0,
+      ux:-Math.cos(angle), uy:-Math.sin(angle), // unit vector pointing at center
+      dist0, speed:cfg.starSpeed, accelerating:false, trail:[],
+    });
+  }
+  let lastT=null,collided=false;
+
+  function frame(t){
+    if(collided) return;
+    if(lastT===null) lastT=t;
+    const dt=Math.min(t-lastT,32); lastT=t;
+    const dts=dt/1000;
+
+    ctx.clearRect(0,0,W,H);
+    let minDist=Infinity;
+    stars.forEach(s=>{
+      const dx=cx-s.x, dy=cy-s.y;
+      const distRemain=Math.hypot(dx,dy);
+      minDist=Math.min(minDist,distRemain);
+      const traveledFrac=1-distRemain/s.dist0;
+      if(!s.accelerating && traveledFrac>=0.22) s.accelerating=true;
+      if(s.accelerating) s.speed+=cfg.starAccel*dts;
+
+      const step=Math.min(s.speed*dts,distRemain);
+      s.x+=s.ux*step; s.y+=s.uy*step;
+
+      s.trail.push({x:s.x,y:s.y,t});
+      s.trail=s.trail.filter(p=>t-p.t<340);
+
+      if(cfg.sparkle){
+        drawCometTrail(ctx,s.trail,t,cfg,s.accelerating,2.2,0.32,cfg.starGlow2);
+      }
+      drawCometTrail(ctx,s.trail,t,cfg,s.accelerating,1,0.9,cfg.starGlow);
+      drawCometCore(ctx,s.x,s.y,cfg,1);
+    });
+
+    if(minDist<=6){
+      collided=true;
+      // one bright frame of the collision flash before handing off —
+      // a bigger radius than the two-star version since six comets
+      // are slamming together here, not just two.
+      ctx.clearRect(0,0,W,H);
+      const flash=ctx.createRadialGradient(cx,cy,0,cx,cy,cfg.coreSize*12);
+      flash.addColorStop(0,'#ffffff');
+      flash.addColorStop(0.35,cfg.starGlow);
+      flash.addColorStop(0.7,cfg.starGlow2);
+      flash.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=flash;
+      ctx.beginPath(); ctx.arc(cx,cy,cfg.coreSize*12,0,Math.PI*2); ctx.fill();
+      onCollide();
+      return;
+    }
+    _starRaf=requestAnimationFrame(frame);
+  }
+  _starRaf=requestAnimationFrame(frame);
+}
+
 function playStarCollisionIntro(cardEl,cfg,onCollide){
   const blackout=document.getElementById('reveal-blackout');
   const canvas=document.getElementById('reveal-star-canvas');
@@ -8853,6 +8987,12 @@ function doImpactFrame(cardEl,cfg,onRevealed){
   const ring=document.getElementById('pack-impact-ring');
   const sil=document.getElementById('pack-impact-silhouette');
   const inner=cardEl.querySelector('.pk-card-inner');
+  // Fabled overrides these three holds to run noticeably longer than
+  // legendary/mythic; anything that doesn't specify falls back to the
+  // shared defaults so legendary/mythic are pixel-identical to before.
+  const frame1Ms=cfg.frame1Ms||IMPACT_FRAME1_MS;
+  const frame2Ms=cfg.frame2Ms||IMPACT_FRAME2_MS;
+  const stage2Ms=cfg.stage2Ms||FLIP_STAGE2_MS;
 
   // Position the black silhouette exactly over the resting card
   sil.style.transition='none';
@@ -8866,7 +9006,10 @@ function doImpactFrame(cardEl,cfg,onRevealed){
   ring.style.transition='none';
 
   // ── The instant of the click: burst + hard shake + rotation begins ──
-  Anim.burst(cx,cy,26,2);
+  // Tinted with this rarity's own glow color so the very first spark of
+  // the reveal already reads as "legendary red" / "mythic magenta" /
+  // "fabled cyan-gold" instead of a generic silver flash.
+  Anim.burst(cx,cy,26,2,cfg.starGlow,'#ffffff');
   startPackShake(cfg.shakeAmp);
 
   // Drive rotation via inline styles (they beat the CSS class rule's
@@ -8885,7 +9028,7 @@ function doImpactFrame(cardEl,cfg,onRevealed){
        whites out, card becomes a black silhouette, monochrome speed
        lines burst from behind it. No fade, no easing. */
     drawSpeedLines(canvas,cx,cy,{
-      color:'#ffffff',count:32,minLen:.30,maxLen:.82,minW:2,maxW:5,alpha:.92,rotOffset:0
+      color:'#ffffff',count:cfg.starCount>2?44:32,minLen:.30,maxLen:.82,minW:2,maxW:5,alpha:.92,rotOffset:0
     });
     whiteout.style.background='#fff';
     whiteout.style.opacity='1';
@@ -8899,9 +9042,9 @@ function doImpactFrame(cardEl,cfg,onRevealed){
          rarity color, a denser rotated layer of colored speed lines
          fires, a shockwave ring punches out from the card, and the
          silhouette itself punch-scales up for extra depth. */
-      Anim.burst(cx,cy,34,3);
+      Anim.burst(cx,cy,34,3,cfg.color,cfg.starGlow);
       drawSpeedLines(canvas,cx,cy,{
-        color:cfg.color,count:48,minLen:.20,maxLen:1.05,minW:3,maxW:8,alpha:1,rotOffset:.11
+        color:cfg.color,count:cfg.starCount>2?66:48,minLen:.20,maxLen:1.05,minW:3,maxW:8,alpha:1,rotOffset:.11
       });
       whiteout.style.background=cfg.color;
       sil.style.transform='scale(1.16)';
@@ -8914,8 +9057,8 @@ function doImpactFrame(cardEl,cfg,onRevealed){
       ring.style.opacity='1';
       ring.style.transform='scale(1)';
       ring.offsetHeight; // force reflow so the expand actually animates
-      ring.style.transition=`transform ${IMPACT_FRAME2_MS+60}ms cubic-bezier(0,.6,.4,1),opacity ${IMPACT_FRAME2_MS+60}ms ease`;
-      ring.style.transform='scale(24)';
+      ring.style.transition=`transform ${frame2Ms+60}ms cubic-bezier(0,.6,.4,1),opacity ${frame2Ms+60}ms ease`;
+      ring.style.transform=cfg.starCount>2?'scale(30)':'scale(24)';
       ring.style.opacity='0';
 
       setTimeout(()=>{
@@ -8928,7 +9071,7 @@ function doImpactFrame(cardEl,cfg,onRevealed){
         ring.style.transition='none';
         ring.style.opacity='0';
 
-        inner.style.transition=`transform ${FLIP_STAGE2_MS}ms cubic-bezier(.34,1.08,.64,1)`;
+        inner.style.transition=`transform ${stage2Ms}ms cubic-bezier(.34,1.08,.64,1)`;
         inner.style.transform='rotateY(180deg)';
 
         const onStage2End=(e2)=>{
@@ -8939,10 +9082,19 @@ function doImpactFrame(cardEl,cfg,onRevealed){
           inner.style.transition='';
           inner.style.transform='';
           onRevealed();
+          // Fabled gets one extra encore beat after the card has already
+          // landed face-up: a second, brighter tinted burst + ring so the
+          // rarest pull in the game keeps paying off for a moment longer
+          // instead of just stopping dead the instant the flip ends.
+          if(cfg.encore){
+            setTimeout(()=>{
+              Anim.burst(cx,cy,44,3,cfg.color,cfg.starGlow);
+            },90);
+          }
         };
         inner.addEventListener('transitionend',onStage2End);
-      },IMPACT_FRAME2_MS);
-    },IMPACT_FRAME1_MS);
+      },frame2Ms);
+    },frame1Ms);
   };
   inner.addEventListener('transitionend',onStage1End);
 }
@@ -9516,208 +9668,6 @@ function acceptDMOffer(messageId){
   Net.send({type:'dm_accept_offer', messageId});
 }
 
-function handleErrorMessage(msg){
-        hidePackLoading();
-        hideProfileLoading();
-        hideBazaarLoading();
-        clearTimeout(_tcSubmitTimeout);
-        clearTourneyActionLoading();
-        if(msg.reason==='claim_failed'){
-          revertOptimisticClaim(msg.questId, msg.scope, msg.milestone);
-        } else if(msg.reason==='card_library_mismatch'){
-          const overlay=document.getElementById('mp-connecting-overlay');
-          if(overlay&&overlay.style.display==='flex'){
-            hideConnectingOverlay();
-          }
-          showToast('⚠ Your game files are out of date, please hard-refresh (Ctrl/Cmd+Shift+R) and try again.', 6000);
-        } else if(msg.reason==='invalid_deck'){
-          hideQueueOverlay();
-          const size=msg.deckSize??0, need=msg.requiredSize??DECK_SIZE;
-          showToast(`⚠ Your deck isn't ready, ${size}/${need} cards. Build a legal deck first.`, 4000);
-          switchMenuTab('deck');
-        } else if(msg.reason==='invalid_chat_image'){
-          showToast("⚠ That image isn't in the official catalog, message blocked.", 3600);
-        } else if(msg.reason==='deck_wrong_size'){
-          const need=msg.requiredSize??DECK_SIZE, have=msg.deckSize??_dbDeck.length;
-          showToast(`⚠ Deck must be exactly ${need} cards (currently ${have}/${need}).`);
-        } else if(msg.reason==='deck_composition_invalid'){
-          showToast('⚠ Deck breaks the Boss/Overlord rule, only one Boss or Overlord allowed, and Overlord decks can\'t include Pests or Boss cards.', 6000);
-        } else if(msg.reason==='user_not_found'){
-          showToast('⚠ No player found with that username.');
-        } else if(msg.reason==='cannot_friend_self'){
-          showToast("⚠ You can't friend yourself.");
-        } else if(msg.reason==='already_friends'){
-          showToast('⚠ You\'re already friends with that player.');
-        } else if(msg.reason==='request_already_pending'){
-          showToast('⚠ A friend request with that player is already pending.');
-        } else if(msg.reason==='friend_offline'){
-          showToast('⚠ That friend is offline right now.');
-        } else if(msg.reason==='friend_busy'){
-          showToast('⚠ That friend is already in a match.');
-        } else if(msg.reason==='not_friends'){
-          showToast('⚠ You can only duel friends.');
-        } else if(msg.reason==='duel_unavailable'){
-          showToast('⚠ That duel is no longer available.');
-        } else if(msg.reason==='cannot_trade_self'){
-          showToast("You can't trade with yourself.");
-        } else if(msg.reason==='cannot_trade_bot'){
-          showToast("You can't trade with that player.");
-        } else if(msg.reason==='already_trading'){
-          showToast("You're already in a trade.");
-        } else if(msg.reason==='user_offline'){
-          showToast('That player is offline right now.');
-        } else if(msg.reason==='user_busy'){
-          showToast('That player is busy right now.');
-        } else if(msg.reason==='no_pending_trade'){
-          showToast('That trade request is no longer available.');
-        } else if(msg.reason==='trade_unavailable'){
-          showToast('That trade is no longer available.');
-        } else if(msg.reason==='no_active_trade'){
-          hideTradeAuthenticating();
-          showToast('You are not currently trading.');
-          closeTradeWindow();
-        } else if(msg.reason==='not_ready'){
-          showToast('Both players must be ready first.');
-        } else if(msg.reason==='trade_failed'||msg.reason==='trade_invalid'){
-          hideTradeAuthenticating();
-          showToast('The trade could not be completed, an offer is no longer valid.', 4000);
-          closeTradeWindow();
-        } else if(msg.reason==='trade_start_failed'){
-          showToast('Could not start the trade. Please try again.');
-        } else if(msg.reason==='not_in_match'){
-          showToast('That player is not in a match right now.');
-        } else if(msg.reason==='guild_name_invalid'){
-          showToast(`⚠ Guild name must be ${GuildOptions.nameMin}-${GuildOptions.nameMax} characters.`);
-          document.getElementById('gc-submit-btn').disabled=false;
-        } else if(msg.reason==='guild_name_taken'){
-          showToast('⚠ That guild name is already taken.');
-          document.getElementById('gc-submit-btn').disabled=false;
-        } else if(msg.reason==='already_in_guild'){
-          showToast("⚠ You're already in a guild, leave it first.");
-          document.getElementById('gc-submit-btn').disabled=false;
-        } else if(msg.reason==='insufficient_funds'){
-          showToast(msg.guildCreateCost ? `⚠ You need ${msg.guildCreateCost} Gems to found a guild.` : "⚠ You can't afford that right now.");
-          document.getElementById('gc-submit-btn').disabled=false;
-        } else if(msg.reason==='guild_full'){
-          showToast('⚠ That guild is full.');
-        } else if(msg.reason==='guild_not_found'){
-          showToast('⚠ That guild no longer exists.');
-        } else if(msg.reason==='guild_not_public'){
-          showToast('⚠ That guild is private, you need to apply or be invited.');
-        } else if(msg.reason==='guild_not_private'){
-          showToast('⚠ That guild is public, you can join it directly.');
-        } else if(msg.reason==='application_already_pending'){
-          showToast('⚠ You already have an application pending.');
-        } else if(msg.reason==='invite_already_pending'){
-          showToast('⚠ There is already a pending invite for that player.');
-        } else if(msg.reason==='not_guild_leader'){
-          showToast('⚠ Only the guild leader can do that.');
-        } else if(msg.reason==='cannot_invite_self'){
-          showToast("⚠ You can't invite yourself.");
-        } else if(msg.reason==='user_already_in_guild'){
-          showToast('⚠ That player is already in a guild.');
-        } else if(msg.reason==='guild_application_accepted_but_underfunded'){
-          showToast('That applicant could no longer afford the join fee, so they were not seated.', 4000);
-        } else if(msg.reason==='guild_chat_rate_limited'){
-          showToast("You're sending messages too fast.");
-        } else if(msg.reason==='not_in_guild'){
-          showToast("⚠ You're not in a guild.");
-        } else if(msg.reason==='card_not_found'||msg.reason==='invalid_listing_params'){
-          showToast('That listing is not valid, check the price/bid fields.');
-        } else if(msg.reason==='invalid_duration'){
-          showToast('Listing duration must be between 1 and 14 days.');
-        } else if(msg.reason==='card_not_owned'){
-          showToast("You don't own that card.");
-        } else if(msg.reason==='listing_not_found'||msg.reason==='listing_not_active'){
-          showToast('That listing is no longer available.');
-          refreshBazaarBrowse();
-        } else if(msg.reason==='not_your_listing'){
-          showToast("That's not your listing.");
-        } else if(msg.reason==='cannot_buy_own_listing'||msg.reason==='cannot_bid_own_listing'){
-          showToast("You can't buy or bid on your own listing.");
-        } else if(msg.reason==='not_an_auction'){
-          showToast('That listing is Buy-Now only.');
-        } else if(msg.reason==='auction_requires_bid'){
-          showToast('This auction has no buyout price, place a bid instead.');
-        } else if(msg.reason==='invalid_amount'){
-          showToast('Enter a valid amount.');
-        } else if(msg.reason==='bid_too_low'){
-          showToast(`Your bid must be at least ${(msg.minRequired||0).toLocaleString()}.`);
-        } else if(msg.reason==='insufficient_funds'){
-          showToast("You can't afford that (tax included).");
-        } else if(msg.reason==='dm_invalid'){
-          showToast('Could not send that message.');
-        } else if(msg.reason==='offer_not_found'||msg.reason==='offer_not_pending'){
-          showToast('That offer is no longer available.');
-        } else if(msg.reason==='not_your_offer'){
-          showToast("That offer wasn't sent to you.");
-        } else if(msg.reason==='buyer_cannot_afford'){
-          showToast('The buyer can no longer afford that offer, it was declined.');
-        } else if(msg.reason==='tournament_not_found'){
-          showToast('⚠ That tournament no longer exists.');
-          Net.send({type:'tournament_list'});
-        } else if(msg.reason==='tournament_locked'){
-          showToast('⚠ Registration for that tournament has closed.');
-          Net.send({type:'tournament_list'});
-        } else if(msg.reason==='already_registered'){
-          showToast("⚠ You're already registered for that tournament.");
-        } else if(msg.reason==='not_registered'){
-          showToast("⚠ You're not registered for that tournament.");
-        } else if(msg.reason==='tournament_full'){
-          showToast('⚠ That tournament is full.');
-          Net.send({type:'tournament_list'});
-        } else if(msg.reason==='tournament_insufficient_funds'){
-          showToast("⚠ You can't afford that tournament's entry fee.");
-        } else if(msg.reason==='invalid_name'){
-          showToast(`⚠ Tournament name must be ${TourneyOptions.nameMin}-${TourneyOptions.nameMax} characters.`);
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='invalid_max_players'){
-          showToast(`⚠ Max players must be ${TourneyOptions.unofficialMinPlayers}-${TourneyOptions.unofficialMaxPlayers}.`);
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='invalid_prize_percent'){
-          showToast(`⚠ Prize pool % must be ${TourneyOptions.unofficialPrizePercentMin}-${TourneyOptions.unofficialPrizePercentMax}.`);
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='invalid_entry_currency'){
-          showToast('⚠ Pick an entry fee currency.');
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='invalid_entry_amount'){
-          showToast('⚠ Enter a valid entry fee amount.');
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='invalid_start_time'){
-          showToast('⚠ Pick a start time at least 5 minutes from now (and within 2 weeks).', 4200);
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='too_many_hosted_tournaments'){
-          showToast("⚠ You're already hosting the max number of upcoming tournaments.", 3800);
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='not_host'){
-          showToast('⚠ Only the host can do that.');
-        } else if(msg.reason==='tournament_already_started'){
-          showToast('⚠ That tournament has already started.');
-          Net.send({type:'tournament_list'});
-        } else if(msg.reason==='tournament_create_failed'){
-          showToast('⚠ Could not create that tournament, please try again.');
-          document.getElementById('tc-submit-btn').disabled=false;
-        } else if(msg.reason==='revive_on_cooldown'){
-          showToast("⚠ That card just revived someone, it can't do it again this soon.");
-        } else if(msg.reason==='cannot_revive_boss_or_overlord'){
-          showToast("⚠ Boss and Overlord cards can't be brought back with a revive ability.");
-        } else if(['not_completed','already_claimed','not_reached','bad_scope','bad_milestone','unknown_quest'].includes(msg.reason)){
-          // Quest/milestone claim lost a race or was stale (another tab claimed
-          // it first, etc.), the quest_state that always accompanies this
-          // error already re-synced the UI to the true server state, so
-          // there's nothing more to tell the player here.
-        } else {
-          showToast('⚠ '+(msg.reason||'Something went wrong'));
-          // Whatever this error was, make sure it can't leave a disabled
-          // button stuck forever with no way to retry (a submit button that
-          // silently stays disabled reads as "I pressed it and nothing
-          // happened" on the next click, since disabled buttons don't even
-          // fire onclick).
-          const stuckBtn=document.getElementById('tc-submit-btn');
-          if(stuckBtn) stuckBtn.disabled=false;
-        }
-}
-
 const Net={
   ws:null, connected:false, authed:false, inQueue:false, matchId:null, userId:null,
   _reconnectTimer:null,
@@ -9770,16 +9720,7 @@ const Net={
     this.send({type:'auth', guestId:Player.guestId, name:Player.name||'Pestmaster', cardLibraryHash:CardLibraryHash});
   },
 
-  send(obj){
-    // Gameplay/spectate messages go straight to the assigned game server
-    // once GameNet is connected, everything else (lobby, social, market,
-    // tournaments...) stays on this connection to the main server. See
-    // GameNet below, this is the only place that decides which socket a
-    // message actually goes out on, so no individual call site (deploy,
-    // attack, battle_chat, ...) needed to change.
-    if(GameNet.MATCH_MSG_TYPES.has(obj.type) && GameNet.connected){ GameNet.send(obj); return; }
-    if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj));
-  },
+  send(obj){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj)); },
 
   /** Like send(), but for calls that can legitimately happen before the
    * socket even exists yet (e.g. the tutorial finishing before Net.connect()
@@ -9850,13 +9791,12 @@ const Net={
         }
         break;
       case 'match_presence': applyMatchPresence(msg.userIds, !!msg.inMatch); break;
-      case 'spectate_started': openSpectateOverlay(msg); break;
-      case 'spectate_state': applySpectateState(msg); break;
-      case 'spectate_ended':
-        if(SpectateState && msg.matchId===SpectateState.matchId){
-          showToast(msg.reason==='finished' ? 'That match just ended.' : 'Spectate session ended.');
-          closeSpectateOverlay();
-        }
+      // spectate_started/spectate_state/spectate_ended now arrive over
+      // GameNet's own connection to the game server (see spectate_redirect
+      // below and GameNet.handle) - the lobby socket's job is only to hand
+      // out the ticket that connection needs.
+      case 'spectate_redirect':
+        GameNet.connect(msg.gameServerUrl, msg.spectateTicket, 'spectator', msg.matchId);
         break;
       case 'profile_updated':
         applyServerProfile(msg.profile);
@@ -9864,26 +9804,13 @@ const Net={
         showToast('✦ Profile saved!');
         break;
       case 'queue_status': this.inQueue=msg.inQueue; break;
-      case 'match_found':
-        this.matchId=msg.matchId;
-        // Gameplay for this match happens on a dedicated game server, not
-        // here, connect the second socket now so it's ready by the time
-        // the player actually does anything (deploy, ready up, ...).
-        if(msg.gameServerUrl && msg.matchTicket) GameNet.connect(msg.gameServerUrl, msg.matchTicket, msg.matchId, 'player');
-        beginMultiplayerMatch(msg);
-        break;
-      case 'spectate_redirect':
-        // Spectating means watching the live board on the game server that
-        // actually holds it, connect there, the real spectate_started (with
-        // phase/turn/state) comes back over GameNet, not this socket.
-        if(msg.gameServerUrl && msg.spectateTicket) GameNet.connect(msg.gameServerUrl, msg.spectateTicket, msg.matchId, 'spectator');
-        break;
-      case 'state': applyServerState(msg); break;
-      case 'opponent_ready': showToast('Opponent is ready!'); break;
-      case 'opponent_disconnected': showToast('Opponent lost connection, waiting for them to return…',4000); break;
-      case 'opponent_reconnected': showToast('Opponent reconnected!'); break;
-      case 'match_over': handleMatchOver(msg); break;
-      case 'battle_chat': handleBattleChatMessage(msg); break;
+      // A fresh match, OR (msg.resumed===true) this same lobby socket just
+      // reconnected while a match of ours was still live - either way,
+      // beginMultiplayerMatch() opens/reopens GameNet with whatever ticket
+      // main-server just minted. Real gameplay traffic (state/deploy/
+      // attack/match_over/battle_chat/...) all rides that connection now,
+      // never this one - see GameNet below.
+      case 'match_found': this.matchId=msg.matchId; beginMultiplayerMatch(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
       case 'quest_state': applyQuestState(msg); break;
@@ -9893,6 +9820,11 @@ const Net={
         break;
       case 'guild_state':
         GuildState={guild:msg.guild||null, invite:msg.invite||null, application:msg.application||null};
+        if(GuildState.guild) (GuildState.guild.members||[]).forEach(m=>applyMatchPresence([m.userId], !!m.inMatch));
+        renderGuildPanel();
+        break;
+      case 'guild_state_delta':
+        GuildState=applyGuildPatch(GuildState, msg.patch||{});
         if(GuildState.guild) (GuildState.guild.members||[]).forEach(m=>applyMatchPresence([m.userId], !!m.inMatch));
         renderGuildPanel();
         break;
@@ -10102,67 +10034,306 @@ const Net={
         showToast('Draw! Starting a rematch...', 2600);
         break;
 
-      case 'error': handleErrorMessage(msg); break;
+      case 'error':
+        hidePackLoading();
+        hideProfileLoading();
+        hideBazaarLoading();
+        clearTimeout(_tcSubmitTimeout);
+        clearTourneyActionLoading();
+        if(msg.reason==='claim_failed'){
+          revertOptimisticClaim(msg.questId, msg.scope, msg.milestone);
+        } else if(msg.reason==='card_library_mismatch'){
+          const overlay=document.getElementById('mp-connecting-overlay');
+          if(overlay&&overlay.style.display==='flex'){
+            hideConnectingOverlay();
+          }
+          showToast('⚠ Your game files are out of date, please hard-refresh (Ctrl/Cmd+Shift+R) and try again.', 6000);
+        } else if(msg.reason==='invalid_deck'){
+          hideQueueOverlay();
+          const size=msg.deckSize??0, need=msg.requiredSize??DECK_SIZE;
+          showToast(`⚠ Your deck isn't ready, ${size}/${need} cards. Build a legal deck first.`, 4000);
+          switchMenuTab('deck');
+        } else if(msg.reason==='invalid_chat_image'){
+          showToast("⚠ That image isn't in the official catalog, message blocked.", 3600);
+        } else if(msg.reason==='deck_wrong_size'){
+          const need=msg.requiredSize??DECK_SIZE, have=msg.deckSize??_dbDeck.length;
+          showToast(`⚠ Deck must be exactly ${need} cards (currently ${have}/${need}).`);
+        } else if(msg.reason==='deck_composition_invalid'){
+          showToast('⚠ Deck breaks the Boss/Overlord rule, only one Boss or Overlord allowed, and Overlord decks can\'t include Pests or Boss cards.', 6000);
+        } else if(msg.reason==='user_not_found'){
+          showToast('⚠ No player found with that username.');
+        } else if(msg.reason==='cannot_friend_self'){
+          showToast("⚠ You can't friend yourself.");
+        } else if(msg.reason==='already_friends'){
+          showToast('⚠ You\'re already friends with that player.');
+        } else if(msg.reason==='request_already_pending'){
+          showToast('⚠ A friend request with that player is already pending.');
+        } else if(msg.reason==='friend_offline'){
+          showToast('⚠ That friend is offline right now.');
+        } else if(msg.reason==='friend_busy'){
+          showToast('⚠ That friend is already in a match.');
+        } else if(msg.reason==='not_friends'){
+          showToast('⚠ You can only duel friends.');
+        } else if(msg.reason==='duel_unavailable'){
+          showToast('⚠ That duel is no longer available.');
+        } else if(msg.reason==='cannot_trade_self'){
+          showToast("You can't trade with yourself.");
+        } else if(msg.reason==='cannot_trade_bot'){
+          showToast("You can't trade with that player.");
+        } else if(msg.reason==='already_trading'){
+          showToast("You're already in a trade.");
+        } else if(msg.reason==='user_offline'){
+          showToast('That player is offline right now.');
+        } else if(msg.reason==='user_busy'){
+          showToast('That player is busy right now.');
+        } else if(msg.reason==='no_pending_trade'){
+          showToast('That trade request is no longer available.');
+        } else if(msg.reason==='trade_unavailable'){
+          showToast('That trade is no longer available.');
+        } else if(msg.reason==='no_active_trade'){
+          hideTradeAuthenticating();
+          showToast('You are not currently trading.');
+          closeTradeWindow();
+        } else if(msg.reason==='not_ready'){
+          showToast('Both players must be ready first.');
+        } else if(msg.reason==='trade_failed'||msg.reason==='trade_invalid'){
+          hideTradeAuthenticating();
+          showToast('The trade could not be completed, an offer is no longer valid.', 4000);
+          closeTradeWindow();
+        } else if(msg.reason==='trade_start_failed'){
+          showToast('Could not start the trade. Please try again.');
+        } else if(msg.reason==='not_in_match'){
+          showToast('That player is not in a match right now.');
+        } else if(msg.reason==='guild_name_invalid'){
+          showToast(`⚠ Guild name must be ${GuildOptions.nameMin}-${GuildOptions.nameMax} characters.`);
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='guild_name_taken'){
+          showToast('⚠ That guild name is already taken.');
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='already_in_guild'){
+          showToast("⚠ You're already in a guild, leave it first.");
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='insufficient_funds'){
+          showToast(msg.guildCreateCost ? `⚠ You need ${msg.guildCreateCost} Gems to found a guild.` : "⚠ You can't afford that right now.");
+          document.getElementById('gc-submit-btn').disabled=false;
+        } else if(msg.reason==='guild_full'){
+          showToast('⚠ That guild is full.');
+        } else if(msg.reason==='guild_not_found'){
+          showToast('⚠ That guild no longer exists.');
+        } else if(msg.reason==='guild_not_public'){
+          showToast('⚠ That guild is private, you need to apply or be invited.');
+        } else if(msg.reason==='guild_not_private'){
+          showToast('⚠ That guild is public, you can join it directly.');
+        } else if(msg.reason==='application_already_pending'){
+          showToast('⚠ You already have an application pending.');
+        } else if(msg.reason==='invite_already_pending'){
+          showToast('⚠ There is already a pending invite for that player.');
+        } else if(msg.reason==='not_guild_leader'){
+          showToast('⚠ Only the guild leader can do that.');
+        } else if(msg.reason==='cannot_invite_self'){
+          showToast("⚠ You can't invite yourself.");
+        } else if(msg.reason==='user_already_in_guild'){
+          showToast('⚠ That player is already in a guild.');
+        } else if(msg.reason==='guild_application_accepted_but_underfunded'){
+          showToast('That applicant could no longer afford the join fee, so they were not seated.', 4000);
+        } else if(msg.reason==='guild_chat_rate_limited'){
+          showToast("You're sending messages too fast.");
+        } else if(msg.reason==='not_in_guild'){
+          showToast("⚠ You're not in a guild.");
+        } else if(msg.reason==='card_not_found'||msg.reason==='invalid_listing_params'){
+          showToast('That listing is not valid, check the price/bid fields.');
+        } else if(msg.reason==='invalid_duration'){
+          showToast('Listing duration must be between 1 and 14 days.');
+        } else if(msg.reason==='card_not_owned'){
+          showToast("You don't own that card.");
+        } else if(msg.reason==='listing_not_found'||msg.reason==='listing_not_active'){
+          showToast('That listing is no longer available.');
+          refreshBazaarBrowse();
+        } else if(msg.reason==='not_your_listing'){
+          showToast("That's not your listing.");
+        } else if(msg.reason==='cannot_buy_own_listing'||msg.reason==='cannot_bid_own_listing'){
+          showToast("You can't buy or bid on your own listing.");
+        } else if(msg.reason==='not_an_auction'){
+          showToast('That listing is Buy-Now only.');
+        } else if(msg.reason==='auction_requires_bid'){
+          showToast('This auction has no buyout price, place a bid instead.');
+        } else if(msg.reason==='invalid_amount'){
+          showToast('Enter a valid amount.');
+        } else if(msg.reason==='bid_too_low'){
+          showToast(`Your bid must be at least ${(msg.minRequired||0).toLocaleString()}.`);
+        } else if(msg.reason==='insufficient_funds'){
+          showToast("You can't afford that (tax included).");
+        } else if(msg.reason==='dm_invalid'){
+          showToast('Could not send that message.');
+        } else if(msg.reason==='offer_not_found'||msg.reason==='offer_not_pending'){
+          showToast('That offer is no longer available.');
+        } else if(msg.reason==='not_your_offer'){
+          showToast("That offer wasn't sent to you.");
+        } else if(msg.reason==='buyer_cannot_afford'){
+          showToast('The buyer can no longer afford that offer, it was declined.');
+        } else if(msg.reason==='tournament_not_found'){
+          showToast('⚠ That tournament no longer exists.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_locked'){
+          showToast('⚠ Registration for that tournament has closed.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='already_registered'){
+          showToast("⚠ You're already registered for that tournament.");
+        } else if(msg.reason==='not_registered'){
+          showToast("⚠ You're not registered for that tournament.");
+        } else if(msg.reason==='tournament_full'){
+          showToast('⚠ That tournament is full.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_insufficient_funds'){
+          showToast("⚠ You can't afford that tournament's entry fee.");
+        } else if(msg.reason==='invalid_name'){
+          showToast(`⚠ Tournament name must be ${TourneyOptions.nameMin}-${TourneyOptions.nameMax} characters.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_max_players'){
+          showToast(`⚠ Max players must be ${TourneyOptions.unofficialMinPlayers}-${TourneyOptions.unofficialMaxPlayers}.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_prize_percent'){
+          showToast(`⚠ Prize pool % must be ${TourneyOptions.unofficialPrizePercentMin}-${TourneyOptions.unofficialPrizePercentMax}.`);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_entry_currency'){
+          showToast('⚠ Pick an entry fee currency.');
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_entry_amount'){
+          showToast('⚠ Enter a valid entry fee amount.');
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='invalid_start_time'){
+          showToast('⚠ Pick a start time at least 5 minutes from now (and within 2 weeks).', 4200);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='too_many_hosted_tournaments'){
+          showToast("⚠ You're already hosting the max number of upcoming tournaments.", 3800);
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='not_host'){
+          showToast('⚠ Only the host can do that.');
+        } else if(msg.reason==='tournament_already_started'){
+          showToast('⚠ That tournament has already started.');
+          Net.send({type:'tournament_list'});
+        } else if(msg.reason==='tournament_create_failed'){
+          showToast('⚠ Could not create that tournament, please try again.');
+          document.getElementById('tc-submit-btn').disabled=false;
+        } else if(msg.reason==='revive_on_cooldown'){
+          showToast("⚠ That card just revived someone, it can't do it again this soon.");
+        } else if(msg.reason==='cannot_revive_boss_or_overlord'){
+          showToast("⚠ Boss and Overlord cards can't be brought back with a revive ability.");
+        } else if(['not_completed','already_claimed','not_reached','bad_scope','bad_milestone','unknown_quest'].includes(msg.reason)){
+          // Quest/milestone claim lost a race or was stale (another tab claimed
+          // it first, etc.), the quest_state that always accompanies this
+          // error already re-synced the UI to the true server state, so
+          // there's nothing more to tell the player here.
+        } else {
+          showToast('⚠ '+(msg.reason||'Something went wrong'));
+          // Whatever this error was, make sure it can't leave a disabled
+          // button stuck forever with no way to retry (a submit button that
+          // silently stays disabled reads as "I pressed it and nothing
+          // happened" on the next click, since disabled buttons don't even
+          // fire onclick).
+          const stuckBtn=document.getElementById('tc-submit-btn');
+          if(stuckBtn) stuckBtn.disabled=false;
+        }
+        break;
     }
   },
 };
 
-/** The second, gameplay-only WebSocket connection: once a match_found (or
- * spectate_redirect) names an assigned game server, this connects straight
- * to it and authenticates with the short-lived ticket the main server
- * handed out. Every deploy/attack/ability/end_turn/forfeit/battle_chat and
- * spectate message goes out here instead of over Net, see Net.send's
- * routing above, individual call sites never needed to change. Torn down
- * automatically once the match/spectate session ends. */
+/* ── GAME-SERVER CONNECTION ──────────────────────────────────────────
+ * Match gameplay (deploy/attack/end_turn/battle_chat/...) and spectating
+ * both run over a SEPARATE socket, straight to whichever game-server
+ * instance actually owns the live board - Net above only ever talks to the
+ * main/lobby server, which hands out a short-lived signed ticket
+ * (msg.matchTicket / msg.spectateTicket) and never sees the match itself.
+ * See match_found (player) and spectate_redirect (spectator) in Net.handle.
+ *
+ * Reusing that same ticket to reconnect after a brief drop is deliberate,
+ * not a workaround: it's stateless and valid for hours specifically so a
+ * flaky connection can get back into the SAME match without needing
+ * another round trip through the lobby server (see shared/security.js's
+ * signMatchTicket doc comment). If reconnecting straight to the game
+ * server ever fails outright (bad_ticket/unknown_match - the match is
+ * truly gone, or this ticket never was valid for it), falling back to
+ * Net's own reconnect is what picks it back up: main-server resends a
+ * FRESH match_found (msg.resumed=true) for any match the player is still
+ * actually in, the moment their lobby socket re-authenticates.
+ */
 const GameNet={
-  MATCH_MSG_TYPES: new Set(['deploy','ready_battle','attack','use_ability','end_turn','forfeit','battle_chat','spectate_leave']),
-  ws:null, connected:false, matchId:null, role:null,
-  _url:null, _ticket:null, _reconnectTimer:null, _reconnectDelay:800, _intentionalClose:false,
+  ws:null, connected:false, authed:false,
+  role:null, // 'player' | 'spectator'
+  matchId:null, gameServerUrl:null, matchTicket:null,
+  _reconnectTimer:null, _reconnectAttempts:0,
+  _intentional:false, // set right before a close WE asked for, so the close handler doesn't try to "recover" from it
 
-  connect(url, ticket, matchId, role){
-    this._intentionalClose=false;
-    this._url=url; this._ticket=ticket; this.matchId=matchId; this.role=role;
+  /** (Re)points this connection at a match/spectate session. Always tears
+   * down whatever was here before and connects fresh - unlike Net.connect(),
+   * which no-ops if already connecting, a caller handing us a new ticket
+   * (a fresh match_found/spectate_redirect) means "use THIS one now,"
+   * always, even mid-reconnect-attempt with a stale one. */
+  connect(gameServerUrl, matchTicket, role, matchId){
+    this._teardown();
+    this.role=role; this.gameServerUrl=gameServerUrl; this.matchTicket=matchTicket; this.matchId=matchId||null;
+    this._reconnectAttempts=0;
     this._open();
   },
 
   _open(){
-    clearTimeout(this._reconnectTimer);
-    if(this.ws){ try{ this.ws.close(); }catch(e){} this.ws=null; }
-    let ws;
-    try{ ws=new WebSocket(this._url); }catch(e){ log('GameNet: could not open websocket',e); return; }
-    this.ws=ws;
+    if(!this.gameServerUrl||!this.matchTicket) return;
+    let ws; try{ ws=new WebSocket(this.gameServerUrl); }catch(e){ log('GameNet: could not open websocket',e); return; }
+    this.ws=ws; this._intentional=false;
     ws.addEventListener('open',()=>{
       this.connected=true;
-      this._reconnectDelay=800;
-      this.send({type:'auth', matchTicket:this._ticket});
+      ws.send(JSON.stringify({type:'auth', matchTicket:this.matchTicket}));
     });
     ws.addEventListener('message',(ev)=>{
       let msg; try{ msg=JSON.parse(ev.data); }catch(e){ return; }
+      if(!this.authed && msg.type!=='error') this.authed=true;
+      if(this._reconnectAttempts>0 && (msg.type==='state'||msg.type==='spectate_started'||msg.type==='spectate_state')){
+        this._reconnectAttempts=0;
+        if(this.role==='player') showToast('Reconnected!');
+      }
       this.handle(msg);
     });
-    ws.addEventListener('close',()=>{
-      this.connected=false;
-      if(this._intentionalClose || !this._ticket) return;
-      // The match itself might still be running even though this
-      // particular socket dropped (network hiccup, tab backgrounded,
-      // etc.), reconnect with the same ticket, the game server treats a
-      // fresh auth for an already-connected side as a reconnect, same as
-      // Net's own retry loop does for the lobby socket.
-      this._reconnectDelay=Math.min(this._reconnectDelay*1.6, 6000);
-      this._reconnectTimer=setTimeout(()=>this._open(), this._reconnectDelay);
+    ws.addEventListener('close',(ev)=>{
+      this.connected=false; this.authed=false;
+      if(this._intentional) return;
+      // 4001 bad_ticket / 4004 unknown_match|not_in_match: the server is
+      // telling us, unambiguously, that reconnecting with THIS ticket will
+      // never work again (match ended, or it was never valid for it) -
+      // retrying would just spin forever. Bail out to whatever Net's own
+      // reconnect flow provides instead (a fresh match_found, if this
+      // match is somehow still live from the lobby's point of view).
+      if(ev.code===4001||ev.code===4004){
+        if(this.role==='player' && State.mp && !State._mpOver) showToast("Lost the match connection.", 4000);
+        this._teardown();
+        return;
+      }
+      if(this.role==='spectator'){ closeSpectateOverlay(); this._teardown(); return; }
+      // Player role, ordinary drop (network blip, tab backgrounded, etc.):
+      // race to get back in well inside the server's 20s grace window
+      // (see game-server's RECONNECT_GRACE_MS) before it auto-forfeits us.
+      if(this._reconnectAttempts===0) showToast('Reconnecting to match…', 4000);
+      this._reconnectAttempts++;
+      if(this._reconnectAttempts>12){ this._teardown(); return; } // ~well past the grace window, give up
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer=setTimeout(()=>this._open(), Math.min(400*this._reconnectAttempts, 1800));
     });
     ws.addEventListener('error',()=>{});
   },
 
   send(obj){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj)); },
 
-  /** Ends this connection on purpose (match over, left spectating), no
-   * auto-reconnect follows. */
-  close(){
-    this._intentionalClose=true;
-    clearTimeout(this._reconnectTimer);
-    if(this.ws){ try{ this.ws.close(); }catch(e){} }
-    this.ws=null; this.connected=false; this.matchId=null; this.role=null; this._ticket=null;
+  /** Intentional exit (forfeit acknowledged via match_over, or leaving a
+   * spectate session) - no reconnect attempt should follow this. */
+  close(){ this._intentional=true; try{ this.ws&&this.ws.close(4000,'left'); }catch(e){} this._teardown(); },
+
+  _teardown(){
+    clearTimeout(this._reconnectTimer); this._reconnectTimer=null;
+    this._intentional=true;
+    try{ this.ws&&this.ws.close(); }catch(e){}
+    this.ws=null; this.connected=false; this.authed=false;
+    this.role=null; this.matchId=null; this.gameServerUrl=null; this.matchTicket=null;
+    this._reconnectAttempts=0;
   },
 
   handle(msg){
@@ -10181,12 +10352,11 @@ const GameNet={
         this.close();
         break;
       case 'error':
-        handleErrorMessage(msg);
-        // These mean this specific connection/credential is no longer
-        // good for anything (match/spectate session is over or never
-        // existed), reconnecting with the same ticket would just get the
-        // same rejection forever, so stop trying rather than looping.
-        if(msg.reason==='unknown_match' || msg.reason==='not_in_match' || msg.reason==='bad_ticket') this.close();
+        if(msg.reason==='bad_ticket'||msg.reason==='unknown_match'||msg.reason==='not_in_match'){
+          // The auth-time rejection itself; the close handler above (which
+          // fires right after this, per game-server's ws.close(4001/4004))
+          // is what actually decides what happens next.
+        }
         break;
     }
   },
@@ -10630,6 +10800,12 @@ function playMatchStartTransition(oppName,oppIcon){
 }
 
 function beginMultiplayerMatch(msg){
+  // Gameplay for this match rides GameNet from here on, straight to the
+  // game-server instance that actually owns the board - see GameNet's doc
+  // comment. msg.resumed (this lobby socket just reconnected mid-match)
+  // hands us a fresh ticket the exact same way a brand new match does, so
+  // this one call covers both.
+  GameNet.connect(msg.gameServerUrl, msg.matchTicket, 'player', msg.matchId);
   hideQueueOverlay();
   // Explicitly hide the lobby right here, synchronously, rather than just
   // trusting the VS-transition overlay (opened a few lines down) to visually
@@ -10646,6 +10822,7 @@ function beginMultiplayerMatch(msg){
   document.getElementById('menu-screen').classList.add('hidden');
   document.getElementById('main').style.display='none';
   State.mp=true; State.mySide=msg.youAre; State._mpOver=false;
+  ServerStateMirror=null; // fresh mirror for this match; the first 'state' push (full:true) rebuilds it
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
   State.opponentRank=msg.opponentRank||null;
@@ -10681,6 +10858,117 @@ function beginMultiplayerMatch(msg){
   else { playMatchStartTransition(State.opponentName,State.opponentIcon).then(enterGame); }
 }
 
+/* ── STATE DELTA APPLICATION ──────────────────────────────────────────
+ * Client-side twin of server/shared/state-diff.js. The server now sends a
+ * FULL perspective()/spectatorView() snapshot only right after a (re)connect
+ * (msg.full===true); every push after that is a small patch against
+ * whatever THIS client was last sent (see that file's header comment for
+ * the exact wire shapes - {full}/{patch} slot entries, {add,remove,patch,
+ * order?} card-list entries). These functions merge such a patch onto a
+ * persistent local mirror (ServerStateMirror / SpectatorStateMirror below)
+ * so the rest of the client keeps reading full, current card objects
+ * exactly as it always did - only how that mirror gets updated changed. */
+function sdClone(v){ return v==null ? v : JSON.parse(JSON.stringify(v)); }
+
+/** activeCard/activeCard2/weaponCard/defenseCard: entry is either
+ * {full: cardOrNull} (wholesale replacement - equip/unequip/death/swap to
+ * a different instance) or {patch:{...changedFields}} (same card instance,
+ * just the fields that actually differ). */
+function sdApplySlot(oldCard, entry){
+  if(entry===undefined) return oldCard;
+  if('full' in entry) return entry.full;
+  return Object.assign({}, oldCard, entry.patch);
+}
+
+/** Generic keyed-list patch apply: hand/graveyard keyed by instanceId,
+ * guild rosters/applications/invite-lists keyed by userId, or any other
+ * "list of objects with a stable id" - server twin of shared/state-diff.js's
+ * diffKeyedList. entry is {add:[obj,...], remove:[key,...],
+ * patch:{key:{...fields}}, order?:[key,...]}. `order` is only present when
+ * the result isn't just "old order, minus removals, plus additions
+ * appended" - reconstructing that same default here (instead of always
+ * sending an order array) is most of this bandwidth win. */
+function sdApplyKeyedList(oldList, entry, keyOf){
+  if(entry===undefined) return oldList;
+  oldList = oldList||[];
+  const map=new Map(oldList.map(x=>[keyOf(x),x]));
+  if(entry.remove) entry.remove.forEach(k=>map.delete(k));
+  if(entry.patch) for(const k in entry.patch){ const x=map.get(k); if(x) map.set(k, Object.assign({}, x, entry.patch[k])); }
+  if(entry.add) entry.add.forEach(x=>map.set(keyOf(x),x));
+  if(entry.order) return entry.order.map(k=>map.get(k)).filter(Boolean);
+  const removedSet=new Set(entry.remove||[]);
+  const keptKeys=oldList.map(keyOf).filter(k=>!removedSet.has(k));
+  const addedKeys=(entry.add||[]).map(keyOf);
+  return keptKeys.concat(addedKeys).map(k=>map.get(k)).filter(Boolean);
+}
+/** hand/graveyard: keyed by instanceId. Thin wrapper over sdApplyKeyedList. */
+function sdApplyCardList(oldList, entry){
+  return sdApplyKeyedList(oldList, entry, c=>c.instanceId);
+}
+
+const SD_SLOT_FIELDS=['activeCard','activeCard2','weaponCard','defenseCard'];
+function sdApplyScalarsAndSlots(oldS, patch, scalarFields){
+  const out=Object.assign({}, oldS);
+  scalarFields.forEach(f=>{ if(f in patch) out[f]=patch[f]; });
+  SD_SLOT_FIELDS.forEach(f=>{ if(f in patch) out[f]=sdApplySlot(oldS[f], patch[f]); });
+  return out;
+}
+const SD_YOU_SCALARS=['hp','maxHp','deckCount','creaturesLeft','reviveCharges'];
+const SD_OPP_SCALARS=['hp','maxHp','deckCount','creaturesLeft','reviveCharges','handCount','graveyardCount'];
+const SD_SPEC_SCALARS=['hp','maxHp','deckCount','handCount','graveyardCount','creaturesLeft'];
+
+/** Merges a perspective() patch onto ServerStateMirror's shape ({you,
+ * opponent, actedThisTurn}). Never mutates `oldFull` in place - some other
+ * code may still be reading the previous frame's mirror when a new message
+ * arrives (see applyServerState's early, synchronous merge below). */
+function applyPerspectivePatch(oldFull, patch){
+  const base=oldFull||{you:{},opponent:{},actedThisTurn:[]};
+  const you=patch.you ? sdApplyScalarsAndSlots(base.you, patch.you, SD_YOU_SCALARS) : base.you;
+  if(patch.you && 'hand' in patch.you) you.hand=sdApplyCardList(base.you.hand, patch.you.hand);
+  if(patch.you && 'graveyard' in patch.you) you.graveyard=sdApplyCardList(base.you.graveyard, patch.you.graveyard);
+  const opponent=patch.opponent ? sdApplyScalarsAndSlots(base.opponent, patch.opponent, SD_OPP_SCALARS) : base.opponent;
+  const actedThisTurn=('actedThisTurn' in patch) ? patch.actedThisTurn : (base.actedThisTurn||[]);
+  return { you, opponent, actedThisTurn };
+}
+
+/** Same idea for spectatorView()'s {sideA, sideB} shape - no hand/graveyard
+ * contents to worry about there, spectators only ever see counts. */
+function applySpectatorPatch(oldFull, patch){
+  const base=oldFull||{sideA:{},sideB:{}};
+  return {
+    sideA: patch.sideA ? sdApplyScalarsAndSlots(base.sideA, patch.sideA, SD_SPEC_SCALARS) : base.sideA,
+    sideB: patch.sideB ? sdApplyScalarsAndSlots(base.sideB, patch.sideB, SD_SPEC_SCALARS) : base.sideB,
+  };
+}
+
+/** Merges a guild_state_delta's `patch` onto GuildState. Server twin:
+ * main-server/index.js's broadcastGuildState + shared/state-diff.js's
+ * diffGuildState. patch is either {invite,application} (still un-guilded,
+ * one of those changed) or {guild:{...changed scalar fields, plus
+ * members/applications/invitesSent as keyed-list entries}} (still in the
+ * same guild - a join/leave/kick/promotion elsewhere in the roster). A
+ * membership change for THIS client (joined/left/switched guilds) always
+ * arrives as a full `guild_state` message instead, never a delta - see
+ * diffGuildState's "not diffable, send everything" branch - so there's no
+ * "am I still in this guild" case to handle here at all. */
+function applyGuildPatch(prevState, patch){
+  const base=prevState||{guild:null, invite:null, application:null};
+  const out={ guild: base.guild, invite: base.invite, application: base.application };
+  if('invite' in patch) out.invite=patch.invite;
+  if('application' in patch) out.application=patch.application;
+  if(patch.guild){
+    const g=Object.assign({}, base.guild);
+    for(const k in patch.guild){
+      if(k==='members') g.members=sdApplyKeyedList(base.guild.members, patch.guild.members, m=>m.userId);
+      else if(k==='applications') g.applications=sdApplyKeyedList(base.guild.applications, patch.guild.applications, a=>a.userId);
+      else if(k==='invitesSent') g.invitesSent=sdApplyKeyedList(base.guild.invitesSent, patch.guild.invitesSent, i=>i.userId);
+      else g[k]=patch.guild[k];
+    }
+    out.guild=g;
+  }
+  return out;
+}
+
 /* ── AUTHORITATIVE STATE APPLICATION ──────────────────────────────── */
 // Timers for the currently-playing event animation sequence, kept so a new
 // 'state' push that arrives mid-animation can cancel them cleanly instead of
@@ -10689,7 +10977,20 @@ let _animTimers=[];
 let _pendingFinalize=null;
 function _scheduleAnim(fn,delay){ const id=setTimeout(fn,delay); _animTimers.push(id); return id; }
 
+// Persistent mirror of the server's perspective(mySide), kept in sync by
+// applyServerState()'s patch merge below. This is deliberately SEPARATE
+// from State.player/State.enemy: the mirror updates immediately/
+// synchronously (an event like 'deploy' needs the just-changed card's full
+// data right away, see playSingleEvent), while State.player/State.enemy
+// only update once every queued event has had its moment on screen (see
+// the finalize() pattern below, unchanged from before).
+let ServerStateMirror=null;
+
 function applyServerState(msg){
+  // Merge the incoming full snapshot or patch onto the mirror RIGHT NOW,
+  // synchronously - not deferred like the visible board update below.
+  ServerStateMirror = msg.full ? sdClone(msg.state) : applyPerspectivePatch(ServerStateMirror, msg.state);
+
   // A previous state's event animation hasn't finished playing yet (rare: two
   // state pushes landing close together). Rather than let its board mutation
   // race the new one, snap it to its final values immediately, then proceed.
@@ -10703,10 +11004,13 @@ function applyServerState(msg){
   // death's animation needs the dying card still in the DOM, etc.), so the
   // actual state mutation + re-render is deferred until every event has had
   // its moment on screen, not applied up front and animated "on top of".
+  // Reads from ServerStateMirror (the fully merged, canonical state as of
+  // THIS message), not msg.state directly - msg.state is only ever the
+  // patch/delta that produced it.
   const finalize=()=>{
     if(_pendingFinalize!==finalize)return;
     _pendingFinalize=null;
-    const you=msg.state.you, opp=msg.state.opponent;
+    const you=ServerStateMirror.you, opp=ServerStateMirror.opponent;
     State.player.hp=you.hp; State.player.maxHp=you.maxHp;
     State.player.creaturesLeft=you.creaturesLeft; State.player.graveyard=you.graveyard||[];
     State.player.activeCard=you.activeCard; State.player.activeCard2=you.activeCard2;
@@ -10731,7 +11035,7 @@ function applyServerState(msg){
     // during SETUP both sides deploy simultaneously, the server's `turn` field is only
     // meaningful once MAIN starts, so don't let it block either player's own inspectCard/deploy gating
     State.turn=(msg.phase==='SETUP')?'PLAYER':((msg.turn===State.mySide)?'PLAYER':'ENEMY');
-    State.actedThisTurn=new Set(msg.state.actedThisTurn||[]);
+    State.actedThisTurn=new Set(ServerStateMirror.actedThisTurn||[]);
     if(!(State.turn==='PLAYER'&&State.phase==='MAIN')){ clearPendingAction(); }
 
     const lbl=document.getElementById('turn-label'), ph=document.getElementById('phase-label');
@@ -10753,6 +11057,24 @@ function sideSlotToId(side,slot){
   if(slot==='slot2')return mine?'player-active-slot-2':'enemy-active-slot-2';
   if(slot==='weapon')return mine?'player-weapon-slot':'enemy-weapon-slot';
   if(slot==='defense')return mine?'player-defense-slot':'enemy-defense-slot';
+  return null;
+}
+/** Reads a card straight from ServerStateMirror (the just-merged, canonical
+ * state as of the message currently being handled), NOT from State.player/
+ * State.enemy (which still shows the pre-mutation board until finalize()
+ * runs, see applyServerState). The 'deploy' event needs this: the server
+ * no longer repeats the newly-deployed card's full data inside the event
+ * itself (see game-server/index.js's handleDeploy), since the state patch
+ * already carries it - this is what reads it back out for the early-insert
+ * animation. */
+function cardFromMirrorBySlot(side,slotType){
+  if(!ServerStateMirror) return null;
+  const entity=(side===State.mySide)?ServerStateMirror.you:ServerStateMirror.opponent;
+  if(!entity) return null;
+  if(slotType==='slot1')return entity.activeCard;
+  if(slotType==='slot2')return entity.activeCard2;
+  if(slotType==='weapon')return entity.weaponCard;
+  if(slotType==='defense')return entity.defenseCard;
   return null;
 }
 function findCardBySideSlot(side,slot){
@@ -10805,14 +11127,15 @@ function playSingleEvent(e){
     switch(e.t){
       case 'deploy': {
         const slotId=sideSlotToId(e.side,e.slotType);
-        if(slotId&&e.card){
+        const card=cardFromMirrorBySlot(e.side,e.slotType);
+        if(slotId&&card){
           // Insert the card and kick off its grow-in animation in the very next
           // frame, back to back, so the browser never gets a chance to paint it
           // at full size before the shrink-in transform is applied (that gap is
           // what used to cause a one-frame "full size, snap small, then grow"
           // flash).
-          insertDeployedCardEarly(slotId,e.side,e.card);
-          const pw=Anim.power(e.card);
+          insertDeployedCardEarly(slotId,e.side,card);
+          const pw=Anim.power(card);
           requestAnimationFrame(()=>Anim.deployAnim(slotId,pw));
         }
         break;
@@ -11219,7 +11542,7 @@ async function sendGlobalChat(e){
     if(now-BattleChat.lastSentAt<400)return false;
     BattleChat.lastSentAt=now;
     input.value='';
-    Net.send({type:'battle_chat', text});
+    GameNet.send({type:'battle_chat', text});
     return false;
   }
 
@@ -12050,7 +12373,7 @@ async function tutStepStatus(){
     "It triggers at the start of YOUR turn, ten damage, every turn, until it runs its course.",
     "You'll meet others out there. Poison deals more, with variations like Strong Poison. Sleep and Paralyze can lock a card out of acting entirely.",
   ]);
-  await Tutorial.prompt("End your turn, watch it take hold.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.prompt("End your turn, watch it take hold.",{actionLabel:'End Turn \u25b8',actionFn:()=>GameNet.send({type:'end_turn'})});
   await Tutorial.waitAction(o=>o.type==='end_turn');
   if(Tutorial._cancelled)return;
   Tutorial.setAction(null);
@@ -12116,12 +12439,12 @@ async function tutStepFinale(){
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
   await Tutorial.say(["Direct hit, and the Burn catches the amplification. Ten a turn just became thirty-five."]);
-  await Tutorial.prompt("End your turn, let it feed.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.prompt("End your turn, let it feed.",{actionLabel:'End Turn \u25b8',actionFn:()=>GameNet.send({type:'end_turn'})});
   await Tutorial.waitAction(o=>o.type==='end_turn');
   if(Tutorial._cancelled)return;
   Tutorial.setAction(null);
   await Tutorial.say(["Once more."]);
-  await Tutorial.prompt("End your turn again.",{actionLabel:'End Turn \u25b8',actionFn:()=>Net.send({type:'end_turn'})});
+  await Tutorial.prompt("End your turn again.",{actionLabel:'End Turn \u25b8',actionFn:()=>GameNet.send({type:'end_turn'})});
   await Tutorial.waitAction(o=>o.type==='end_turn');
   if(Tutorial._cancelled)return;
   Tutorial.setAction(null);
@@ -12244,7 +12567,7 @@ document.addEventListener('visibilitychange',()=>{
 // alongside it purely as a belt-and-suspenders for older engines — sending
 // the same forfeit twice is harmless (handleForfeit -> finish() is a no-op
 // once the match is already over).
-function _forfeitOnUnload(){ if(State.mp&&!State._mpOver){ Net.send({type:'forfeit'}); State.mp=false; } }
+function _forfeitOnUnload(){ if(State.mp&&!State._mpOver){ GameNet.send({type:'forfeit'}); State.mp=false; } }
 window.addEventListener('pagehide',_forfeitOnUnload);
 window.addEventListener('beforeunload',_forfeitOnUnload);
 
