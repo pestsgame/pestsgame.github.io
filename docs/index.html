@@ -81,15 +81,20 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   background:radial-gradient(ellipse,rgba(0,0,0,.6),transparent 72%);
   filter:blur(2px);opacity:.5;transform:scale(1);
 }
-.coin-shadow.flipping{animation:coinShadow 3.1s cubic-bezier(.22,.61,.25,1) forwards;}
+.coin-shadow.flipping{animation:coinShadow 3.1s forwards;}
+/* Mirrors coinToss's height curve inversely (small/faint when the coin is
+ * up, large/dark near the ground) - same per-stop easing fix applies here
+ * for the same reason: it needs to move in lockstep with the coin's own
+ * (now per-segment-eased) motion, or the two drift out of sync exactly
+ * the way the un-eased coin used to stutter against itself. */
 @keyframes coinShadow{
-  0%  {transform:scale(1);   opacity:.5;}
-  38% {transform:scale(.38); opacity:.16;}
-  62% {transform:scale(.7);  opacity:.3;}
-  76% {transform:scale(1.18);opacity:.62;}
-  83% {transform:scale(.85); opacity:.4;}
-  90% {transform:scale(1.1); opacity:.56;}
-  95% {transform:scale(.96); opacity:.48;}
+  0%  {transform:scale(1);   opacity:.5;  animation-timing-function:ease-out;}
+  38% {transform:scale(.38); opacity:.16; animation-timing-function:ease-in;}
+  62% {transform:scale(.7);  opacity:.3;  animation-timing-function:ease-in;}
+  76% {transform:scale(1.18);opacity:.62; animation-timing-function:ease-out;}
+  83% {transform:scale(.85); opacity:.4;  animation-timing-function:ease-in;}
+  90% {transform:scale(1.1); opacity:.56; animation-timing-function:ease-out;}
+  95% {transform:scale(.96); opacity:.48; animation-timing-function:ease-in;}
   100%{transform:scale(1);   opacity:.5;}
 }
 .coin{
@@ -97,22 +102,39 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   transform-style:preserve-3d;
 }
 .coin.flipping{
-  animation:coinToss 3.1s cubic-bezier(.22,.61,.25,1) forwards;
+  animation:coinToss 3.1s forwards;
 }
 /* Tumbles end-over-end around its horizontal axis (rotateX), the way an
  * actual tossed coin flips, alternating which face points at the camera —
  * NOT rotateY, which spins it flat around a vertical axis like a top or a
  * record instead of flipping it. rotateY is kept as a small secondary
  * wobble only (a few degrees), real coin tosses aren't perfectly
- * axis-locked either. */
+ * axis-locked either.
+ *
+ * Each stop below sets its own `animation-timing-function`, overriding
+ * whatever's on the `.coin.flipping` rule for the segment FROM that stop
+ * TO the next one (that's how per-keyframe easing works: it paces the
+ * outgoing segment, not the incoming one). This is deliberate, not
+ * decoration - a single easing curve applied uniformly across the whole
+ * animation (the old behavior) gets independently re-applied to EVERY
+ * segment, including the falls, so a fast-start/slow-end curve makes the
+ * coin decelerate on the way DOWN too - it visibly stalls mid-air, then
+ * the next segment restarts with another fast burst, reading as an
+ * unnatural stutter/"regaining momentum". Real gravity only decelerates
+ * while RISING and accelerates while FALLING, so rises get ease-out and
+ * falls get ease-in, alternating stop by stop to match the up/down/
+ * bounce/bounce shape actually encoded in the translateY values: rise to
+ * the apex (0→38%), fall from the apex (38%→76%, split across two stops
+ * purely for the rotation/wobble detail, not a separate physical phase),
+ * bounce 1 up then down (76→83→90%), bounce 2 up then down (90→95→100%). */
 @keyframes coinToss{
-  0%  {transform:translateY(0)     rotateX(0deg) rotateY(6deg)  scale(1);}
-  38% {transform:translateY(-210px)rotateX(calc(var(--final-rot,1800deg)*0.45)) rotateY(9deg) scale(1.14);}
-  62% {transform:translateY(-46px) rotateX(calc(var(--final-rot,1800deg)*0.78)) rotateY(4deg)  scale(1.03);}
-  76% {transform:translateY(0px)   rotateX(calc(var(--final-rot,1800deg)*0.94)) rotateY(-5deg) scale(.96);}
-  83% {transform:translateY(-28px) rotateX(var(--final-rot,1800deg))            rotateY(3deg)  scale(1.02);}
-  90% {transform:translateY(0px)   rotateX(var(--final-rot,1800deg))            rotateY(-2deg) scale(.985);}
-  95% {transform:translateY(-9px)  rotateX(var(--final-rot,1800deg))            rotateY(1deg)  scale(1.005);}
+  0%  {transform:translateY(0)     rotateX(0deg) rotateY(6deg)  scale(1);       animation-timing-function:ease-out;}
+  38% {transform:translateY(-210px)rotateX(calc(var(--final-rot,1800deg)*0.45)) rotateY(9deg) scale(1.14); animation-timing-function:ease-in;}
+  62% {transform:translateY(-46px) rotateX(calc(var(--final-rot,1800deg)*0.78)) rotateY(4deg)  scale(1.03); animation-timing-function:ease-in;}
+  76% {transform:translateY(0px)   rotateX(calc(var(--final-rot,1800deg)*0.94)) rotateY(-5deg) scale(.96); animation-timing-function:ease-out;}
+  83% {transform:translateY(-28px) rotateX(var(--final-rot,1800deg))            rotateY(3deg)  scale(1.02); animation-timing-function:ease-in;}
+  90% {transform:translateY(0px)   rotateX(var(--final-rot,1800deg))            rotateY(-2deg) scale(.985); animation-timing-function:ease-out;}
+  95% {transform:translateY(-9px)  rotateX(var(--final-rot,1800deg))            rotateY(1deg)  scale(1.005); animation-timing-function:ease-in;}
   100%{transform:translateY(0px)   rotateX(var(--final-rot,1800deg))            rotateY(0deg)  scale(1);}
 }
 .coin-face{
@@ -4227,11 +4249,11 @@ const Anim={
   },
 
   /* ── attack: lunge clone, white impact burst ── */
-  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer){
+  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer,onImpact){
     if(!this.ready)return;
     const pw=this.power(attackerCard);
-    const attackerSlot=document.getElementById(attackerSlotId);if(!attackerSlot)return;
-    const cardEl=attackerSlot.querySelector('.card');if(!cardEl)return;
+    const attackerSlot=document.getElementById(attackerSlotId);if(!attackerSlot){if(onImpact)onImpact();return;}
+    const cardEl=attackerSlot.querySelector('.card');if(!cardEl){if(onImpact)onImpact();return;}
     const rect=cardEl.getBoundingClientRect();
     const clone=cardEl.cloneNode(true);
     clone.style.cssText+=`position:fixed;left:${rect.left}px;top:${rect.top}px;
@@ -4263,6 +4285,13 @@ const Anim={
       this.shake(pw);
       if(pw>=3){this.screenPulse();setTimeout(()=>this.screenPulse(),115);}
       if(!targetSlotId)this.flashHp(isPlayer?'enemy':'player');
+      // HP text itself used to only catch up once the *entire* event queue
+      // finished (finalize()/updateUI(), possibly several more hits away),
+      // so a hit's damage number would fly and land while the HP badge sat
+      // frozen at its pre-attack number - the "disconnected" feeling. Firing
+      // this right here, at the same moment the swing actually impacts,
+      // keeps the number in lockstep with the hit that caused it.
+      if(onImpact)onImpact();
       setTimeout(()=>{
         clone.style.transition='transform .28s cubic-bezier(.34,1.5,.64,1),opacity .24s';
         clone.style.transform='';clone.style.opacity='0.1';
@@ -4495,6 +4524,28 @@ function renderHandTray(){
   });
   const hint=document.getElementById('hand-hint');
   if(hint)hint.textContent=`▲ HAND (${State.player.hand.length}) · DECK (${State.player.deck.length})`;
+}
+
+/** Deploying a card visually moves it straight from hand to battlefield: the
+ * 'deploy' event already inserts the freshly-deployed card into its board
+ * slot the instant it plays (see insertDeployedCardEarly), but until now
+ * nothing removed its old hand-tray entry until the *entire* event queue
+ * finished and updateUI()/renderHandTray() ran - so for that whole stretch
+ * (which can be a full attack sequence away if a deploy shares a batch with
+ * other events) the same card visually existed in both places at once,
+ * reading as a duplicate. This rips the hand-tray entry out at that same
+ * instant instead, keyed by the data-instance-id renderCard/renderEquipCard
+ * stamp onto every card element. Purely cosmetic/throwaway, same as
+ * insertDeployedCardEarly - the next real renderHandTray() replaces it. */
+function removeHandCardEarly(instanceId){
+  if(instanceId==null)return;
+  const inner=document.getElementById('hand-tray-inner');
+  if(!inner)return;
+  const el=inner.querySelector(`[data-instance-id="${instanceId}"]`);
+  if(!el)return;
+  el.remove();
+  const hint=document.getElementById('hand-hint');
+  if(hint)hint.textContent=`▲ HAND (${inner.children.length}) · DECK (${State.player.deck.length})`;
 }
 
 function showHandTray(){
@@ -4846,7 +4897,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   ):[];
   const addBits=(card.addEffects||[]).map(e=>`+${effName(e.type)} (${e.duration>=9999?'permanent':e.duration+' turns'}) on every hit`);
   const customSfx=[...ampBits,...dampBits,...addBits].join(' · ');
-  return`<div class="card ${ic} ${extraClass}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
+  return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
     <div class="card-imgbox">
@@ -4899,7 +4950,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
   const clsLabels=cls?`
     <div class="card-class-label left">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>
     <div class="card-class-label right">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>`:'';
-  return`<div class="card ${ic} ${extraClass}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
+  return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge">HP ${card.currentHp}</span></div>
     <div class="card-typerow">${card.types.join('/').toUpperCase()}${cls?' · '+cls:''}</div>
     <div class="card-img-wrap">
@@ -10823,6 +10874,7 @@ function beginMultiplayerMatch(msg){
   document.getElementById('main').style.display='none';
   State.mp=true; State.mySide=msg.youAre; State._mpOver=false;
   ServerStateMirror=null; // fresh mirror for this match; the first 'state' push (full:true) rebuilds it
+  _stateQueue=[]; _isPlayingState=false; // fresh playback queue for this match too
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
   State.opponentRank=msg.opponentRank||null;
@@ -10970,32 +11022,48 @@ function applyGuildPatch(prevState, patch){
 }
 
 /* ── AUTHORITATIVE STATE APPLICATION ──────────────────────────────── */
-// Timers for the currently-playing event animation sequence, kept so a new
-// 'state' push that arrives mid-animation can cancel them cleanly instead of
-// racing the old sequence's callbacks against the new one.
+// Incoming 'state' pushes are queued and played back ONE AT A TIME, start to
+// finish, in arrival order. This used to instead snap straight to the
+// newest push and cancel whatever animation was still in flight whenever two
+// pushes landed close together - which sounds rare, but isn't: e.g. a bot
+// finishing slot1's attack and (per its own difficulty-scaled "quick,
+// obvious decision" pause) deciding slot2's action a few hundred ms later
+// broadcasts a second push well before the first attack's hit/impact/death
+// sequence had time to finish playing. That cancellation is exactly why an
+// attack animation would sometimes just never appear for either side - its
+// timers got wiped before they ever fired. Queueing instead guarantees every
+// message's events get their full moment on screen, in order, even if
+// several pushes have already piled up by the time we get to them.
+let _stateQueue=[];
+let _isPlayingState=false;
 let _animTimers=[];
-let _pendingFinalize=null;
 function _scheduleAnim(fn,delay){ const id=setTimeout(fn,delay); _animTimers.push(id); return id; }
 
-// Persistent mirror of the server's perspective(mySide), kept in sync by
-// applyServerState()'s patch merge below. This is deliberately SEPARATE
-// from State.player/State.enemy: the mirror updates immediately/
-// synchronously (an event like 'deploy' needs the just-changed card's full
-// data right away, see playSingleEvent), while State.player/State.enemy
-// only update once every queued event has had its moment on screen (see
-// the finalize() pattern below, unchanged from before).
+// Persistent mirror of the server's perspective(mySide), kept in sync as
+// each queued message actually starts playing (not any earlier - see
+// _playNextQueuedState). This is deliberately SEPARATE from State.player/
+// State.enemy: the mirror updates the instant a message begins playing (an
+// event like 'deploy' needs the just-changed card's full data right away,
+// see playSingleEvent), while State.player/State.enemy only update once
+// every one of that message's events has had its moment on screen (see the
+// finalize() pattern below).
 let ServerStateMirror=null;
 
 function applyServerState(msg){
-  // Merge the incoming full snapshot or patch onto the mirror RIGHT NOW,
-  // synchronously - not deferred like the visible board update below.
-  ServerStateMirror = msg.full ? sdClone(msg.state) : applyPerspectivePatch(ServerStateMirror, msg.state);
+  _stateQueue.push(msg);
+  if(!_isPlayingState) _playNextQueuedState();
+}
 
-  // A previous state's event animation hasn't finished playing yet (rare: two
-  // state pushes landing close together). Rather than let its board mutation
-  // race the new one, snap it to its final values immediately, then proceed.
-  if(_pendingFinalize){ const f=_pendingFinalize; _pendingFinalize=null; f(); }
-  _animTimers.forEach(clearTimeout); _animTimers=[];
+function _playNextQueuedState(){
+  const msg=_stateQueue.shift();
+  if(!msg){ _isPlayingState=false; return; }
+  _isPlayingState=true;
+
+  // Merge this message's full snapshot or patch onto the mirror right as
+  // its own playback begins, not any earlier - so a message still sitting
+  // in the queue behind it can never leak its (future) data into this
+  // one's animation.
+  ServerStateMirror = msg.full ? sdClone(msg.state) : applyPerspectivePatch(ServerStateMirror, msg.state);
   clearTimeout(_autoEndTurnTimer); _autoEndTurnTimer=null;
   State.mySide=msg.you;
 
@@ -11008,8 +11076,6 @@ function applyServerState(msg){
   // THIS message), not msg.state directly - msg.state is only ever the
   // patch/delta that produced it.
   const finalize=()=>{
-    if(_pendingFinalize!==finalize)return;
-    _pendingFinalize=null;
     const you=ServerStateMirror.you, opp=ServerStateMirror.opponent;
     State.player.hp=you.hp; State.player.maxHp=you.maxHp;
     State.player.creaturesLeft=you.creaturesLeft; State.player.graveyard=you.graveyard||[];
@@ -11040,13 +11106,18 @@ function applyServerState(msg){
 
     const lbl=document.getElementById('turn-label'), ph=document.getElementById('phase-label');
     if(lbl&&ph){
+      // 'COINFLIP': the brief server-side transitional phase between SETUP
+      // and MAIN while the coin-flip overlay plays (see startBattle in
+      // game-server/index.js) - the overlay itself covers the screen, this
+      // label just shouldn't claim either side's turn has actually started.
       if(State.phase==='SETUP'){ lbl.innerText='SETUP PHASE'; lbl.style.color='#a78bfa'; ph.innerText='DEPLOY YOUR CARDS'; }
+      else if(State.phase==='COINFLIP'){ lbl.innerText='COIN FLIP'; lbl.style.color='#fbbf24'; ph.innerText='DECIDING WHO GOES FIRST'; }
       else if(State.turn==='PLAYER'){ lbl.innerText="PLAYER'S TURN"; lbl.style.color='#93c5fd'; ph.innerText='MAIN PHASE'; }
       else { lbl.innerText="ENEMY'S TURN"; lbl.style.color='#f87171'; ph.innerText='MAIN PHASE'; }
     }
     updateUI();
+    _playNextQueuedState(); // now that this message is fully done, move on to whatever queued up behind it
   };
-  _pendingFinalize=finalize;
   playServerEvents(msg.events||[], finalize);
 }
 
@@ -11082,6 +11153,25 @@ function findCardBySideSlot(side,slot){
   if(slot==='slot1')return entity.activeCard;
   if(slot==='slot2')return entity.activeCard2;
   return null;
+}
+
+/** Applies an HP loss to a live card the instant it should visually land,
+ * instead of waiting for the full post-queue finalize()/updateUI() pass.
+ * Mutates the actual State.player/State.enemy card object in place (that
+ * object still only gets fully replaced at finalize() time, so this is
+ * always working off the correct pre-batch baseline, and correctly stacks
+ * if the same slot takes a second hit later in the same batch) and patches
+ * just that slot's HP badge text directly - no full re-render, so it can't
+ * disturb anything else still mid-animation elsewhere on the board. */
+function livePatchCardHp(side,slotKey,dmg){
+  if(!dmg)return;
+  const card=findCardBySideSlot(side,slotKey);
+  if(!card)return;
+  card.currentHp=Math.max(0,(card.currentHp||0)-dmg);
+  const slotId=sideSlotToId(side,slotKey);
+  const el=slotId&&document.getElementById(slotId);
+  const badge=el&&el.querySelector('.card-hp-badge');
+  if(badge)badge.textContent=`HP ${card.currentHp}`;
 }
 
 function playServerEvents(events,onDone){
@@ -11128,6 +11218,10 @@ function playSingleEvent(e){
       case 'deploy': {
         const slotId=sideSlotToId(e.side,e.slotType);
         const card=cardFromMirrorBySlot(e.side,e.slotType);
+        // Only our own hand is ever rendered with real cards (the opponent's
+        // is just a count), so this only ever has anything to remove on our
+        // own deploys - a no-op harmlessly falls through for the enemy's.
+        if(e.side===State.mySide) removeHandCardEarly(e.instanceId);
         if(slotId&&card){
           // Insert the card and kick off its grow-in animation in the very next
           // frame, back to back, so the browser never gets a chance to paint it
@@ -11152,12 +11246,15 @@ function playSingleEvent(e){
         }
         const tgtSlotId=sideSlotToId(e.defSide,e.defSlot);
         const tgtCard=findCardBySideSlot(e.defSide,e.defSlot);
-        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,e.atkSide===State.mySide);
+        const applyHit=()=>livePatchCardHp(e.defSide,e.defSlot,e.dmg);
+        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,e.atkSide===State.mySide,applyHit);
+        else applyHit(); // no attacker card on file (shouldn't normally happen) - still keep HP in sync
         break;
       }
       case 'dot': {
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusVfx(slotId,e.effect,false,e.dmg);
+        livePatchCardHp(e.side,e.slot,e.dmg);
         break;
       }
       case 'status': {
@@ -11184,11 +11281,13 @@ function playSingleEvent(e){
       case 'curse_recoil': {
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusFloat(slotId,`CURSE  -${e.dmg}`,'#a78bfa');
+        livePatchCardHp(e.side,e.slot,e.dmg);
         break;
       }
       case 'rocks': {
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusFloat(slotId,`ROCKS  -${e.dmg}`,'#facc15');
+        livePatchCardHp(e.side,e.slot,e.dmg);
         break;
       }
       case 'turn_skip':
