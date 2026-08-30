@@ -457,7 +457,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
    (dark space frame + white image box + black footer)
 ══════════════════════════════════════ */
 .card{
-  width:144px;height:214px;flex-shrink:0;border-radius:8px;overflow:hidden;
+  width:144px;min-height:214px;flex-shrink:0;border-radius:8px;overflow:hidden;
   border:2px solid var(--rarity-color,#28284a);position:relative;cursor:default;z-index:0;
   display:flex;flex-direction:column;
   transition:transform 0.18s,box-shadow 0.18s,border-color 0.18s;
@@ -503,10 +503,27 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 }
 .card-name{
   font-family:'Cinzel',serif;font-size:0.48rem;font-weight:700;color:#eef2ff;line-height:1.3;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   min-width:0;flex:1;
   text-shadow:0 0 10px rgba(100,150,255,0.5);
 }
+/* No line-clamp here on purpose: a hard 2-line cap discards anything past
+ * it regardless of whether the card actually has room below (e.g. "Abyssthing
+ * the Gargantuan Demon" needs a 3rd wrapped line, and the clamp used to just
+ * drop "Demon"). Letting the name wrap freely, combined with .card now being
+ * min-height (not a fixed height) above, means the card simply grows a
+ * little taller for the rare long name instead of ever truncating one -
+ * every renderCard()/renderEquipCard() call site everywhere (battlefield,
+ * hand tray, deck builder, packs, ...) benefits, since none of their
+ * containers force a fixed pixel height on .card (checked: bf-slot/eq-slot
+ * use min-height and drop it once populated, hand-tray-inner is an
+ * auto-height flex row, db-card-slot/db-deck-card-slot size to content).
+ * The one deliberate exception is the handful of scaled-down card-art
+ * PREVIEW thumbnails (Bazaar tiles/sell-thumb/detail-card mobile view) that
+ * transform:scale() a full card into a small fixed viewport - those are
+ * re-pinned back to the original fixed height + 2-line clamp further down,
+ * since they're already far too small to read text at either 2 or 3 lines,
+ * and letting their SOURCE height vary would shift what the scaled crop
+ * shows. */
 .card-hp-badge{font-size:0.48rem;font-weight:700;color:#6ee7b7;white-space:nowrap;text-shadow:none;flex-shrink:0;}
 
 /* type row */
@@ -948,7 +965,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .db-deck-card-slot{position:relative;isolation:isolate;}
 .db-deck-card-slot .card{cursor:pointer;}
 .db-deck-empty-slot{width:144px;height:214px;border-radius:8px;border:2px dashed rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.16);font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;line-height:1.6;}
-.db-deck-remove-x{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
+.db-deck-remove-x{position:absolute;bottom:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
 .db-deck-remove-x:hover{transform:scale(1.15);}
 
 /* collection browser, search + filters, then the results grid */
@@ -1538,14 +1555,19 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 .tourney-champion-banner.show{display:flex;}
 
-/* ── in-battle tournament ribbon ── */
+/* ── in-battle tournament ribbon ──
+   Used to be its own full-width bar stacked above #turn-banner (two top
+   bars fighting for the same real estate); now it's an inline pill that
+   lives inside #turn-banner itself, next to the turn/phase labels, so
+   there's exactly one top bar during a match. */
 .tourney-match-ribbon{
-  display:none;align-items:center;gap:6px;justify-content:center;
-  padding:5px 14px;border-radius:20px;margin:0 auto 8px;width:fit-content;
+  display:none;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:20px;
   background:linear-gradient(135deg,rgba(139,92,246,.22),rgba(124,58,237,.1));border:1px solid rgba(167,139,250,.4);
-  font-family:'Cinzel',serif;font-size:.62rem;font-weight:800;letter-spacing:.05em;color:#c4b5fd;
+  font-family:'Cinzel',serif;font-size:0.6rem;font-weight:800;letter-spacing:.05em;color:#c4b5fd;
+  white-space:nowrap;
 }
-.tourney-match-ribbon.show{display:flex;}
+.tourney-match-ribbon.show{display:inline-flex;}
 .game-over-tourney-note{
   display:flex;align-items:center;gap:6px;margin:-6px 0 18px;
   font-family:'Cinzel',serif;font-size:.72rem;font-weight:700;color:#c4b5fd;letter-spacing:.03em;
@@ -2293,6 +2315,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .bazaar-tile:hover{transform:translateY(-3px);border-color:rgba(139,92,246,.4);box-shadow:0 8px 20px rgba(0,0,0,.4);}
 .bazaar-tile-art{width:98px;height:68px;overflow:hidden;position:relative;background:#0a0a16;}
 .bazaar-tile-art .card{transform:scale(.681);transform-origin:top left;}
+/* Pinned back to the original fixed source size + 2-line name clamp: this
+ * is a scaled-down (.681x) card-art crop, already far too small to read
+ * text at any clamp length, so letting its source height vary with a long
+ * name (like everywhere else now does) would just shift what portion of
+ * the art is visible in this fixed 68px-tall window, with zero readability
+ * upside. See the .card-name rule for the general explanation. */
+.bazaar-tile-art .card{height:214px;min-height:214px;}
+.bazaar-tile-art .card .card-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .bazaar-tile-ribbon{
   position:absolute;top:3px;left:3px;z-index:2;font-family:'Rajdhani',sans-serif;font-size:.5rem;font-weight:800;
   letter-spacing:.04em;padding:1px 5px;border-radius:20px;color:#fff;
@@ -2322,7 +2352,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 }
 .bazaar-listing-modal-close:hover{color:var(--txt);}
 .bazaar-detail-top{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;}
-.bazaar-detail-card{width:144px;height:214px;flex:0 0 144px;overflow:hidden;border-radius:8px;}
+.bazaar-detail-card{width:144px;min-height:214px;flex:0 0 144px;overflow:hidden;border-radius:8px;}
 .bazaar-detail-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-top:2px;}
 .bazaar-detail-name{font-family:'Cinzel',serif;font-weight:800;font-size:1rem;color:var(--txt);}
 .bazaar-detail-seller{font-size:.7rem;color:var(--txt-muted);}
@@ -2377,6 +2407,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .bazaar-sell-header{display:flex;align-items:center;gap:10px;padding-bottom:2px;}
 .bazaar-sell-thumb{width:46px;height:68px;flex:0 0 46px;overflow:hidden;border-radius:6px;border:1px solid rgba(255,255,255,.12);position:relative;background:#0a0a16;}
 .bazaar-sell-thumb .card{transform:scale(.319);transform-origin:top left;}
+/* Same reasoning as .bazaar-tile-art above - pinned to the original fixed
+ * source size + clamp, this scaled-down (.319x) thumbnail can't show
+ * readable text either way. */
+.bazaar-sell-thumb .card{height:214px;min-height:214px;}
+.bazaar-sell-thumb .card .card-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .bazaar-sell-header-text{min-width:0;}
 .bazaar-sell-name{font-family:'Cinzel',serif;font-weight:800;font-size:.85rem;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bazaar-link-btn{
@@ -2433,6 +2468,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
    * dead space a naive width-only shrink would cause. */
   .bazaar-detail-card{width:104px;height:154px;flex:0 0 104px;}
   .bazaar-detail-card .card{transform:scale(.722);transform-origin:top left;}
+  /* Mobile shrinks the detail card into a scaled preview (see comment on
+   * .bazaar-tile-art above) instead of the full unscaled render desktop
+   * gets - same reasoning, pin the source back to its fixed size + clamp. */
+  .bazaar-detail-card .card{height:214px;min-height:214px;}
+  .bazaar-detail-card .card .card-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .bazaar-listing-modal{padding:16px;}
   .bazaar-detail-top{gap:10px;}
 }
@@ -3117,12 +3157,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <!-- ══════ MAIN BOARD ══════ -->
 <div id="main">
 
-  <div class="tourney-match-ribbon" id="tourney-match-ribbon"></div>
-
   <div id="turn-banner">
     <div style="display:flex;align-items:center;gap:14px;">
       <span id="turn-label" style="color:#93c5fd;">PLAYER'S TURN</span>
       <span id="phase-label" style="color:var(--txt-muted);font-size:0.65rem;">MAIN PHASE</span>
+      <span class="tourney-match-ribbon" id="tourney-match-ribbon"></span>
     </div>
     <div class="banner-actions">
       <span id="action-hint" style="font-size:0.6rem;color:#fbbf24;letter-spacing:0.06em;"></span>
@@ -4881,22 +4920,11 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   const rowCls=isWpn?'wpn':'def';
   const typeLabel=isWpn?'WEAPON':'DEFENSE';
   const bonusLabel=isWpn?'DMG +':'DEF ';
-  const effName=t=>Effects[t]?.name||t;
-  // sleep/paralyze/confusion are pure chance effects (skip-turn or miss-your-attack
-  // rolls), their amp/damp numbers are percentage POINTS. Everything else here is a
-  // damage-over-time tick, where the number is flat bonus/penalty damage per turn.
-  // (shock/soak/cryo carry both a dmg tick and a chance roll server-side, but no
-  // shipped card amplifies/dampens those yet, so the damage phrasing is the sane
-  // default until one does.)
-  const CHANCE_EFFECT_TYPES=new Set(['sleep','paralyze','confusion']);
-  const ampBits=card.ampEffects?Object.entries(card.ampEffects).map(([t,d])=>
-    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance +${d}%` : `${effName(t)} damage +${d}/turn`
-  ):[];
-  const dampBits=card.dampEffects?Object.entries(card.dampEffects).map(([t,d])=>
-    CHANCE_EFFECT_TYPES.has(t) ? `${effName(t)} chance -${d}%` : `${effName(t)} damage -${d}/turn`
-  ):[];
-  const addBits=(card.addEffects||[]).map(e=>`+${effName(e.type)} (${e.duration>=9999?'permanent':e.duration+' turns'}) on every hit`);
-  const customSfx=[...ampBits,...dampBits,...addBits].join(' · ');
+  // Amp/damp/add effect breakdowns used to be recomputed here from raw card
+  // fields (ampEffects/dampEffects/addEffects), duplicating what's already
+  // written in cards.json's `description`. Just show that description now —
+  // it's the single source of truth and stays in sync with the card design.
+  const desc=card.description||(CardById[card.baseId||card.id]||{}).description||'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
     <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
     <div class="card-typerow">${typeLabel}</div>
@@ -4910,8 +4938,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
         <span class="eff-name">${bonusLabel}${card.flatBonus} flat</span>
         <span class="eff-val" style="color:${accent}">${card.flatBonus}</span>
       </div>
-      <div class="eff-sfx">Durability: ${card.currentDurability} / ${card.maxDurability} attacks</div>
-      ${customSfx?`<div class="eff-sfx">${customSfx}</div>`:''}
+      ${desc?`<div class="eff-sfx">${escapeHtml(desc)}</div>`:''}
     </div>
     ${cardSetBarHtml(card)}
   </div>`;
@@ -8225,6 +8252,16 @@ function buildPackSVG(packDef){
 }
 
 let _packLoadingActive=false, _packLoadingPoll=null, _packLoadingTimeout=null;
+// Bumped on every buy_pack send and stamped onto the request; if the 12s
+// safety-net fires we give up on it (_packAbandonedId=that request) but the
+// server may still be working on it (e.g. backed up from other pack opens)
+// and can deliver a 'pack_result' well after we've stopped waiting and the
+// user has navigated elsewhere. Without this, that late arrival would call
+// openPackOverlay() unconditionally and yank whatever screen the user is on
+// into a pack-opening sequence they didn't just ask for. Once a request's
+// id is abandoned, its result still applies (currency/collection already
+// changed server-side) but is surfaced as a toast instead of stealing focus.
+let _packRequestId=0, _packAbandonedId=-1;
 function showPackLoading(status){
   document.getElementById('pack-loading-overlay').style.display='flex';
   document.getElementById('pack-loading-status').textContent=status;
@@ -8248,6 +8285,7 @@ function buyPack(packId){
   _packLoadingActive=true;
   const startedAt=Date.now();
   const MIN_MS=80; // just enough to keep this from being an imperceptible flash when already connected
+  const reqId=++_packRequestId;
   ensureCardLibrary();
   Net.connect();
   showPackLoading(serverIsReady()?'Contacting The Archive...':serverWaitStatusText());
@@ -8255,10 +8293,13 @@ function buyPack(packId){
     if(serverIsReady() && Date.now()-startedAt>=MIN_MS){
       clearInterval(_packLoadingPoll); _packLoadingPoll=null;
       showPackLoading('Contacting The Archive...');
-      Net.send({type:'buy_pack', packId});
-      // safety net: if the server never answers, don't leave the dots spinning forever
+      Net.send({type:'buy_pack', packId, requestId:reqId});
+      // safety net: if the server never answers, don't leave the dots spinning
+      // forever - but don't forget about this request either, in case it
+      // shows up late (see _packAbandonedId above).
       _packLoadingTimeout=setTimeout(()=>{
         hidePackLoading();
+        _packAbandonedId=reqId;
         showToast('⚠ The Archive is taking too long to respond. Please try again.');
       },12000);
       return;
@@ -10407,6 +10448,18 @@ const GameNet={
           // The auth-time rejection itself; the close handler above (which
           // fires right after this, per game-server's ws.close(4001/4004))
           // is what actually decides what happens next.
+        } else if(msg.reason==='invalid_chat_image'){
+          // Same rejection Net's handler shows a toast for (guild/DM chat go
+          // through the main server's own copy of this check) - battle chat
+          // is validated by the game server instead, but was missing this
+          // branch entirely, so a rejected image token here used to just
+          // vanish with zero feedback: the send looked like it silently did
+          // nothing. If this keeps happening for images that work fine in
+          // global chat (which never validates the token server-side),
+          // that's server/image.json being out of sync with the client's
+          // real docs/chat-images/image.json - it needs every id the
+          // client catalog has, not just the two placeholder entries.
+          showToast("⚠ That image isn't in the official catalog, message blocked.", 3600);
         }
         break;
     }
@@ -11390,6 +11443,16 @@ function handlePackResult(msg){
   // server only sends {id,name,rarity,image}, the full card definition (topEffect etc.) is the
   // same static CardDB the client already has, so look it up locally for rendering.
   _packCards=msg.cards.map(c=>CardDB.find(d=>d.id===c.id)).filter(Boolean);
+  // If we already gave up waiting on this exact request (the 12s safety-net
+  // fired and the user moved on), the purchase still went through above -
+  // balances/collection are correct - but forcing the pack-opening overlay
+  // open now would hijack whatever screen the user has since navigated to.
+  // Surface it as a toast they can act on instead.
+  if(msg.requestId!=null && msg.requestId===_packAbandonedId){
+    _packAbandonedId=-1;
+    showToast(`🎁 ${packDef.name} came through late - your cards were added to your collection.`,3200);
+    return;
+  }
   openPackOverlay(packDef);
 }
 
@@ -11525,17 +11588,18 @@ function renderChatMessage(row,opts={}){
     });
   }
   wrap.addEventListener('click',()=>{
-    openProfileView({
-      id:row.sender_id,
-      name:row.sender_name,
-      icon:row.sender_icon,
-      banner:row.sender_banner,
-      bio:row.sender_bio,
-      wins:row.sender_wins,
-      losses:row.sender_losses,
-      collection:new Array(row.sender_cards_count||0),
-      favoriteCards:row.sender_favorite_cards||[],
-    },{isOwn, friendship: isOwn?null:friendshipStatusFor(row.sender_id)});
+    // sender_* columns are a snapshot of the sender's profile at send time
+    // (that's intentional for name/icon/banner shown inline in the message
+    // row itself, so old messages don't visually change author mid-scroll),
+    // but using that same stale snapshot to populate the profile *modal* is
+    // wrong: it can show a wins/losses/bio/collection count from whenever
+    // this message was sent, not the sender's actual current profile. Do
+    // the same live view_profile round trip battle/guild chat already use.
+    if(isOwn){
+      openProfileView(Player,{isOwn:true});
+    }else{
+      viewPlayerProfile(row.sender_id);
+    }
   });
   list.appendChild(wrap);
   const shouldStick=list.scrollTop+list.clientHeight>=list.scrollHeight-40;
