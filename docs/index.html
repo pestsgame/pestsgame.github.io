@@ -959,7 +959,15 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 /* deck builder */
 .deckbuilder-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;display:flex;flex-direction:column;}
-.card-grid-small{display:flex;flex-wrap:wrap;gap:10px;}
+.card-grid-small{display:grid;grid-template-columns:repeat(var(--db-cols,6),144px);gap:10px;justify-content:center;}
+.db-collection-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:2px 0 10px;}
+.db-cols-control{display:flex;align-items:center;gap:8px;}
+.db-cols-control select{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--txt);border-radius:6px;padding:4px 8px;font-size:.62rem;font-family:inherit;}
+.db-page-control{display:flex;align-items:center;gap:10px;}
+.db-page-indicator{font-size:.62rem;font-weight:700;letter-spacing:.04em;color:var(--txt-muted);white-space:nowrap;}
+.db-page-btn{font-size:.6rem;font-weight:700;letter-spacing:.04em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:5px 12px;cursor:pointer;transition:all .15s;}
+.db-page-btn:hover:not(:disabled){border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.12);}
+.db-page-btn:disabled{opacity:.35;cursor:not-allowed;}
 .db-card-slot{cursor:pointer;position:relative;isolation:isolate;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
 .db-card-slot .card{cursor:pointer;}
 .db-card-slot:hover{transform:translateY(-4px);border-color:rgba(139,92,246,.45);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
@@ -2859,6 +2867,10 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
                 <div class="db-chip-group" id="db-elem-chips"></div>
               </div>
               <div class="db-filter-row">
+                <span class="db-filter-row-label">Effect</span>
+                <div class="db-chip-group" id="db-effect-chips"></div>
+              </div>
+              <div class="db-filter-row">
                 <span class="db-filter-row-label">HP</span>
                 <select id="db-hp-op" class="db-hp-op" onchange="dbOnHpFilterChange()">
                   <option value="">Any</option>
@@ -2867,6 +2879,24 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
                 </select>
                 <input type="number" id="db-hp-val" class="db-hp-val" placeholder="value" oninput="dbOnHpFilterChange()">
                 <button class="db-clear-filters-btn" onclick="dbClearFilters()">Clear Filters</button>
+              </div>
+            </div>
+            <div class="db-collection-toolbar">
+              <div class="db-cols-control">
+                <span class="db-filter-row-label">Cards per row</span>
+                <select id="db-cols-select" onchange="dbSetColsPerRow(this.value)">
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                  <option value="7">7</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+              <div class="db-page-control">
+                <button class="db-page-btn" id="db-page-prev" onclick="dbGoToPage(-1)">‹ Prev</button>
+                <span class="db-page-indicator" id="db-page-indicator">Page 1 / 1</span>
+                <button class="db-page-btn" id="db-page-next" onclick="dbGoToPage(1)">Next ›</button>
               </div>
             </div>
             <div class="card-grid-small" id="db-collection-grid"></div>
@@ -7673,13 +7703,29 @@ function canAddCardToDeck(id){
 }
 
 let _dbDeck=[]; // working copy
-const DB_CLASS_OPTIONS=['pests','boss','overlord'];
-let _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
+const DB_CLASS_OPTIONS=['normal','pests','boss','overlord'];
+let _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),effects:new Set(),hpOp:'',hpVal:NaN};
+
+/* Custom one-off elements (unique to specific story/event cards, not a
+ * real "build around this" element like fire/water/etc.) - deliberately
+ * left out of the Element filter chip list. Cards that use them are still
+ * fully visible and searchable by every other filter, this only hides
+ * them as filter OPTIONS since picking "Abyss" to browse by wouldn't mean
+ * anything as a deckbuilding axis for anyone. */
+const DB_ELEMENT_EXCLUDE=new Set(['abyss','ruin','judgement']);
+function dbElementOptions(){ return Object.keys(Elements).filter(e=>!DB_ELEMENT_EXCLUDE.has(e)); }
 
 function dbTypeOptions(){
   // derived from the live card library rather than hardcoded, so a future
-  // card with a new `types` value just shows up as its own filter chip
-  return [...new Set(CardDB.flatMap(c=>Array.isArray(c.types)?c.types:[]))].sort();
+  // card with a new `types` value just shows up as its own filter chip.
+  // 'weapon'/'defense' aren't a `types` value on any card (only creatures
+  // have `types`), they're appended here as their own pseudo-types so
+  // equipment shows up under the same Type filter instead of being
+  // invisible to it - see the matching cardMatchesFilters() branch below.
+  const creatureTypes=[...new Set(CardDB.flatMap(c=>Array.isArray(c.types)?c.types:[]))].sort();
+  const hasWeapons=CardDB.some(c=>c.cardType==='weapon');
+  const hasDefense=CardDB.some(c=>c.cardType==='defense');
+  return [...creatureTypes, ...(hasWeapons?['weapon']:[]), ...(hasDefense?['defense']:[])];
 }
 
 function refreshDeckBuilder(){
@@ -7690,6 +7736,7 @@ function refreshDeckBuilder(){
   // way) keeps rejecting it, with no obvious reason why on screen.
   const ownedSet=new Set(Player.collection||[]);
   _dbDeck=[...Player.deck].filter(id=>CardById[id] && ownedSet.has(id));
+  _dbPage=0;
   dbRenderFilterChips();
   renderDBDeckSlots();
   renderDBCollection();
@@ -7697,58 +7744,92 @@ function refreshDeckBuilder(){
 
 function toggleSetMember(set,v){ if(set.has(v))set.delete(v); else set.add(v); }
 
-function dbRenderChipGroup(containerId,options,activeSet,onToggleFn){
+function dbRenderChipGroup(containerId,options,activeSet,onToggleFn,labelFn){
   const el=document.getElementById(containerId);
   if(!el)return;
+  const label=labelFn||(opt=>opt);
   el.innerHTML=options.map(opt=>
-    `<span class="db-chip${activeSet.has(opt)?' active':''}" onclick="${onToggleFn}('${opt}')">${opt}</span>`
+    `<span class="db-chip${activeSet.has(opt)?' active':''}" onclick="${onToggleFn}('${jsq(opt)}')">${escapeHtml(label(opt))}</span>`
   ).join('')||'<span class="db-chip" style="cursor:default;opacity:.4;">none available</span>';
 }
 
 function dbRenderFilterChips(){
   dbRenderChipGroup('db-class-chips', DB_CLASS_OPTIONS, _dbFilters.classes, 'dbToggleClassFilter');
   dbRenderChipGroup('db-type-chips', dbTypeOptions(), _dbFilters.types, 'dbToggleTypeFilter');
-  dbRenderChipGroup('db-elem-chips', Object.keys(Elements), _dbFilters.elements, 'dbToggleElementFilter');
+  dbRenderChipGroup('db-elem-chips', dbElementOptions(), _dbFilters.elements, 'dbToggleElementFilter');
+  // Effect chips show the same friendly name battle status pills use
+  // (Effects[x].name, e.g. "Str.Poison") rather than the raw key
+  // ("strongPoison"), which is camelCase and wouldn't read right even
+  // with .db-chip's text-transform:capitalize.
+  dbRenderChipGroup('db-effect-chips', Object.keys(Effects), _dbFilters.effects, 'dbToggleEffectFilter', e=>Effects[e]?.name||e);
 }
 
-function dbToggleClassFilter(cls){ toggleSetMember(_dbFilters.classes,cls); dbRenderFilterChips(); renderDBCollection(); }
-function dbToggleTypeFilter(t){ toggleSetMember(_dbFilters.types,t); dbRenderFilterChips(); renderDBCollection(); }
-function dbToggleElementFilter(e){ toggleSetMember(_dbFilters.elements,e); dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleClassFilter(cls){ toggleSetMember(_dbFilters.classes,cls); _dbPage=0; dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleTypeFilter(t){ toggleSetMember(_dbFilters.types,t); _dbPage=0; dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleElementFilter(e){ toggleSetMember(_dbFilters.elements,e); _dbPage=0; dbRenderFilterChips(); renderDBCollection(); }
+function dbToggleEffectFilter(e){ toggleSetMember(_dbFilters.effects,e); _dbPage=0; dbRenderFilterChips(); renderDBCollection(); }
 
-function dbOnSearchInput(v){ _dbFilters.search=v.trim().toLowerCase(); renderDBCollection(); }
+function dbOnSearchInput(v){ _dbFilters.search=v.trim().toLowerCase(); _dbPage=0; renderDBCollection(); }
 function dbOnHpFilterChange(){
   _dbFilters.hpOp=document.getElementById('db-hp-op').value;
   _dbFilters.hpVal=parseFloat(document.getElementById('db-hp-val').value);
+  _dbPage=0;
   renderDBCollection();
 }
 
 function dbClearFilters(){
-  _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),hpOp:'',hpVal:NaN};
+  _dbFilters={search:'',classes:new Set(),types:new Set(),elements:new Set(),effects:new Set(),hpOp:'',hpVal:NaN};
   const s=document.getElementById('db-search-input'); if(s)s.value='';
   const op=document.getElementById('db-hp-op'); if(op)op.value='';
   const val=document.getElementById('db-hp-val'); if(val)val.value='';
+  _dbPage=0;
   dbRenderFilterChips();
   renderDBCollection();
 }
 
+/** True if `def` has any relationship at all to status effect `effect`:
+ * it's immune to it (a passive's immuneEffects), it deals it (its attack
+ * or ability's `effects` list, or the shared bottomAttack's), or - for
+ * weapons/defense - it amps/damps it, or applies it fresh on every hit
+ * (addEffects, e.g. Scythe's Bleed). Powers the Effect filter, so
+ * searching e.g. "Burn" surfaces every card relevant to that effect from
+ * any angle, not just ones that inflict it. */
+function cardHasEffectRelation(def,effect){
+  const te=def.topEffect;
+  if(te?.type==='passive' && Array.isArray(te.immuneEffects) && te.immuneEffects.includes(effect)) return true;
+  if((te?.type==='attack'||te?.type==='ability') && Array.isArray(te.effects) && te.effects.some(e=>e.type===effect)) return true;
+  if(Array.isArray(def.bottomAttack?.effects) && def.bottomAttack.effects.some(e=>e.type===effect)) return true;
+  if(def.ampEffects && Object.prototype.hasOwnProperty.call(def.ampEffects,effect)) return true;
+  if(def.dampEffects && Object.prototype.hasOwnProperty.call(def.dampEffects,effect)) return true;
+  if(Array.isArray(def.addEffects) && def.addEffects.some(e=>e.type===effect)) return true;
+  return false;
+}
+
 /** True if `def` (a raw CardDB entry) passes every active filter. Filters
  * combine with AND across categories (search AND class AND type AND
- * element AND hp) but OR within a category (e.g. picking "mob" and
- * "wizard" shows cards that are either). Weapon/defense cards have no
- * classification, types, or hp, so they naturally drop out of results as
- * soon as any of those filters are engaged, same as a card that plainly
- * doesn't match. */
+ * element AND effect AND hp) but OR within a category (e.g. picking "mob"
+ * and "wizard" shows cards that are either). Weapon/defense cards have no
+ * classification or hp, so a Class or HP filter naturally drops them out
+ * as soon as it's engaged - but they DO have a pseudo Type ('weapon'/
+ * 'defense', see dbTypeOptions()) and can absolutely match an Effect
+ * filter via ampEffects/dampEffects, so those two stay fully open to
+ * them. */
 function cardMatchesFilters(def){
   const f=_dbFilters;
   if(f.search && !def.name.toLowerCase().includes(f.search)) return false;
   if(f.classes.size && !(def.classification && f.classes.has(def.classification))) return false;
   if(f.types.size){
-    const types=Array.isArray(def.types)?def.types:[];
+    const types=Array.isArray(def.types)?[...def.types]:[];
+    if(def.cardType==='weapon') types.push('weapon');
+    if(def.cardType==='defense') types.push('defense');
     if(!types.some(t=>f.types.has(t))) return false;
   }
   if(f.elements.size){
     const cardElements=[def.topEffect?.element, def.bottomAttack?.element].filter(Boolean);
     if(!cardElements.some(e=>f.elements.has(e))) return false;
+  }
+  if(f.effects.size){
+    if(![...f.effects].some(e=>cardHasEffectRelation(def,e))) return false;
   }
   if(f.hpOp && Number.isFinite(f.hpVal)){
     if(typeof def.hp!=='number') return false;
@@ -7756,6 +7837,36 @@ function cardMatchesFilters(def){
     if(f.hpOp==='lt' && !(def.hp<f.hpVal)) return false;
   }
   return true;
+}
+
+/* ── COLLECTION PAGINATION ──
+ * Fixed at 4 rows per page (so a page never gets tall enough to need its
+ * own internal scroll - only the columns count is user-configurable),
+ * cards-per-row picked from DB_COLS_OPTIONS and remembered across visits
+ * via localStorage the same way PlayMode/tutorial-seen/etc already are.
+ * pageSize is just cols*rows, recomputed every render since cols can
+ * change at any time. */
+const DB_ROWS_PER_PAGE=4;
+const DB_COLS_OPTIONS=[3,4,5,6,7,8];
+let _dbColsPerRow=(()=>{
+  try{
+    const v=parseInt(localStorage.getItem('aop_db_cols_per_row'),10);
+    return DB_COLS_OPTIONS.includes(v)?v:6;
+  }catch(e){ return 6; }
+})();
+let _dbPage=0;
+
+function dbSetColsPerRow(v){
+  const n=parseInt(v,10);
+  if(!DB_COLS_OPTIONS.includes(n))return;
+  _dbColsPerRow=n;
+  try{localStorage.setItem('aop_db_cols_per_row',String(n));}catch(e){}
+  _dbPage=0; // page boundaries just moved, a stale page index would land somewhere meaningless
+  renderDBCollection();
+}
+function dbGoToPage(delta){
+  _dbPage+=delta; // renderDBCollection() clamps this against the real page count below
+  renderDBCollection();
 }
 
 function renderDBCollection(){
@@ -7773,12 +7884,28 @@ function renderDBCollection(){
     const def=CardById[id];
     return def && cardMatchesFilters(def);
   });
+
+  grid.style.setProperty('--db-cols',_dbColsPerRow);
+  const colsSelect=document.getElementById('db-cols-select');
+  if(colsSelect && colsSelect.value!==String(_dbColsPerRow)) colsSelect.value=String(_dbColsPerRow);
+
+  const pageSize=_dbColsPerRow*DB_ROWS_PER_PAGE;
+  const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
+  if(_dbPage<0)_dbPage=0;
+  if(_dbPage>totalPages-1)_dbPage=totalPages-1;
+
+  const pageIndicator=document.getElementById('db-page-indicator');
+  if(pageIndicator) pageIndicator.textContent=`Page ${_dbPage+1} / ${totalPages}`;
+  const prevBtn=document.getElementById('db-page-prev'); if(prevBtn) prevBtn.disabled=_dbPage<=0;
+  const nextBtn=document.getElementById('db-page-next'); if(nextBtn) nextBtn.disabled=_dbPage>=totalPages-1;
+
   if(!filtered.length){
     grid.innerHTML=owned.length
       ?'<div class="db-empty-results">No cards match these filters.</div>'
       :'<div class="db-empty-results">No cards owned yet, open a pack first!</div>';
     return;
   }
+  const pageItems=filtered.slice(_dbPage*pageSize,_dbPage*pageSize+pageSize);
   // Building the whole grid as an array and joining it once, instead of the
   // old grid.innerHTML+=... loop, avoids the classic quadratic trap: each
   // += on a growing innerHTML string re-serializes and re-parses
@@ -7786,8 +7913,9 @@ function renderDBCollection(){
   // collection redrawn on every single add/remove click (see
   // dbToggleCard/dbRemoveCard) got visibly laggier the more cards someone
   // owned. One parse of one big string instead of N parses of N growing
-  // strings.
-  const parts=filtered.map(id=>{
+  // strings. (Now only ever rendering one page's worth at a time anyway,
+  // so this matters less than it used to, but no reason to reintroduce it.)
+  const parts=pageItems.map(id=>{
     const def=CardById[id];
     const inDeck=_dbDeck.includes(id);
     const displayCard=defToDisplayCard(def);
