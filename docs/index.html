@@ -496,15 +496,15 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 /* name bar */
 .card-namebar{
   background:rgba(0,0,0,0.82);border-bottom:1px solid rgba(255,255,255,0.07);
-  padding:3px 7px 2px;display:flex;justify-content:space-between;align-items:flex-start;gap:3px;
+  padding:3px 7px 2px;
   box-shadow:inset 0 1px 0 rgba(80,130,255,0.18),inset 0 -1px 0 rgba(0,0,0,0.5);
   border-radius:6px 6px 0 0;overflow:hidden;flex-shrink:0;
   position:relative;z-index:5;
 }
 .card-name{
   font-family:'Cinzel',serif;font-size:0.48rem;font-weight:700;color:#eef2ff;line-height:1.3;
-  min-width:0;flex:1;
   text-shadow:0 0 10px rgba(100,150,255,0.5);
+  display:block;
 }
 /* No line-clamp here on purpose: a hard 2-line cap discards anything past
  * it regardless of whether the card actually has room below (e.g. "Abyssthing
@@ -524,7 +524,18 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
  * since they're already far too small to read text at either 2 or 3 lines,
  * and letting their SOURCE height vary would shift what the scaled crop
  * shows. */
-.card-hp-badge{font-size:0.48rem;font-weight:700;color:#6ee7b7;white-space:nowrap;text-shadow:none;flex-shrink:0;}
+/* .card-hp-badge floats top-right rather than sitting in a flex column
+ * next to .card-name: a flex column would reserve the badge's width for
+ * the FULL height of the name (every wrapped line), even though the badge
+ * itself is only ever one line tall - forcing long names to wrap early on
+ * every line, not just the first, with all that reserved width sitting
+ * empty below the badge. Floating it means .card-name's text only narrows
+ * on the line(s) that actually overlap the badge and reclaims the full
+ * card width immediately after, same as text wrapping around any image.
+ * (Needs the badge before .card-name in the DOM - see both render call
+ * sites - so the float is in place before the text that should wrap
+ * around it gets laid out.) */
+.card-hp-badge{float:right;margin-left:4px;font-size:0.48rem;font-weight:700;color:#6ee7b7;white-space:nowrap;text-shadow:none;}
 
 /* type row */
 .card-typerow{display:none;}
@@ -955,8 +966,11 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .db-card-slot.in-deck{border-color:#60a5fa;box-shadow:0 0 14px rgba(59,130,246,.35);}
 .db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:6px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.5);}
 .dup-count-bubble{position:absolute;top:2px;right:2px;min-width:20px;height:20px;padding:0 5px;border-radius:50%;background:linear-gradient(135deg,#facc15,#d97706);border:2px solid rgba(10,8,20,.9);color:#1a1206;font-family:'Cinzel',serif;font-size:.62rem;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.6);line-height:1;}
-.deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;width:100%;}
+.deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;flex:1;}
 .deck-save-btn:hover{background:linear-gradient(135deg,#1a3460,#1d4ed8);border-color:rgba(99,160,255,.7);box-shadow:0 0 18px rgba(59,130,246,.3);}
+.db-deck-actions-row{display:flex;gap:8px;}
+.deck-clear-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(252,165,165,.9);cursor:pointer;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);border-radius:6px;padding:10px 16px;transition:all .18s;flex-shrink:0;}
+.deck-clear-btn:hover{background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.6);color:#fecaca;}
 
 /* deck section, the main focus, pinned to the top of the panel */
 .db-deck-section{padding:20px;display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25);}
@@ -965,8 +979,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .db-deck-card-slot{position:relative;isolation:isolate;}
 .db-deck-card-slot .card{cursor:pointer;}
 .db-deck-empty-slot{width:144px;height:214px;border-radius:8px;border:2px dashed rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.16);font-family:'Cinzel',serif;font-size:.55rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;line-height:1.6;}
-.db-deck-remove-x{position:absolute;bottom:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#ef4444;border:2px solid var(--panel);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.58rem;cursor:pointer;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:transform .15s;}
-.db-deck-remove-x:hover{transform:scale(1.15);}
 
 /* collection browser, search + filters, then the results grid */
 .db-collection-section{padding:20px;display:flex;flex-direction:column;gap:16px;}
@@ -2823,7 +2835,10 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
               <div class="subscreen-section-label" style="margin-bottom:0;">Your Deck &nbsp;<span id="db-deck-count" style="color:#a78bfa;font-weight:900;">0/12</span></div>
             </div>
             <div class="db-deck-slot-grid" id="db-deck-slot-grid"></div>
-            <button class="deck-save-btn" onclick="saveDeck()">Save Deck</button>
+            <div class="db-deck-actions-row">
+              <button class="deck-save-btn" onclick="saveDeck()">Save Deck</button>
+              <button class="deck-clear-btn" onclick="dbClearDeck()">Clear Deck</button>
+            </div>
           </div>
 
           <!-- COLLECTION, search + filter, then tap a card to add/remove it -->
@@ -4538,7 +4553,10 @@ function closeInspect(){
 }
 
 function handleInspectBackdrop(e){
-  if(e.target===document.getElementById('inspect-overlay'))closeInspect();
+  const ov=document.getElementById('inspect-overlay');
+  if(e.target!==ov)return;
+  if(ov.dataset.dbMode) dbCloseInspect();
+  else closeInspect();
 }
 
 function deployFromInspect(target){
@@ -4926,7 +4944,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   // it's the single source of truth and stays in sync with the card design.
   const desc=card.description||(CardById[card.baseId||card.id]||{}).description||'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
-    <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span></div>
+    <div class="card-namebar"><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span><span class="card-name">${card.name}</span></div>
     <div class="card-typerow">${typeLabel}</div>
     <div class="card-imgbox">
       <img class="card-img" src="${cardImageSrc(card.image)}" alt="${card.name}" onerror="this.style.display='none'">
@@ -4978,7 +4996,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
     <div class="card-class-label left">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>
     <div class="card-class-label right">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>`:'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
-    <div class="card-namebar"><span class="card-name">${card.name}</span><span class="card-hp-badge">HP ${card.currentHp}</span></div>
+    <div class="card-namebar"><span class="card-hp-badge">HP ${card.currentHp}</span><span class="card-name">${card.name}</span></div>
     <div class="card-typerow">${card.types.join('/').toUpperCase()}${cls?' · '+cls:''}</div>
     <div class="card-img-wrap">
       ${clsLabels}
@@ -7774,7 +7792,7 @@ function renderDBCollection(){
     const inDeck=_dbDeck.includes(id);
     const displayCard=defToDisplayCard(def);
     const qty=dupCounts[id]||0;
-    return `<div class="db-card-slot${inDeck?' in-deck':''}" onclick="dbToggleCard('${jsq(id)}')">
+    return `<div class="db-card-slot${inDeck?' in-deck':''}" onclick="dbInspectCollectionCard('${jsq(id)}')">
       ${renderCard(displayCard,false,-1,'db-card')}
       ${qty>1?`<div class="dup-count-bubble" title="You own ${qty} copies">${qty}</div>`:''}
     </div>`;
@@ -7799,8 +7817,7 @@ function renderDBDeckSlots(){
       const def=CardById[_dbDeck[i]];
       if(!def){ parts.push(`<div class="db-deck-empty-slot">Slot ${i+1}<br>Unknown</div>`); continue; }
       const displayCard=defToDisplayCard(def);
-      parts.push(`<div class="db-deck-card-slot">
-        <div class="db-deck-remove-x" onclick="dbRemoveCard(${i})" title="Remove from deck">✕</div>
+      parts.push(`<div class="db-deck-card-slot" onclick="dbInspectDeckCard(${i})">
         ${renderCard(displayCard,false,-1,'db-card')}
       </div>`);
     } else {
@@ -7811,6 +7828,10 @@ function renderDBDeckSlots(){
 }
 
 function dbToggleCard(id){
+  // Superseded by dbInspectCollectionCard()/dbAddToDeck()/dbRemoveFromDeckById()
+  // below - a single click used to silently add/remove a card straight
+  // from the collection grid, kept only as a fallback in case anything
+  // still calls it directly.
   const idx=_dbDeck.indexOf(id);
   if(idx!==-1){
     _dbDeck.splice(idx,1);
@@ -7832,6 +7853,132 @@ function dbRemoveCard(i){
   _dbDeck.splice(i,1);
   renderDBCollection();
   renderDBDeckSlots();
+}
+
+/* ── DECK BUILDER INSPECT ──
+ * Tapping a card (collection or deck) opens the same enlarged inspect
+ * overlay battle cards use (#inspect-overlay/#inspect-card-wrap/
+ * #inspect-actions), with Add/Remove as an explicit button rather than the
+ * whole card being one big add/remove toggle target - mirrors how a hand
+ * card in a live match has to be inspected before you can deploy it.
+ * Deliberately its own open/close pair (dbOpenInspect/dbCloseInspect)
+ * rather than reusing inspectCard()/closeInspect(): those are wired to
+ * battle-only state (State.turn/phase, _inspectIndex, clearPendingAction(),
+ * a full updateUI() battlefield refresh on close), none of which exists or
+ * means anything on the deck builder screen. The overlay DOM is just
+ * shared chrome; ov.dataset.dbMode tells the one shared backdrop-click
+ * handler (handleInspectBackdrop) which close function actually applies. */
+function dbOpenInspect(displayCard,buildActionsHtml){
+  const wrap=document.getElementById('inspect-card-wrap');
+  const rawCard=renderCard(displayCard,false,-1,'bf-active');
+  wrap.innerHTML=`<div class="card-inner-scale">${rawCard}</div>`;
+  wrap.style.width='';wrap.style.height='';
+  requestAnimationFrame(()=>{
+    const cardEl=wrap.querySelector('.card');
+    if(cardEl){
+      const sc=2.1;
+      wrap.style.width =(cardEl.offsetWidth *sc)+'px';
+      wrap.style.height=(cardEl.offsetHeight*sc)+'px';
+    }
+  });
+  wrap.classList.remove('ready');
+
+  const acts=document.getElementById('inspect-actions');
+  acts.classList.remove('ready');
+  acts.innerHTML=buildActionsHtml();
+
+  const ov=document.getElementById('inspect-overlay');
+  ov.dataset.dbMode='1';
+  ov.classList.add('open');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    wrap.classList.add('ready');
+    acts.classList.add('ready');
+  }));
+}
+function dbCloseInspect(){
+  const ov=document.getElementById('inspect-overlay');
+  const wrap=document.getElementById('inspect-card-wrap');
+  const acts=document.getElementById('inspect-actions');
+  wrap.classList.remove('ready');acts.classList.remove('ready');
+  delete ov.dataset.dbMode;
+  setTimeout(()=>{ov.classList.remove('open');wrap.innerHTML='';acts.innerHTML='';},260);
+}
+
+/** Opened from a collection-grid tile. Shows "+ Add to Deck" for a card
+ * that isn't in the deck yet (still subject to every canAddCardToDeck()
+ * rule - full deck, creature cap, boss/overlord clash - exactly like
+ * before), or "Remove from Deck" for one that already is, so you don't
+ * have to go hunt down its deck slot separately just to pull it back out. */
+function dbInspectCollectionCard(id){
+  const def=CardById[id];
+  if(!def)return;
+  const displayCard=defToDisplayCard(def);
+  dbOpenInspect(displayCard,()=>{
+    if(_dbDeck.includes(id)){
+      return `<button class="inspect-btn inspect-btn-cancel" onclick="dbRemoveFromDeckById('${jsq(id)}')">✕ Remove from Deck</button>
+        <button class="inspect-btn inspect-btn-cancel" onclick="dbCloseInspect()">Close</button>`;
+    }
+    return `<button class="inspect-btn inspect-btn-equip" onclick="dbAddToDeck('${jsq(id)}')">+ Add to Deck</button>
+      <button class="inspect-btn inspect-btn-cancel" onclick="dbCloseInspect()">✕ Cancel</button>`;
+  });
+}
+
+/** Opened from a deck-slot tile (a card already in the working deck). Only
+ * action available is taking it back out - adding happens from the
+ * collection side, a deck slot is never a place to add a *different* card. */
+function dbInspectDeckCard(index){
+  const id=_dbDeck[index];
+  const def=CardById[id];
+  if(!def)return;
+  const displayCard=defToDisplayCard(def);
+  dbOpenInspect(displayCard,()=>
+    `<button class="inspect-btn inspect-btn-cancel" onclick="dbRemoveFromDeckAt(${index})">✕ Remove from Deck</button>
+     <button class="inspect-btn inspect-btn-cancel" onclick="dbCloseInspect()">Close</button>`
+  );
+}
+
+function dbAddToDeck(id){
+  const ownedCount=(Player.collection||[]).filter(cid=>cid===id).length;
+  if(ownedCount<1){ showToast("⚠ You don't own that card yet."); dbCloseInspect(); return; }
+  if(_dbDeck.includes(id)){ dbCloseInspect(); return; } // already in, nothing to do
+  if(_dbDeck.length>=DECK_SIZE){ showToast(`Deck is full! Remove a card first (max ${DECK_SIZE}).`); return; }
+  const check=canAddCardToDeck(id);
+  if(!check.ok){ showToast(`⚠ ${check.reason}`); return; }
+  _dbDeck.push(id);
+  renderDBCollection();
+  renderDBDeckSlots();
+  dbCloseInspect();
+}
+
+function dbRemoveFromDeckById(id){
+  const idx=_dbDeck.indexOf(id);
+  if(idx===-1){ dbCloseInspect(); return; }
+  _dbDeck.splice(idx,1);
+  renderDBCollection();
+  renderDBDeckSlots();
+  dbCloseInspect();
+}
+
+function dbRemoveFromDeckAt(index){
+  if(index<0||index>=_dbDeck.length){ dbCloseInspect(); return; }
+  _dbDeck.splice(index,1);
+  renderDBCollection();
+  renderDBDeckSlots();
+  dbCloseInspect();
+}
+
+/** Empties the whole working deck in one action. Confirmed first (reuses
+ * the same generic yes/no dialog guild leave/kick/disband use) since
+ * there's no undo and this can wipe out a fully built 12-card deck in one
+ * misclick otherwise. */
+function dbClearDeck(){
+  if(!_dbDeck.length){ showToast("Your deck's already empty."); return; }
+  showGConfirm('Clear Deck?','This removes all cards from your working deck. This can\'t be undone.','Clear Deck',()=>{
+    _dbDeck=[];
+    renderDBCollection();
+    renderDBDeckSlots();
+    showToast('Deck cleared.');
+  });
 }
 
 function saveDeck(){
