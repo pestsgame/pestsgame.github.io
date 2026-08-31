@@ -4977,7 +4977,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   // it's the single source of truth and stays in sync with the card design.
   const desc=card.description||(CardById[card.baseId||card.id]||{}).description||'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
-    <div class="card-namebar"><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span><span class="card-name">${card.name}</span></div>
+    <div class="card-namebar"><span class="card-name"><span class="card-hp-badge" style="color:${accent}">${icon}${card.currentDurability}</span>${card.name}</span></div>
     <div class="card-typerow">${typeLabel}</div>
     <div class="card-imgbox">
       <img class="card-img" src="${cardImageSrc(card.image)}" alt="${card.name}" onerror="this.style.display='none'">
@@ -5029,7 +5029,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
     <div class="card-class-label left">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>
     <div class="card-class-label right">${cls.split('').map(c=>`<span>${c}</span>`).join('')}</div>`:'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
-    <div class="card-namebar"><span class="card-hp-badge">HP ${card.currentHp}</span><span class="card-name">${card.name}</span></div>
+    <div class="card-namebar"><span class="card-name"><span class="card-hp-badge">HP ${card.currentHp}</span>${card.name}</span></div>
     <div class="card-typerow">${card.types.join('/').toUpperCase()}${cls?' · '+cls:''}</div>
     <div class="card-img-wrap">
       ${clsLabels}
