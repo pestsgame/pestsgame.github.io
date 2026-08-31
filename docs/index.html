@@ -4275,6 +4275,14 @@ const Anim={
         this.colorFlash(slotId,'rgba(3,105,161,0.45)');
         this.statusFloat(slotId,'WATERLOGGED  MISS','#7dd3fc');
         break;
+      case 'dodge_miss':
+        this.colorFlash(slotId,'rgba(16,185,129,0.4)');
+        this.statusFloat(slotId,'DODGED!','#34d399');
+        break;
+      case 'heal':
+        this.colorFlash(slotId,'rgba(16,185,129,0.45)');
+        if(dmg)this.statusFloat(slotId,`HEAL  +${dmg}`,'#34d399');
+        break;
     }
   },
 
@@ -4738,10 +4746,14 @@ function boardSlotClick(side,slot){
     if(State.pendingAbilityTargetKind==='ally'&&side==='player'){
       const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
       if(!card)return;
-      GameNet.send({type:'use_ability', slot:State.selectedSlot, target:slot});
+      if(State.pendingAtkIndex!==null){
+        GameNet.send({type:'attack', slot:State.selectedSlot, target:slot, atkIndex:State.pendingAtkIndex});
+      } else {
+        GameNet.send({type:'use_ability', slot:State.selectedSlot, target:slot});
+      }
       clearPendingAction(); updateUI(); return;
     }
-    if(State.pendingAtkIndex!==null&&side==='enemy'){
+    if(State.pendingAtkIndex!==null&&State.pendingAbilityTargetKind!=='ally'&&side==='enemy'){
       const card=slot==='slot1'?State.enemy.activeCard:State.enemy.activeCard2;
       if(!card)return;
       GameNet.send({type:'attack', slot:State.selectedSlot, target:slot, atkIndex:State.pendingAtkIndex});
@@ -4759,9 +4771,25 @@ function boardSlotClick(side,slot){
   inspectBoardCard(side,slot);
 }
 
-/** Attack (top or bottom) chosen from the inspect panel: closes inspect and
- * arms the board for an enemy-slot click, see boardSlotClick. */
+/** Attack (top or bottom) chosen from the inspect panel. A normal damaging
+ * attack arms the board for an enemy-slot click, see boardSlotClick. A
+ * heal-type attack (bottomAttack.heal or, via synergy, topEffect.heal) never
+ * targets the enemy at all: self/side fires immediately with nothing further
+ * to pick, same as a self/side ability heal, and 'ally' arms the board for a
+ * click on either of the CASTER'S OWN slots (self included), exactly like
+ * chooseAbility's ally-heal — it reuses the same pendingAbilityTargetKind so
+ * boardSlotClick/updateUI's existing ally-targeting/highlight code handles it. */
 function chooseAttack(slot,atkIndex){
+  const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
+  const src=card?(atkIndex===0?card.topEffect:card.bottomAttack):null;
+  if(src&&src.heal){
+    closeInspect();
+    State.selectedSlot=slot;
+    State.pendingAtkIndex=atkIndex;
+    if(src.healTarget==='ally'){ State.pendingAbilityTargetKind='ally'; updateUI(); return; }
+    GameNet.send({type:'attack', slot, atkIndex});
+    clearPendingAction(); updateUI(); return;
+  }
   closeInspect();
   State.selectedSlot=slot;
   State.pendingAtkIndex=atkIndex;
@@ -5114,7 +5142,7 @@ function updateUI(){
 
   // Enemy slots, targetable while an in-progress attack or enemy-targeting
   // ability (a curse/debuff) awaits a target, see boardSlotClick.
-  const targeting=State.pendingAtkIndex!==null||State.pendingAbilityTargetKind==='enemy';
+  const targeting=(State.pendingAtkIndex!==null&&State.pendingAbilityTargetKind!=='ally')||State.pendingAbilityTargetKind==='enemy';
   const es=document.getElementById('enemy-active-slot');
   if(State.enemy.activeCard){es.innerHTML=renderCard(State.enemy.activeCard,false,-1,'bf-enemy');es.classList.add('has-card');}
   else{es.innerHTML='EMPTY';es.classList.remove('has-card');}
@@ -5186,9 +5214,9 @@ function updateUI(){
     } else if(!canAct){hint.textContent='';hint.style.color='#fbbf24';}
     else if(sel){
       const selCard=sel==='slot1'?State.player.activeCard:State.player.activeCard2;
-      if(State.pendingAtkIndex!==null) hint.textContent=`${selCard?.name||''} — click an enemy card to attack (or click it again to cancel)`;
+      if(State.pendingAbilityTargetKind==='ally') hint.textContent=`${selCard?.name||''} — click either of your creatures to target (itself included)`;
+      else if(State.pendingAtkIndex!==null) hint.textContent=`${selCard?.name||''} — click an enemy card to attack (or click it again to cancel)`;
       else if(State.pendingAbilityTargetKind==='enemy') hint.textContent=`${selCard?.name||''} — click an enemy card to target (or click it again to cancel)`;
-      else if(State.pendingAbilityTargetKind==='ally') hint.textContent=`${selCard?.name||''} — click either of your creatures to target (itself included)`;
       else hint.textContent=`${selCard?.name||''} selected`;
       hint.style.color='#fbbf24';
     }else if(noTargets){
@@ -11656,6 +11684,42 @@ function playSingleEvent(e){
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusFloat(slotId,`CURSE  -${e.dmg}`,'#a78bfa');
         livePatchCardHp(e.side,e.slot,e.dmg);
+        break;
+      }
+      case 'heal': {
+        // Both the ability-heal and attack-heal server paths emit this same
+        // shape (side/targetCard/amount), only 'side' target has no card
+        // slot to anchor an animation to (see the module doc note on the
+        // player hp pool no longer mattering) so that just gets a toast.
+        if(e.target==='side'){
+          showToast(e.side===State.mySide?`You healed ${e.amount} HP!`:'Opponent healed HP!');
+          break;
+        }
+        const entity=(e.side===State.mySide)?State.player:State.enemy;
+        let slotKey=null;
+        if(entity.activeCard&&entity.activeCard.instanceId===e.targetCard) slotKey='slot1';
+        else if(entity.activeCard2&&entity.activeCard2.instanceId===e.targetCard) slotKey='slot2';
+        if(!slotKey) break;
+        const slotId=sideSlotToId(e.side,slotKey);
+        if(slotId) Anim.statusVfx(slotId,'heal',false,e.amount);
+        livePatchCardHp(e.side,slotKey,-e.amount); // negative dmg = HP increase, uncapped
+        break;
+      }
+      case 'heal_fizzle': {
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusFloat(slotId,'NO TARGET','#94a3b8');
+        break;
+      }
+      case 'reflect': {
+        // The hit bounced off the defender (e.side/e.slot) and landed back
+        // on the original attacker (e.atkSide/e.atkSlot) instead - show both
+        // halves: a "reflected" cue on the defender, the actual damage
+        // number on the attacker who's the one really losing HP here.
+        const slotId=sideSlotToId(e.side,e.slot);
+        if(slotId) Anim.statusFloat(slotId,'REFLECTED!','#34d399');
+        const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
+        if(atkSlotId) Anim.statusFloat(atkSlotId,`REFLECT  -${e.dmg}`,'#f87171');
+        livePatchCardHp(e.atkSide,e.atkSlot,e.dmg);
         break;
       }
       case 'rocks': {
