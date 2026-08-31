@@ -493,10 +493,24 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .card.deck-preview{width:144px;cursor:default;transform:none !important;}
 .card>*{position:relative;z-index:1;}
 
-/* name bar */
+/* name bar
+ * Fixed to exactly a 2-line title height everywhere, on purpose: the title
+ * area must always reserve the same 2 lines, whether the name is short
+ * enough for 1 line (extra blank line stays reserved, for consistency
+ * across cards) or long enough that it used to spill onto a 3rd wrapped
+ * line (e.g. "Abyssthing the Gargantuan Demon"). .card-name below clamps to
+ * 2 lines and .card-namebar's height is pinned (via box-sizing:border-box)
+ * to fit exactly those 2 lines + its own padding, so it can neither shrink
+ * for a short name nor grow for a long one. This one shared rule is what
+ * every renderCard()/renderEquipCard() call site renders through
+ * (battlefield, hand tray, deck builder, inspect zoom, packs, bazaar, ...),
+ * so the title bar is now identical in every one of those places - there's
+ * no per-context override left anywhere that makes one of them taller or
+ * uses a bigger font than the rest. */
 .card-namebar{
   background:rgba(0,0,0,0.82);border-bottom:1px solid rgba(255,255,255,0.07);
-  padding:3px 7px 2px;
+  padding:3px 7px 2px;box-sizing:border-box;
+  height:1.55rem;
   box-shadow:inset 0 1px 0 rgba(80,130,255,0.18),inset 0 -1px 0 rgba(0,0,0,0.5);
   border-radius:6px 6px 0 0;overflow:hidden;flex-shrink:0;
   position:relative;z-index:5;
@@ -504,26 +518,15 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 .card-name{
   font-family:'Cinzel',serif;font-size:0.48rem;font-weight:700;color:#eef2ff;line-height:1.3;
   text-shadow:0 0 10px rgba(100,150,255,0.5);
-  display:block;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
-/* No line-clamp here on purpose: a hard 2-line cap discards anything past
- * it regardless of whether the card actually has room below (e.g. "Abyssthing
- * the Gargantuan Demon" needs a 3rd wrapped line, and the clamp used to just
- * drop "Demon"). Letting the name wrap freely, combined with .card now being
- * min-height (not a fixed height) above, means the card simply grows a
- * little taller for the rare long name instead of ever truncating one -
- * every renderCard()/renderEquipCard() call site everywhere (battlefield,
- * hand tray, deck builder, packs, ...) benefits, since none of their
- * containers force a fixed pixel height on .card (checked: bf-slot/eq-slot
- * use min-height and drop it once populated, hand-tray-inner is an
- * auto-height flex row, db-card-slot/db-deck-card-slot size to content).
- * The one deliberate exception is the handful of scaled-down card-art
- * PREVIEW thumbnails (Bazaar tiles/sell-thumb/detail-card mobile view) that
- * transform:scale() a full card into a small fixed viewport - those are
- * re-pinned back to the original fixed height + 2-line clamp further down,
- * since they're already far too small to read text at either 2 or 3 lines,
- * and letting their SOURCE height vary would shift what the scaled crop
- * shows. */
+/* The handful of scaled-down card-art PREVIEW thumbnails (Bazaar tiles/
+ * sell-thumb/detail-card mobile view) that transform:scale() a full card
+ * into a small fixed viewport still re-pin .card to a fixed height further
+ * down - that's an unrelated fixed-crop concern (which portion of the art
+ * shows through the small window), not a title-height one, and is left as
+ * is. Their .card-name line-clamp:2 rules are now redundant with the base
+ * rule above but harmless, so they're left in place too. */
 /* .card-hp-badge floats top-right rather than sitting in a flex column
  * next to .card-name: a flex column would reserve the badge's width for
  * the FULL height of the name (every wrapped line), even though the badge
@@ -12831,8 +12834,8 @@ async function tutStepTypes(){
   updateUI();
   await Tutorial.say(["Step back a moment. Every creature you'll face has a Type, and a Classification."]);
   await Tutorial.say(["Mudshell is a Mob, common muscle. And a normal card besides: the lowest, most disposable class in the Arena."],{highlight:'#player-active-slot'});
-  await Tutorial.say(["Nyxa is a wzard. He doesn't out-muscle anything, he out-thinks it."],{highlight:'#player-active-slot-2'});
-  await Tutorial.say(["That is momb. A Wizard, and a PESTS card. A real step up from anything you've fought so far."],{highlight:'#enemy-active-slot'});
+  await Tutorial.say(["Nyxa is a wizard. He doesn't out-muscle anything, he out-thinks it."],{highlight:'#player-active-slot-2'});
+  await Tutorial.say(["That is mom. A Wizard, and a PESTS card. A real step up from anything you've fought so far."],{highlight:'#enemy-active-slot'});
   await Tutorial.say(["And that... is Nyxrot. A powerful Dragon, and a BOSS card. and the second highest class there is. The highlight of most decks."],{highlight:'#enemy-active-slot-2'});
   await Tutorial.say(["And... there are OVERLORDs. The strongest card type out there. Only three exist as of now, and we couldnt even get out hands on one."]);
   await Tutorial.say(["Type is HOW a creature fights. Class is how DANGEROUS it is. Remember both."]);
