@@ -962,7 +962,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
 /* deck builder */
 .deckbuilder-body{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.3) transparent;display:flex;flex-direction:column;}
-.card-grid-small{display:grid;grid-template-columns:repeat(var(--db-cols,6),144px);gap:10px;justify-content:center;}
+.card-grid-small{display:grid;grid-template-columns:repeat(var(--db-cols,6),var(--db-col-w,144px));gap:10px;justify-content:center;}
 .db-collection-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:2px 0 10px;}
 .db-cols-control{display:flex;align-items:center;gap:8px;}
 .db-cols-control select{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--txt);border-radius:6px;padding:4px 8px;font-size:.62rem;font-family:inherit;}
@@ -971,12 +971,31 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .db-page-btn{font-size:.6rem;font-weight:700;letter-spacing:.04em;color:var(--txt);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:5px 12px;cursor:pointer;transition:all .15s;}
 .db-page-btn:hover:not(:disabled){border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.12);}
 .db-page-btn:disabled{opacity:.35;cursor:not-allowed;}
-.db-card-slot{cursor:pointer;position:relative;isolation:isolate;border-radius:10px;padding:4px;border:2px solid transparent;transition:transform .18s,border-color .18s,box-shadow .18s;}
+.db-card-slot{
+  cursor:pointer;position:relative;isolation:isolate;border-radius:10px;padding:4px;border:2px solid transparent;
+  transition:transform .18s,border-color .18s,box-shadow .18s;
+  /* chrome (padding+border, 4px+2px per side = 12px) is added on top of the
+   * scaled card size below, so the slot's box always exactly contains the
+   * card - it can neither squeeze the card (old bug: fixed 144px column +
+   * this padding/border made the slot's own content-box narrower than the
+   * card itself, so the card overflowed it and the in-deck border/count
+   * badge - both positioned off this box - ended up looking too small and
+   * shifted left of the actual card) nor leave dead space around it. */
+  width:var(--db-col-w,144px);
+  height:calc((214px*var(--db-card-scale,1)) + 12px);
+}
+.db-card-slot .card-scale-wrap{
+  width:calc(144px*var(--db-card-scale,1));height:calc(214px*var(--db-card-scale,1));
+  overflow:hidden;border-radius:6px;position:relative;
+}
+.db-card-slot .card-inner-scale{
+  width:144px;height:214px;transform:scale(var(--db-card-scale,1));transform-origin:top left;
+}
 .db-card-slot .card{cursor:pointer;}
 .db-card-slot:hover{transform:translateY(-4px);border-color:rgba(139,92,246,.45);box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(139,92,246,.2);}
 .db-card-slot.in-deck{border-color:#60a5fa;box-shadow:0 0 14px rgba(59,130,246,.35);}
 .db-card-slot.in-deck::after{content:'✓ IN DECK';position:absolute;top:6px;left:50%;transform:translateX(-50%);font-size:.5rem;font-weight:900;letter-spacing:.08em;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:2px 8px;border-radius:20px;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.5);}
-.dup-count-bubble{position:absolute;top:2px;right:2px;min-width:20px;height:20px;padding:0 5px;border-radius:50%;background:linear-gradient(135deg,#facc15,#d97706);border:2px solid rgba(10,8,20,.9);color:#1a1206;font-family:'Cinzel',serif;font-size:.62rem;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.6);line-height:1;}
+.dup-count-bubble{position:absolute;bottom:2px;right:2px;min-width:20px;height:20px;padding:0 5px;border-radius:50%;background:linear-gradient(135deg,#facc15,#d97706);border:2px solid rgba(10,8,20,.9);color:#1a1206;font-family:'Cinzel',serif;font-size:.62rem;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.6);line-height:1;}
 .deck-save-btn{font-family:'Cinzel',serif;font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e9d5ff;cursor:pointer;background:linear-gradient(135deg,rgba(30,52,96,.85),rgba(29,78,216,.7));border:1px solid rgba(59,130,246,.45);border-radius:6px;padding:10px 22px;transition:all .18s;flex:1;}
 .deck-save-btn:hover{background:linear-gradient(135deg,#1a3460,#1d4ed8);border-color:rgba(99,160,255,.7);box-shadow:0 0 18px rgba(59,130,246,.3);}
 .db-deck-actions-row{display:flex;gap:8px;}
@@ -7871,6 +7890,13 @@ function dbGoToPage(delta){
   _dbPage+=delta; // renderDBCollection() clamps this against the real page count below
   renderDBCollection();
 }
+window.addEventListener('resize',()=>{
+  // Only matters while the collection grid actually has cards laid out -
+  // re-running the full render on every resize tick on every screen would
+  // be wasted work (and dbPage/filter state elsewhere doesn't need it).
+  const grid=document.getElementById('db-collection-grid');
+  if(grid && grid.children.length) renderDBCollection();
+});
 
 function renderDBCollection(){
   const grid=document.getElementById('db-collection-grid');
@@ -7891,6 +7917,23 @@ function renderDBCollection(){
   grid.style.setProperty('--db-cols',_dbColsPerRow);
   const colsSelect=document.getElementById('db-cols-select');
   if(colsSelect && colsSelect.value!==String(_dbColsPerRow)) colsSelect.value=String(_dbColsPerRow);
+
+  // Cards-per-row scales the cards themselves rather than just changing how
+  // much total row width is used: measure the row's real available width
+  // (the grid is a plain auto-width block, so its own clientWidth already
+  // reflects the panel's content width, independent of the column tracks
+  // we're about to set) and size each slot so DB_COLS columns + gaps
+  // exactly fill it. CARD_W/CARD_H are renderCard()'s fixed design size;
+  // CHROME is .db-card-slot's own padding+border (4px+2px per side) which
+  // rides on top of the scaled card, not squeezed out of it (see the CSS
+  // comment on .db-card-slot for what went wrong when it was).
+  const CARD_W=144,CARD_H=214,CHROME=12,GRID_GAP=10;
+  const availWidth=grid.clientWidth||grid.parentElement.clientWidth||(CARD_W+CHROME)*_dbColsPerRow;
+  const totalGaps=GRID_GAP*(_dbColsPerRow-1);
+  const slotOuterW=Math.max((availWidth-totalGaps)/_dbColsPerRow, CHROME+40);
+  const cardScale=(slotOuterW-CHROME)/CARD_W;
+  grid.style.setProperty('--db-col-w',slotOuterW+'px');
+  grid.style.setProperty('--db-card-scale',cardScale);
 
   const pageSize=_dbColsPerRow*DB_ROWS_PER_PAGE;
   const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
@@ -7924,7 +7967,7 @@ function renderDBCollection(){
     const displayCard=defToDisplayCard(def);
     const qty=dupCounts[id]||0;
     return `<div class="db-card-slot${inDeck?' in-deck':''}" onclick="dbInspectCollectionCard('${jsq(id)}')">
-      ${renderCard(displayCard,false,-1,'db-card')}
+      <div class="card-scale-wrap"><div class="card-inner-scale">${renderCard(displayCard,false,-1,'db-card')}</div></div>
       ${qty>1?`<div class="dup-count-bubble" title="You own ${qty} copies">${qty}</div>`:''}
     </div>`;
   });
