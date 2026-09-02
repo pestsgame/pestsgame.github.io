@@ -334,6 +334,75 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   cursor:pointer !important;pointer-events:all !important;
 }
 
+/* ══════════════════════════════════════
+   REVIVE PICKER OVERLAY — its own modal, a distinct necromantic gold/
+   violet palette so it never reads as just another inspect screen, with
+   a scrollable grid of graveyard tiles instead of a stacked button list. */
+#revive-picker-overlay{
+  display:none;position:fixed;inset:0;z-index:1600;
+  align-items:center;justify-content:center;
+  background:rgba(8,4,14,0.9);backdrop-filter:blur(8px);
+}
+#revive-picker-overlay.open{display:flex;}
+#revive-picker-modal{
+  width:min(560px,92vw);max-height:78vh;display:flex;flex-direction:column;gap:14px;
+  padding:22px 22px 18px;border-radius:14px;
+  background:linear-gradient(165deg,#1a1024,#0d0812);
+  border:1px solid rgba(251,191,36,0.35);
+  box-shadow:0 0 0 1px rgba(124,58,237,0.15),0 24px 70px rgba(0,0,0,0.65),0 0 40px rgba(251,191,36,0.12);
+  transform:scale(0.85) translateY(18px);opacity:0;
+  transition:transform 0.3s cubic-bezier(0.34,1.44,0.64,1),opacity 0.22s;
+}
+#revive-picker-overlay.ready #revive-picker-modal{transform:scale(1) translateY(0);opacity:1;}
+#revive-picker-title{
+  font-family:'Cinzel',serif;font-weight:700;font-size:0.85rem;letter-spacing:0.06em;
+  text-transform:uppercase;color:#fbbf24;text-shadow:0 0 12px rgba(251,191,36,0.4);
+  text-align:center;
+}
+#revive-picker-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;
+  overflow-y:auto;padding:4px 2px 8px;
+}
+.revive-picker-empty{
+  grid-column:1/-1;text-align:center;padding:24px 8px;color:var(--txt-dim);
+  font-family:'Cinzel',serif;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;
+}
+.revive-tile{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:9px 6px 8px;border-radius:9px;cursor:pointer;
+  background:linear-gradient(160deg,rgba(124,58,237,0.14),rgba(0,0,0,0.25));
+  border:1px solid rgba(251,191,36,0.28);
+  transition:transform 0.14s,box-shadow 0.18s,border-color 0.18s;
+}
+.revive-tile:hover{
+  transform:translateY(-3px);
+  border-color:#fbbf24;
+  box-shadow:0 8px 22px rgba(0,0,0,0.5),0 0 16px rgba(251,191,36,0.35);
+}
+.revive-tile:active{transform:scale(0.96) translateY(0);}
+.revive-tile-img{
+  width:56px;height:56px;border-radius:8px;overflow:hidden;
+  background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;
+}
+.revive-tile-img img{width:100%;height:100%;object-fit:cover;}
+.revive-tile-name{
+  font-family:'Cinzel',serif;font-weight:700;font-size:0.58rem;text-align:center;
+  color:#fff;line-height:1.2;
+}
+.revive-tile-hp{
+  font-size:0.56rem;color:#6ee7b7;font-weight:600;
+}
+.revive-tile.blocked{
+  cursor:not-allowed;opacity:0.55;
+  background:linear-gradient(160deg,rgba(80,80,90,0.14),rgba(0,0,0,0.25));
+  border-color:rgba(255,255,255,0.12);
+}
+.revive-tile.blocked .revive-tile-hp{color:var(--txt-dim);}
+.revive-tile.blocked:hover{transform:none;box-shadow:none;border-color:rgba(255,255,255,0.12);}
+.revive-tile-lock{
+  position:absolute;top:4px;right:6px;font-size:0.7rem;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+}
+
 /* tiny hint tab always peeking at the bottom */
 #hand-hint{
   position:fixed;bottom:0;left:50%;transform:translateX(-50%);
@@ -464,6 +533,20 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   background:linear-gradient(170deg,#0c0c20 0%,#080814 50%,#0b0b1c 100%);
   box-shadow:0 3px 12px rgba(0,0,0,0.7),0 0 16px var(--rarity-glow,transparent);
   clip-path:none;
+  /* Reset every inheritable text property renderCard()'s own elements don't
+   * explicitly set. .card gets dropped into all sorts of containers (.bf-slot,
+   * .eq-slot, etc.) that style their OWN empty-state placeholder text with
+   * things like letter-spacing/font-weight - CSS inheritance doesn't know
+   * that boundary and was quietly bleeding those values down into card text
+   * that never opted into them (.eff-sfx in particular has no letter-spacing
+   * or font-weight of its own, so it silently picked up .bf-slot's 0.07em
+   * tracking + 600 weight). That's genuinely wider per character, which was
+   * pushing some descriptions onto an extra wrapped line on the battlefield
+   * that didn't happen anywhere else the same card rendered. Pinning a
+   * neutral baseline here means .card is a fully self-contained typographic
+   * unit: identical text, identical wrapping, no matter what wraps *it*. */
+  letter-spacing:normal;font-weight:400;font-style:normal;text-transform:none;
+  line-height:normal;word-spacing:normal;
 }
 /* star speckles */
 .card::before{
@@ -605,12 +688,117 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 
 /* ══════════════════════════════════════
    GAME OVER
+   Two-phase reveal: handleMatchOver shows this the instant the game
+   server itself knows who won (no round trip needed for that part, see
+   game-server's finish()/finishDraw()), with the rank panel in its
+   "before" state and a shimmer where the RP change will go. handleMatchReward
+   fills the rest in a moment later - see docs/../server for the split.
 ══════════════════════════════════════ */
 #game-over{
-  position:absolute;inset:0;background:rgba(0,0,0,0.9);
-  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 90% 70% at 50% 22%,rgba(30,10,60,.55),rgba(3,3,8,.95) 72%);
+  display:none;align-items:center;justify-content:center;z-index:200;overflow:hidden;
 }
-#game-over h1{font-family:'Cinzel',serif;font-size:3.5rem;font-weight:900;letter-spacing:0.18em;}
+#game-over.result-win{background:radial-gradient(ellipse 90% 70% at 50% 18%,rgba(8,60,42,.55),rgba(3,3,8,.95) 72%);}
+#game-over.result-loss{background:radial-gradient(ellipse 90% 70% at 50% 18%,rgba(70,10,20,.45),rgba(3,3,8,.95) 72%);}
+#game-over.result-draw{background:radial-gradient(ellipse 90% 70% at 50% 18%,rgba(70,55,10,.4),rgba(3,3,8,.95) 72%);}
+#go-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+#go-content{
+  position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:16px;
+  padding:24px 20px;width:min(640px,94vw);max-height:92vh;overflow-y:auto;scrollbar-width:none;
+}
+#go-content::-webkit-scrollbar{display:none;}
+
+.go-title{
+  font-family:'Cinzel',serif;font-size:3rem;font-weight:900;letter-spacing:0.16em;text-align:center;
+  opacity:0;transform:scale(.55) translateY(22px);animation:goTitleIn .65s cubic-bezier(.22,1.5,.4,1) .05s forwards;
+}
+.go-title.win{color:#34d399;text-shadow:0 0 30px rgba(52,211,153,.65),0 0 70px rgba(52,211,153,.3);}
+.go-title.loss{color:#f87171;text-shadow:0 0 30px rgba(248,113,113,.55);}
+.go-title.draw{color:#fbbf24;text-shadow:0 0 30px rgba(251,191,36,.5);}
+@keyframes goTitleIn{0%{opacity:0;transform:scale(.5) translateY(26px);}55%{opacity:1;}100%{opacity:1;transform:scale(1) translateY(0);}}
+
+@keyframes goFadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.go-subnote{
+  font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.05em;color:#c4b5fd;
+  display:flex;align-items:center;gap:6px;opacity:0;animation:goFadeUp .5s ease-out .32s forwards;
+}
+
+.go-cards{display:flex;gap:14px;width:100%;align-items:stretch;opacity:0;animation:goFadeUp .5s ease-out .42s forwards;}
+@media (max-width:620px){.go-cards{flex-direction:column;}}
+.go-card{
+  flex:1;min-width:0;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;position:relative;
+}
+.go-card-you{border-color:rgba(196,181,253,.28);}
+.go-card-label{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-muted);}
+
+.go-rank-row{display:flex;align-items:center;gap:12px;}
+.go-medal-slot{position:relative;width:50px;height:50px;flex-shrink:0;}
+.go-medal-slot svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5));}
+.go-medal-old,.go-medal-new{position:absolute;inset:0;transition:opacity .5s cubic-bezier(.3,1.3,.5,1),transform .5s cubic-bezier(.3,1.3,.5,1);}
+.go-medal-new{opacity:0;transform:scale(.35) rotate(-30deg);}
+.go-medal-slot.swap .go-medal-old{opacity:0;transform:scale(1.6) rotate(24deg);}
+.go-medal-slot.swap .go-medal-new{opacity:1;transform:scale(1) rotate(0);}
+
+.go-rank-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.go-rank-label{font-family:'Cinzel',serif;font-size:.84rem;font-weight:900;color:#f3e8ff;}
+.go-rp-line{font-size:.62rem;letter-spacing:.03em;color:var(--txt-muted);min-height:1.1em;}
+.go-rp-num{font-family:'Cinzel',serif;font-weight:800;font-size:.76rem;}
+.go-rp-num.pos{color:#34d399;}
+.go-rp-num.neg{color:#f87171;}
+.go-rp-num.zero{color:var(--txt-muted);}
+.go-rp-shimmer{display:inline-block;width:60px;height:9px;border-radius:5px;vertical-align:-1px;
+  background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.2),rgba(255,255,255,.06));
+  background-size:200% 100%;animation:goShimmer 1.15s linear infinite;}
+@keyframes goShimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+.go-ladder{display:flex;gap:4px;margin-top:1px;}
+.go-pip{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);transition:background .3s,border-color .3s;}
+.go-pip.filled{background:#a78bfa;border-color:#c4b5fd;}
+.go-pip.pop{animation:goPipPop .55s ease-out;}
+@keyframes goPipPop{0%{transform:scale(1);}45%{transform:scale(1.9);box-shadow:0 0 10px rgba(196,181,253,.9);}100%{transform:scale(1);}}
+
+.go-reward-line{font-size:.66rem;color:#fbbf24;font-weight:700;opacity:0;min-height:1.1em;}
+.go-reward-line.show{animation:goFadeUp .4s ease-out forwards;}
+
+.go-opp{cursor:pointer;transition:border-color .18s,background .18s,transform .18s;}
+.go-opp:hover{border-color:rgba(196,181,253,.4);background:rgba(255,255,255,.05);transform:translateY(-2px);}
+.go-opp-row{display:flex;align-items:center;gap:12px;}
+.go-opp-avatar{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  background:radial-gradient(circle at 38% 35%,#1a0a3a,#060614);border:2px solid rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;color:#e9d5ff;
+}
+.go-opp-name{font-family:'Cinzel',serif;font-size:.8rem;font-weight:800;color:#fff;}
+.go-opp-hint{font-size:.54rem;color:rgba(196,181,253,.6);letter-spacing:.04em;margin-top:2px;}
+
+.go-btn-row{display:flex;gap:12px;opacity:0;animation:goFadeUp .5s ease-out .55s forwards;}
+
+/* Full-screen rank-up flash, sits above everything (even the profile
+ * loading overlay would be fine layered under this, but it's brief enough
+ * it's never actually a concern in practice). Two intensities: 'sub'
+ * (moved up a division within the same tier) is quick and modest; 'tier'
+ * (promoted to a whole new tier) is the showcase moment, bigger text,
+ * longer hold, brighter flash. */
+.go-promo-flash{position:fixed;inset:0;z-index:2200;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;}
+.go-promo-flash-bg{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(196,181,253,.4),transparent 62%);}
+.go-promo-text{position:relative;font-family:'Cinzel',serif;font-weight:900;text-align:center;letter-spacing:.1em;}
+.go-promo-big{display:block;color:#fff;text-shadow:0 0 10px rgba(255,255,255,.9),0 0 46px rgba(196,181,253,.95);}
+.go-promo-small{display:block;color:#c4b5fd;letter-spacing:.2em;margin-top:8px;}
+.go-promo-flash.tier .go-promo-big{font-size:2.7rem;}
+.go-promo-flash.tier .go-promo-small{font-size:1rem;}
+.go-promo-flash.sub .go-promo-big{font-size:1.5rem;}
+.go-promo-flash.sub .go-promo-small{font-size:.72rem;}
+.go-promo-flash.show{animation:goPromoFlash 1s ease-out forwards;}
+.go-promo-flash.tier.show{animation-duration:2.3s;}
+@keyframes goPromoFlash{
+  0%{opacity:0;transform:scale(.7);}
+  14%{opacity:1;transform:scale(1.06);}
+  22%{transform:scale(1);}
+  78%{opacity:1;}
+  100%{opacity:0;transform:scale(1.12);}
+}
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 
@@ -1610,10 +1798,6 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   white-space:nowrap;
 }
 .tourney-match-ribbon.show{display:inline-flex;}
-.game-over-tourney-note{
-  display:flex;align-items:center;gap:6px;margin:-6px 0 18px;
-  font-family:'Cinzel',serif;font-size:.72rem;font-weight:700;color:#c4b5fd;letter-spacing:.03em;
-}
 
 /* ── champion celebration ── */
 #tourney-champion-overlay{
@@ -3294,14 +3478,50 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 
   </div><!-- /table-wrap -->
 
-  <!-- Game Over overlay -->
+  <!-- Game Over overlay - see handleMatchOver/handleMatchReward (JS) for
+       the two-phase reveal this renders. -->
   <div id="game-over">
-    <h1 id="game-over-text">VICTORY</h1>
-    <div class="game-over-tourney-note" id="game-over-tourney-note" style="display:none;"></div>
-    <div style="display:flex;gap:12px;">
-      <button class="bbtn bbtn-endturn" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu();startMultiplayerGame()">↺ Play Again</button>
-      <button class="bbtn bbtn-restart" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu()">← Main Menu</button>
+    <canvas id="go-canvas"></canvas>
+    <div id="go-content">
+      <h1 class="go-title" id="game-over-text">VICTORY</h1>
+      <div class="go-subnote" id="game-over-tourney-note" style="display:none;"></div>
+      <div class="go-cards">
+        <div class="go-card go-card-you">
+          <div class="go-card-label">Your Result</div>
+          <div class="go-rank-row">
+            <div class="go-medal-slot" id="go-medal-slot">
+              <div class="go-medal-old" id="go-medal-old"></div>
+              <div class="go-medal-new" id="go-medal-new"></div>
+            </div>
+            <div class="go-rank-info">
+              <div class="go-rank-label" id="go-rank-label">—</div>
+              <div class="go-rp-line" id="go-rp-value"><span class="go-rp-shimmer"></span></div>
+              <div class="go-ladder" id="go-ladder"></div>
+            </div>
+          </div>
+          <div class="go-reward-line" id="go-reward-line"></div>
+        </div>
+        <div class="go-card go-opp" id="go-opp-card" onclick="openGameOverOpponentProfile()" role="button" tabindex="0" title="View opponent profile">
+          <div class="go-card-label">Opponent</div>
+          <div class="go-opp-row">
+            <div class="go-opp-avatar" id="go-opp-avatar"></div>
+            <div style="min-width:0;">
+              <div class="go-opp-name" id="go-opp-name">Opponent</div>
+              <div id="go-opp-rank"></div>
+            </div>
+          </div>
+          <div class="go-opp-hint">Tap to view profile ›</div>
+        </div>
+      </div>
+      <div class="go-btn-row">
+        <button class="bbtn bbtn-endturn" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu();startMultiplayerGame()">↺ Play Again</button>
+        <button class="bbtn bbtn-restart" style="padding:12px 30px;font-size:.9rem;" onclick="returnToMenu()">← Main Menu</button>
+      </div>
     </div>
+  </div>
+  <div class="go-promo-flash" id="go-promo-flash">
+    <div class="go-promo-flash-bg"></div>
+    <div class="go-promo-text" id="go-promo-text"></div>
   </div>
 
 </div><!-- /main -->
@@ -3687,6 +3907,15 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 <div id="inspect-overlay" onclick="handleInspectBackdrop(event)">
   <div id="inspect-card-wrap"></div>
   <div id="inspect-actions"></div>
+</div>
+
+<!-- ══════ REVIVE PICKER OVERLAY (its own modal, distinct from inspect) ══════ -->
+<div id="revive-picker-overlay" onclick="handleRevivePickerBackdrop(event)">
+  <div id="revive-picker-modal">
+    <div id="revive-picker-title"></div>
+    <div id="revive-picker-grid"></div>
+    <button class="inspect-btn inspect-btn-cancel" onclick="closeRevivePicker()">✕ Cancel</button>
+  </div>
 </div>
 
 <!-- ══════ DUEL INVITE BANNER ══════ -->
@@ -4362,8 +4591,120 @@ const Anim={
     },20);
   },
 
-  /* ── attack: lunge clone, white impact burst ── */
-  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer,onImpact){
+  /* ── revive: golden resurrection, IN-SLOT (self-revive passives) ──
+   * The card never actually left its slot (see tryPassiveRevive), it just
+   * silently reset its HP/status in place, so this fires right as that
+   * happens: a warm light column rising through the slot, a slow-then-fast
+   * pair of expanding rings, a burst of golden/cream particles, and a
+   * two-line float ("REVIVED! then +HP"), scaled up for Boss/Overlord.
+   * Deliberately the visual opposite of deathAnim's white scatter-and-fade. */
+  revivePassiveAnim(slotId,card){
+    const slot=document.getElementById(slotId);if(!slot||!this.layer)return;
+    const pw=this.power(card);
+    const cardEl=slot.querySelector('.card');
+    const rect=(cardEl||slot).getBoundingClientRect();
+    const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+    const gold='#fbbf24',cream='#fef3c7';
+    const beam=document.createElement('div');
+    beam.style.cssText=`position:fixed;left:${cx-rect.width*.22}px;top:${rect.top-50}px;
+      width:${rect.width*.44}px;height:${rect.height+100}px;
+      background:linear-gradient(180deg,rgba(251,191,36,0) 0%,rgba(251,191,36,.55) 35%,
+        rgba(254,243,199,.9) 50%,rgba(251,191,36,.55) 65%,rgba(251,191,36,0) 100%);
+      pointer-events:none;z-index:498;filter:blur(2px);opacity:0;`;
+    this.layer.appendChild(beam);
+    requestAnimationFrame(()=>{beam.style.transition='opacity .2s';beam.style.opacity='1';});
+    if(cardEl){
+      cardEl.style.transition='filter .3s ease-out';
+      cardEl.style.filter='brightness(2.4) saturate(1.3)';
+      setTimeout(()=>{cardEl.style.filter='';},420);
+    }
+    this.colorFlash(slotId,'rgba(251,191,36,0.55)',0.85);
+    this.colorBurst(slotId,gold,14+pw*5);
+    this.ring(cx,cy,gold,70+pw*22,26);
+    setTimeout(()=>this.ring(cx,cy,cream,115+pw*28,26),90);
+    if(pw>=2)setTimeout(()=>this.ring(cx,cy,gold,160+pw*30,26),180);
+    this.shake(Math.max(1,pw-1));
+    this.statusFloat(slotId,'REVIVED!',gold);
+    if(card&&card.currentHp!=null)setTimeout(()=>this.statusFloat(slotId,`+${card.currentHp} HP`,cream),170);
+    if(pw>=3){this.screenPulse();setTimeout(()=>this.screenPulse(),140);}
+    let t=0;const life=30;
+    const tick=()=>{t++;beam.style.opacity=String(Math.max(0,1-t/life));if(t<life)requestAnimationFrame(tick);else beam.remove();};
+    setTimeout(()=>requestAnimationFrame(tick),180);
+  },
+
+  /* ── revive: golden resurrection, RETURN-TO-HAND (ability revives, and
+   * the automatic classification-driven Revive Queue) ── A center-screen
+   * card materializes out of a light burst (built from a full renderCard()
+   * clone when we know the card's real art - always true for our own
+   * revives; an opponent's revived card's identity/art isn't hidden, but
+   * we may only have the name/hp the event carries and not full art data,
+   * so `card` can be null here, see the generic-silhouette fallback below),
+   * holds a beat, then arcs down into the hand tray and dissolves - same
+   * physical language as swapAnim's card-slide, just inverted (rising in
+   * instead of sliding out) and gold-toned instead of neutral. `side` picks
+   * which hand tray to aim for; only ever animates toward OUR OWN visible
+   * tray (there's nothing to fly to for the opponent's hidden hand, so that
+   * case just dissolves in place instead of aiming anywhere). */
+  reviveToHandAnim(card,side,label){
+    if(!this.layer)return;
+    const cx=window.innerWidth/2, cy=window.innerHeight*0.4;
+    const gold='#fbbf24',cream='#fef3c7';
+    let el;
+    if(card){
+      const ghost=document.createElement('div');
+      ghost.innerHTML=renderCard(card,false,-1,'bf-active');
+      el=ghost.firstElementChild;
+    }
+    if(!el){
+      el=document.createElement('div');
+      el.style.cssText=`width:120px;height:168px;border-radius:10px;
+        background:linear-gradient(160deg,#3a2a10,#7c4a08);
+        border:2px solid ${gold};display:flex;align-items:center;justify-content:center;
+        font-family:'Cinzel',serif;font-weight:900;font-size:2.2rem;color:${gold};`;
+      el.textContent='✦';
+    }
+    el.style.cssText+=`position:fixed;left:${cx}px;top:${cy}px;width:130px;
+      transform:translate(-50%,-50%) scale(.25);opacity:0;z-index:700;pointer-events:none;margin:0;
+      filter:drop-shadow(0 0 22px ${gold});`;
+    document.body.appendChild(el);
+    this.ring(cx,cy,gold,150,32);
+    setTimeout(()=>this.ring(cx,cy,cream,210,32),100);
+    this.burst(cx,cy,28,2,gold,cream);
+    this.screenPulse();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      el.style.transition='transform .5s cubic-bezier(.34,1.44,.64,1),opacity .3s';
+      el.style.transform='translate(-50%,-50%) scale(1)';
+      el.style.opacity='1';
+    }));
+    if(label)setTimeout(()=>this.floatNum(cx,cy-100,label,2),260);
+    const mine=side===State.mySide;
+    const hand=mine?document.getElementById('hand-tray'):null;
+    setTimeout(()=>{
+      let dx=0,dy=window.innerHeight;
+      if(hand){
+        const hr=hand.getBoundingClientRect();
+        dx=(hr.left+hr.width/2)-cx; dy=(hr.top+hr.height/2)-cy;
+      }
+      el.style.transition='transform .55s cubic-bezier(.4,0,.8,.4),opacity .4s';
+      el.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.15)`;
+      el.style.opacity='0';
+    },720);
+    setTimeout(()=>el.remove(),1300);
+  },
+
+  /* ── attack: lunge clone, then one of three impacts ──
+   * outcome 'hit' (default): the original white-flash impact, unchanged.
+   * outcome 'dodge': the REAL target card (not a clone - it needs to stay
+   *   interactive/on-screen afterward) sidesteps at the exact moment the
+   *   attacker's clone arrives, no flash/damage number lands at all, just
+   *   a green "DODGED!" where the target used to be standing.
+   * outcome 'reflect': impact still lands at the target, but as a gold
+   *   shield-burst instead of a white one, then the clone snaps BACK
+   *   toward the attacker's own slot instead of gently retracting, and
+   *   the damage number/red flash happen there instead of at the target -
+   *   `onImpact` is whatever the caller wired up to patch the right side's
+   *   HP either way, this function never assumes who actually takes it. */
+  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer,onImpact,outcome='hit'){
     if(!this.ready)return;
     const pw=this.power(attackerCard);
     const attackerSlot=document.getElementById(attackerSlotId);if(!attackerSlot){if(onImpact)onImpact();return;}
@@ -4387,12 +4728,59 @@ const Anim={
     const sx=rect.left+rect.width/2,sy=rect.top+rect.height/2;
     const dx=tx-sx,dy=ty-sy;
     const frac=[.45,.65,.88][pw-1]||.45;
+    const lungeFrac=outcome==='dodge'?frac+.1:frac; // dodge: the whiff carries a little further past where the target WAS
     requestAnimationFrame(()=>{
-      clone.style.transform=`translate(${dx*frac}px,${dy*frac}px) scale(${1.05+pw*.05})`;
+      clone.style.transform=`translate(${dx*lungeFrac}px,${dy*lungeFrac}px) scale(${1.05+pw*.05})`;
       clone.style.boxShadow=`0 0 ${10+pw*18}px rgba(200,220,255,.75)`;
     });
     const impactT=120+pw*30;
     setTimeout(()=>{
+      if(outcome==='dodge'){
+        const tCardEl=targetSlot&&targetSlot.querySelector('.card');
+        const dir=Math.random()<0.5?-1:1;
+        if(tCardEl){
+          tCardEl.style.transition='transform .2s cubic-bezier(.34,1.56,.64,1)';
+          tCardEl.style.transform=`translateX(${dir*28}px) rotate(${dir*11}deg)`;
+          setTimeout(()=>{
+            tCardEl.style.transition='transform .32s cubic-bezier(.34,1.56,.64,1)';
+            tCardEl.style.transform='';
+          },200);
+        }
+        if(targetRect){this.ring(tx,ty,'#34d399',60+pw*16,22);this.particle(tx,ty,'#34d399',6,dir*-2,-1,26);}
+        if(targetSlotId)this.statusFloat(targetSlotId,'DODGED!','#34d399');
+        if(onImpact)onImpact();
+        setTimeout(()=>{
+          clone.style.transition='transform .3s cubic-bezier(.4,0,.8,.4),opacity .22s';
+          clone.style.transform='';clone.style.opacity='0.1';
+          setTimeout(()=>clone.remove(),300);
+        },90);
+        return;
+      }
+      if(outcome==='reflect'){
+        const gold='#fbbf24',cyan='#67e8f9';
+        this.ring(tx,ty,gold,60+pw*16,22);
+        setTimeout(()=>this.ring(tx,ty,cyan,95+pw*20,22),70);
+        this.colorBurst(targetSlotId,gold,10+pw*4);
+        if(targetSlotId)this.statusFloat(targetSlotId,'REFLECTED!',gold);
+        this.shake(Math.max(1,pw-1));
+        setTimeout(()=>{
+          // snap back toward the attacker's own slot instead of a gentle
+          // retract - the swing bounced, it didn't just politely stop.
+          clone.style.transition='transform .32s cubic-bezier(.32,0,.6,1),opacity .3s,box-shadow .2s';
+          clone.style.transform='translate(0px,0px) scale(1)';
+          clone.style.boxShadow=`0 0 ${14+pw*10}px rgba(239,68,68,.85)`;
+          setTimeout(()=>{
+            this.flash(rect,pw);
+            this.floatNum(sx,sy-20,`-${damage}`,pw);
+            this.shake(pw);
+            if(onImpact)onImpact();
+            clone.style.opacity='0.1';
+            setTimeout(()=>clone.remove(),260);
+          },300);
+        },60);
+        return;
+      }
+      // outcome==='hit' (default): original white-flash impact
       this.burst(tx,ty,8+pw*5,pw);
       if(targetRect)this.flash(targetRect,pw);
       this.floatNum(tx,ty-20,`-${damage}`,pw);
@@ -4471,7 +4859,7 @@ const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingAtkIndex:null,p
   player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyard:[]},
   enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyardCount:0}};
 /* multiplayer flags, false/0 until a real match is found and beginMultiplayerMatch() runs */
-State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';State.opponentRank=null;
+State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';State.opponentRank=null;State.opponentId=null;
 
 /* ── HAND TRAY ───────────────────────────────────────── */
 let _handVisible=false,_handHideTimer=null;
@@ -4716,7 +5104,8 @@ function readyToBattle(){
  * for an ally-targeting heal) fires it. A self/side-targeting heal and a
  * revive don't need a board target at all: a self/side heal fires the
  * instant it's picked (nothing to choose), a revive opens its own
- * graveyard picker (still inside the inspect overlay, see chooseAbility).
+ * dedicated picker MODAL instead (#revive-picker-overlay, see
+ * openRevivePicker/chooseAbility), separate from this board-click flow.
  * Nothing here trusts the client's own bookkeeping for legality, the
  * server re-validates every one of these the same as it always did, this
  * is purely about presenting the right buttons at the right time. */
@@ -4727,9 +5116,10 @@ function endPlayerTurn(){
 }
 
 function clearPendingAction(){
-  // Nothing tracks "currently showing the revive sub-picker" separately —
-  // it reuses State.selectedSlot (see chooseAbility/showRevivePickerInInspect),
-  // so clearing that alone is enough to also abort out of it via closeInspect.
+  // The revive picker modal tracks its own armed slot separately
+  // (_revivePickerSlot, see openRevivePicker) precisely because it needs
+  // to survive closeInspect()'s call to this function, so there's nothing
+  // revive-related to clear here anymore.
   State.selectedSlot=null; State.pendingAtkIndex=null; State.pendingAbilityTargetKind=null;
 }
 
@@ -4798,7 +5188,7 @@ function chooseAttack(slot,atkIndex){
 
 /** Non-attack ability chosen from the inspect panel. What happens next
  * depends entirely on the card's own topEffect, never a client choice:
- * a revive swaps the inspect panel over to the graveyard picker; a
+ * a revive opens its own dedicated picker modal (see openRevivePicker); a
  * self/side-targeting heal has nothing to choose so it just fires; an
  * ally-targeting heal or a curse/debuff (effects) ability arms the board
  * for the appropriate kind of target click, same as an attack. */
@@ -4807,8 +5197,7 @@ function chooseAbility(slot){
   const te=card?.topEffect;
   if(!te||te.type!=='ability')return;
   if(te.revive){
-    State.selectedSlot=slot;
-    showRevivePickerInInspect(slot);
+    openRevivePicker(slot);
     return;
   }
   closeInspect();
@@ -4822,30 +5211,68 @@ function chooseAbility(slot){
   clearPendingAction(); updateUI(); // shouldn't happen, don't get stuck if it somehow does
 }
 
-/** Swaps the (still-open) inspect panel's action area over to a "which
- * dead creature?" picker for `slot`'s revive ability — a distinct screen,
- * but reusing the same overlay rather than a whole parallel one. Boss/
- * Overlord graveyard entries are shown disabled rather than hidden (see
- * executeRevive server-side for why they can't be picked here), so it's
- * clear why they're unavailable instead of just silently missing. */
-function showRevivePickerInInspect(slot){
+/** Tracks which slot's revive ability is currently armed while its own
+ * dedicated picker modal (#revive-picker-overlay) is open - deliberately
+ * NOT State.selectedSlot/pendingAbilityTargetKind, since closeInspect()
+ * (called right as the picker opens, to dismiss the underlying inspect
+ * card behind it) clears those via clearPendingAction(), and this needs
+ * to survive that. */
+let _revivePickerSlot=null;
+
+/** Opens the dedicated revive-target picker modal: a scrollable grid of
+ * graveyard tiles (portrait, name, HP-after-revive preview), Boss/Overlord
+ * entries shown disabled with a lock badge rather than hidden (so it's
+ * clear why they're unavailable instead of silently missing, same
+ * reasoning the old inline inspect-panel version used), replacing the
+ * previous "just more buttons in the inspect panel" version entirely. */
+function openRevivePicker(slot){
   const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
   if(!card)return;
-  const acts=document.getElementById('inspect-actions');
-  const graveyard=State.player.graveyard||[];
+  _revivePickerSlot=slot;
+  closeInspect();
   const healPct=card.topEffect?.revive?.healPercent!=null?card.topEffect.revive.healPercent:0.5;
-  const rows=graveyard.map(g=>{
-    const blocked=g.classification==='boss'||g.classification==='overlord';
-    if(blocked) return `<button class="inspect-btn" disabled title="Boss/Overlord cards can't be revived this way">${escapeHtml(g.name)} <span style="opacity:.6">Not revivable</span></button>`;
-    return `<button class="inspect-btn inspect-btn-ability" onclick="chooseReviveTarget('${jsq(slot)}','${jsq(g.instanceId)}')">${escapeHtml(g.name)} <span style="opacity:.7">&#8594; ${Math.max(1,Math.round(g.maxHp*healPct))}/${g.maxHp} HP</span></button>`;
-  }).join('');
-  acts.innerHTML=(rows||`<div class="inspect-btn" style="opacity:.6;pointer-events:none;text-transform:none;">No dead cards to revive</div>`)
-    +`<button class="inspect-btn inspect-btn-cancel" onclick="closeInspect()">✕ Cancel</button>`;
+  const graveyard=State.player.graveyard||[];
+  const title=document.getElementById('revive-picker-title');
+  const grid=document.getElementById('revive-picker-grid');
+  title.textContent=`${card.name} — Choose a Creature to Revive`;
+  if(!graveyard.length){
+    grid.innerHTML=`<div class="revive-picker-empty">No dead creatures to revive.</div>`;
+  }else{
+    grid.innerHTML=graveyard.map(g=>{
+      const blocked=g.classification==='boss'||g.classification==='overlord';
+      const hpAfter=Math.max(1,Math.round(g.maxHp*healPct));
+      return `<div class="revive-tile${blocked?' blocked':''}" ${blocked?'':`onclick="confirmRevivePick('${jsq(g.instanceId)}')"`} ${blocked?`title="Boss/Overlord cards can't be revived this way"`:''}>
+        <div class="revive-tile-img"><img src="${cardImageSrc(g.image)}" onerror="this.style.display='none'" alt=""></div>
+        <div class="revive-tile-name">${escapeHtml(g.name)}</div>
+        <div class="revive-tile-hp">${blocked?'Not revivable':`&#8594; ${hpAfter}/${g.maxHp} HP`}</div>
+        ${blocked?`<div class="revive-tile-lock">🔒</div>`:''}
+      </div>`;
+    }).join('');
+  }
+  const ov=document.getElementById('revive-picker-overlay');
+  ov.classList.remove('ready');
+  ov.classList.add('open');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ov.classList.add('ready')));
 }
 
-function chooseReviveTarget(slot,deadInstanceId){
+function confirmRevivePick(deadInstanceId){
+  const slot=_revivePickerSlot;
+  closeRevivePicker();
+  if(!slot)return;
   GameNet.send({type:'use_ability', slot, target:deadInstanceId});
-  closeInspect();
+}
+
+function closeRevivePicker(){
+  const ov=document.getElementById('revive-picker-overlay');
+  ov.classList.remove('ready');
+  setTimeout(()=>{ov.classList.remove('open');},220);
+  _revivePickerSlot=null;
+}
+
+function handleRevivePickerBackdrop(e){
+  const ov=document.getElementById('revive-picker-overlay');
+  if(e.target!==ov)return;
+  closeRevivePicker();
 }
 
 /* ── UNIFIED CARD BORDER/GLOW ─────────────────────────────
@@ -5890,45 +6317,60 @@ function handleProfileViewBackdrop(e){
 
 /* ══════════════════════════════════════
    INFORMATION LOGBOOK
-   All section bodies below are placeholder copy, swap in the real text
-   whenever it's ready, the rendering/tab logic doesn't need to change.
+   All section copy lives in docs/logbook-content.json (paragraphs as a
+   plain string array, one entry per <p>), fetched once in the background
+   (see loadLogbookContent, called from window.onload) so it's normally
+   already in hand by the time the player opens the logbook; openLogbook
+   itself awaits the same promise as a safety net if it isn't yet. Icons
+   stay real JS calls (LOGBOOK_ICON_RENDERERS below) since a JSON file
+   can't hand back a live SVG-rendering function - the JSON only carries
+   the short key name for one.
    Replay Tutorial is intentionally last + visually separated (lb-rail-divider
    + lb-tab-featured): it launches an action (startTutorial) instead of just
    showing text, and used to live as its own button in the Play panel.
 ══════════════════════════════════════ */
-const LOGBOOK_SECTIONS=[
-  {id:'swap',        label:'Swap Mechanics',        icon:renderSwapIcon(15), sub:'Field control',
-   body:`<p>Placeholder, explain how swapping an active card in/out of a slot works, any cooldowns or turn costs, and how effects like Rocks interact with swapping.</p>
-         <p>Placeholder, cover the two-slot layout and any rules around swapping into an empty vs. occupied slot.</p>`},
-  {id:'classes',     label:'Card Classifications', icon:renderTiersIcon(15), sub:'Normal · Pests · Boss · Overlord',
-   body:`<p>Placeholder, define Normal, PESTS, BOSS, and OVERLORD classifications, what makes a creature count as each, and how deck-building rules (at most one Boss/Overlord, Overlord decks going solo) work.</p>`},
-  {id:'structure',   label:'Card Structure',       icon:renderCardStructureIcon(15), sub:'HP · Ability/Passive · Attack',
-   body:`<p>Placeholder, break down a creature card's anatomy: HP pool, the top slot (ability or passive), the bottom attack, and how types/elements factor in.</p>`},
-  {id:'creatures',   label:'Creature Cards',       icon:renderCreatureIcon(15), sub:'Mobs · Dragons · Wizards',
-   body:`<p>Placeholder, explain the creature card types (mob/dragon/wizard), how they differ mechanically (if at all) and thematically.</p>`},
-  {id:'equipment',   label:'Equipment Cards',      icon:renderDuelIcon(15), sub:'Weapons & Defenses',
-   body:`<p>Placeholder, explain weapon/defense cards: flat bonus, durability, amp/damp effect customization, and how they're equipped.</p>`},
-  {id:'shop',        label:'Shop & Market',        icon:renderShopTabIcon(15), sub:'Packs · Trading',
-   body:`<p>Placeholder, explain gold vs. gems, the different pack tiers and their odds, and how the player-to-player market/trading works.</p>`},
-  {id:'tournaments', label:'Tournaments',          icon:renderTourneyTabIcon(15), sub:'Competitive play',
-   body:`<p>Placeholder, explain how tournaments are structured, entry requirements, brackets, and rewards.</p>`},
-  {id:'guild',       label:'Guild & Friends',      icon:renderGuildTabIcon(15), sub:'Social features',
-   body:`<p>Placeholder, explain guilds (joining, chat, roles) and the friends list/social features.</p>`},
-  {id:'wincon',      label:'Win Condition',        icon:renderFlagIcon(15), sub:'How a match ends',
-   body:`<p>Placeholder, explain total creature destruction as the win condition, and any draw scenarios.</p>`},
-  {id:'revive',      label:'Revive System',        icon:renderReviveIcon(15), sub:'The Revive Queue',
-   body:`<p>Placeholder, explain the Revive Queue: classification-based costs/charges, oldest-to-newest processing, and the "no partial progress" rule for expensive revives.</p>`},
-  {id:'statuses',    label:'Status Effects',       icon:renderStatusEffectIcon(15), sub:'Detailed overview',
-   body:`<p>Placeholder, go through every status effect (bleed, poison, burn, cryo, shock, soak, sleep, paralyze, confusion, curse, rocks, etc.) in detail: what each does, base values, and how amp/damp gear customization affects them.</p>`},
-];
-const LOGBOOK_TUTORIAL_TAB={id:'tutorial', label:'Replay Tutorial', icon:renderPlayTabIcon(15), sub:"The Simga's Tutorial"};
-let _lbActiveTab=LOGBOOK_SECTIONS[0].id;
+let LOGBOOK_SECTIONS=[];
+let LOGBOOK_TUTORIAL_TAB={id:'tutorial', label:'Replay Tutorial', icon:'playTab', sub:"The Simga's Tutorial", paragraphs:[]};
+const LOGBOOK_ICON_RENDERERS={
+  swap:renderSwapIcon, tiers:renderTiersIcon, cardStructure:renderCardStructureIcon,
+  creature:renderCreatureIcon, duel:renderDuelIcon, shopTab:renderShopTabIcon,
+  tourneyTab:renderTourneyTabIcon, guildTab:renderGuildTabIcon, flag:renderFlagIcon,
+  revive:renderReviveIcon, statusEffect:renderStatusEffectIcon, playTab:renderPlayTabIcon,
+};
+function logbookIcon(key,size=15){ const fn=LOGBOOK_ICON_RENDERERS[key]; return fn?fn(size):''; }
+/** paragraphs is a plain array of strings, e.g. ["para one","para two"] -
+ * this is the one place that turns that into the actual <p>one</p><p>two</p>
+ * markup the content body renders as. Content here is developer-authored
+ * (same trust level the old inline JS template strings had), not
+ * user-generated, so this intentionally doesn't escape it - a paragraph
+ * can still carry simple inline markup (<b>, etc.) if a section ever
+ * wants it. */
+function renderLogbookParagraphs(paragraphs){
+  return (paragraphs||[]).map(p=>`<p>${p}</p>`).join('');
+}
+
+let _logbookLoadPromise=null;
+function loadLogbookContent(){
+  if(_logbookLoadPromise) return _logbookLoadPromise;
+  _logbookLoadPromise=(async()=>{
+    try{
+      const res=await fetch('logbook-content.json');
+      if(!res.ok) return;
+      const data=await res.json();
+      if(Array.isArray(data.sections)) LOGBOOK_SECTIONS=data.sections;
+      if(data.tutorialTab) LOGBOOK_TUTORIAL_TAB=data.tutorialTab;
+    }catch(e){ console.warn('[logbook] content failed to load',e); }
+  })();
+  return _logbookLoadPromise;
+}
+
+let _lbActiveTab=null;
 
 function renderLogbookRail(){
   const rail=document.getElementById('lb-rail');
   const tabBtn=(sec,featured)=>`
     <button class="lb-tab${sec.id===_lbActiveTab?' active':''}${featured?' lb-tab-featured':''}" onclick="switchLogbookTab('${sec.id}')">
-      <span class="lb-tab-icon">${sec.icon}</span>
+      <span class="lb-tab-icon">${logbookIcon(sec.icon,15)}</span>
       <div class="menu-tab-text">
         <span class="menu-tab-label">${sec.label}</span>
         <span class="menu-tab-sub">${sec.sub}</span>
@@ -5948,7 +6390,7 @@ function switchLogbookTab(id){
       <div class="lb-content-title">${LOGBOOK_TUTORIAL_TAB.label}</div>
       <div class="lb-content-sub">${LOGBOOK_TUTORIAL_TAB.sub}</div>
       <div class="lb-content-body">
-        <p>Placeholder, a short description of what the tutorial covers goes here.</p>
+        ${renderLogbookParagraphs(LOGBOOK_TUTORIAL_TAB.paragraphs)}
         <button class="tut-launch-btn lb-tut-launch" onclick="closeLogbook();startTutorial();">${renderPlayTabIcon(13)} Learn to Play, The Simga's Tutorial</button>
       </div>`;
     return;
@@ -5959,10 +6401,12 @@ function switchLogbookTab(id){
     <div class="lb-content-title">${sec.label}</div>
     <div class="lb-content-sub">${sec.sub}</div>
     <span class="lb-placeholder-tag">Placeholder content</span>
-    <div class="lb-content-body">${sec.body}</div>`;
+    <div class="lb-content-body">${renderLogbookParagraphs(sec.paragraphs)}</div>`;
 }
 
-function openLogbook(){
+async function openLogbook(){
+  await loadLogbookContent();
+  if(!_lbActiveTab) _lbActiveTab=(LOGBOOK_SECTIONS[0]||LOGBOOK_TUTORIAL_TAB).id;
   renderLogbookRail();
   switchLogbookTab(_lbActiveTab);
   document.getElementById('logbook-overlay').classList.add('open');
@@ -7687,6 +8131,14 @@ function showMenu(){
 
 function returnToMenu(){
   if(State.mp&&!State._mpOver){ GameNet.send({type:'forfeit'}); State.mp=false; }
+  // showScreen() below hides #main (and therefore #game-over) visually,
+  // but #game-over's own inline display style would still read 'flex' -
+  // stop its particle loop and drop the leftover reward-wait timer
+  // explicitly rather than relying on that resolving itself.
+  document.getElementById('game-over').style.display='none';
+  stopGameOverParticles();
+  clearTimeout(_goRewardTimer); _goRewardTimer=null;
+  document.getElementById('go-promo-flash').classList.remove('show');
   showMenu();
 }
 
@@ -10738,6 +11190,15 @@ const GameNet={
     ws.addEventListener('close',(ev)=>{
       this.connected=false; this.authed=false;
       if(this._intentional) return;
+      // The match's own verdict already landed and rendered (match_over) -
+      // only the reward follow-up is missing now, and that's a display
+      // gap, not a match-in-progress one: reconnecting into an already-
+      // finished match would just bounce off the game server's own 4004
+      // anyway, and re-showing "Reconnecting to match…" over a result
+      // screen that's already up would just be confusing. Let
+      // handleMatchOver's own fallback timer (handleMatchRewardTimeout)
+      // handle it instead of racing a reconnect here.
+      if(this.role==='player' && State._mpOver){ this._teardown(); return; }
       // 4001 bad_ticket / 4004 unknown_match|not_in_match: the server is
       // telling us, unambiguously, that reconnecting with THIS ticket will
       // never work again (match ended, or it was never valid for it) -
@@ -10783,7 +11244,15 @@ const GameNet={
       case 'opponent_ready': showToast('Opponent is ready!'); break;
       case 'opponent_disconnected': showToast('Opponent lost connection, waiting for them to return…',4000); break;
       case 'opponent_reconnected': showToast('Opponent reconnected!'); break;
-      case 'match_over': handleMatchOver(msg); this.close(); break;
+      // Fast verdict (win/loss/draw, no reward/rank data yet - see the
+      // game server's finish()/finishDraw()) - shows the result screen
+      // immediately, doesn't close the socket, the reward follow-up is
+      // still coming on this same connection.
+      case 'match_over': handleMatchOver(msg); break;
+      // The slower reward/rank/profile/tournament payload, arrives a
+      // moment after match_over once the main server's round trip
+      // resolves. This is the one that ends the connection.
+      case 'match_reward': handleMatchReward(msg); this.close(); break;
       case 'battle_chat': handleBattleChatMessage(msg); break;
       case 'spectate_started': openSpectateOverlay(msg); break;
       case 'spectate_state': applySpectateState(msg); break;
@@ -11280,11 +11749,19 @@ function beginMultiplayerMatch(msg){
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
   State.opponentRank=msg.opponentRank||null;
+  // Only ever a real userId (never set for a bot seat, see match_found's
+  // own doc comment server-side) - lets the post-match screen offer a real
+  // "view opponent profile" round trip; falls back to a local-only card
+  // built from the fields above when this is null.
+  State.opponentId=msg.opponentId||null;
   State.tournament=msg.tournament||null;
   State.matchRanked=msg.ranked!==false; // duels/tournaments don't send `ranked`, default true preserves their existing behavior
   clearPendingAction();
   State.player._maxSeenCreatures=0; State.enemy._maxSeenCreatures=0;
   document.getElementById('game-over').style.display='none';
+  stopGameOverParticles();
+  clearTimeout(_goRewardTimer); _goRewardTimer=null;
+  document.getElementById('go-promo-flash').classList.remove('show');
   document.getElementById('coinflip-overlay').classList.remove('open');
   _handVisible=false;
   document.getElementById('hand-tray').classList.remove('visible');
@@ -11451,6 +11928,24 @@ function _scheduleAnim(fn,delay){ const id=setTimeout(fn,delay); _animTimers.pus
 // finalize() pattern below).
 let ServerStateMirror=null;
 
+/** Every card instance we've ever actually seen with our own eyes - i.e. it
+ * was (or still is) an active card on EITHER side, or sat in our own hand.
+ * Active-board cards are public information for both players even though
+ * hand contents aren't, so this is what lets a revive-to-hand animation use
+ * real art for an opponent's creature we killed: their hand is hidden data,
+ * but the dead card itself was fully visible right up until it died. Keyed
+ * by instanceId, populated in _cacheSeenCards (called every time a new
+ * state message starts playing, from the outgoing pre-merge mirror - see
+ * _playNextQueuedState), read by findFullCardByInstanceId. Cleared at the
+ * start of each new match alongside ServerStateMirror itself.
+ */
+let SeenCardArt={};
+function _cacheSeenCards(entity){
+  if(!entity)return;
+  const cards=[entity.activeCard,entity.activeCard2,...(entity.hand||[])];
+  for(const c of cards){ if(c&&c.instanceId) SeenCardArt[c.instanceId]=c; }
+}
+
 function applyServerState(msg){
   _stateQueue.push(msg);
   if(!_isPlayingState) _playNextQueuedState();
@@ -11461,11 +11956,18 @@ function _playNextQueuedState(){
   if(!msg){ _isPlayingState=false; return; }
   _isPlayingState=true;
 
+  // Snapshot whatever's still visible from the PREVIOUS message into
+  // SeenCardArt before it's overwritten below - this is the one moment a
+  // card that's about to die THIS message is still sitting there in full,
+  // so it's the last chance to capture its art.
+  if(ServerStateMirror){ _cacheSeenCards(ServerStateMirror.you); _cacheSeenCards(ServerStateMirror.opponent); }
+
   // Merge this message's full snapshot or patch onto the mirror right as
   // its own playback begins, not any earlier - so a message still sitting
   // in the queue behind it can never leak its (future) data into this
   // one's animation.
   ServerStateMirror = msg.full ? sdClone(msg.state) : applyPerspectivePatch(ServerStateMirror, msg.state);
+  if(msg.full) SeenCardArt={}; // fresh match, fresh cache
   clearTimeout(_autoEndTurnTimer); _autoEndTurnTimer=null;
   State.mySide=msg.you;
 
@@ -11554,6 +12056,46 @@ function findCardBySideSlot(side,slot){
   const entity=(side===State.mySide)?State.player:State.enemy;
   if(slot==='slot1')return entity.activeCard;
   if(slot==='slot2')return entity.activeCard2;
+  return null;
+}
+/** Looks up a card by instanceId anywhere it could be sitting right now
+ * (active slots or hand) in the just-merged ServerStateMirror - same
+ * "read the canonical state mid-event-replay" trick cardFromMirrorBySlot
+ * uses for 'deploy'. Needed for revive-to-hand animations (see
+ * Anim.reviveToHandAnim): the revive/queue_revive events only carry
+ * name/hp/maxHp, not the full card (image, rarity, etc), so this is what
+ * recovers it. Only ever finds something for OUR OWN side - the
+ * opponent's hand is hidden data (see finalize()), so this naturally
+ * returns null there and callers fall back to a generic animation. */
+function findFullCardByInstanceId(side,instanceId){
+  if(!instanceId)return null;
+  if(ServerStateMirror){
+    const entity=(side===State.mySide)?ServerStateMirror.you:ServerStateMirror.opponent;
+    if(entity){
+      const inHand=(entity.hand||[]).find(c=>c&&c.instanceId===instanceId);
+      if(inHand)return inHand;
+      if(entity.activeCard&&entity.activeCard.instanceId===instanceId)return entity.activeCard;
+      if(entity.activeCard2&&entity.activeCard2.instanceId===instanceId)return entity.activeCard2;
+    }
+  }
+  // Fallback for local/offline sims (e.g. the Tutorial's bot-match engine)
+  // that mutate State.player/State.enemy directly and synchronously,
+  // instead of staging through ServerStateMirror + a deferred finalize()
+  // like real multiplayer does - by the time this plays, State already
+  // reflects the post-revive board, so it's safe to check here too.
+  const local=(side===State.mySide)?State.player:State.enemy;
+  if(local){
+    const inHand=(local.hand||[]).find(c=>c&&c.instanceId===instanceId);
+    if(inHand)return inHand;
+    if(local.activeCard&&local.activeCard.instanceId===instanceId)return local.activeCard;
+    if(local.activeCard2&&local.activeCard2.instanceId===instanceId)return local.activeCard2;
+  }
+  // Last resort: a card we've ever laid eyes on, even if it's since gone
+  // somewhere we can no longer see directly (the opponent's hand). This is
+  // what makes an opponent's revived creature - one WE killed, so its art
+  // was always fully visible - show real art instead of a generic
+  // silhouette, see SeenCardArt's own doc comment above.
+  if(SeenCardArt[instanceId])return SeenCardArt[instanceId];
   return null;
 }
 
@@ -11665,6 +12207,18 @@ function playSingleEvent(e){
         break;
       }
       case 'miss': {
+        // A dodge is the target reacting to an incoming attack, so it gets
+        // the full lunge-then-sidestep sequence (see Anim.attackSequence's
+        // 'dodge' outcome) when we have enough info to find the attacker;
+        // confusion/shock/soak misses are the ATTACKER fumbling on its own
+        // (no target involved at all), so those stay a plain float at the
+        // fumbling card, same as always.
+        if(e.cause==='dodge'&&e.atkSide!=null){
+          const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
+          const atkCard=findCardBySideSlot(e.atkSide,e.atkSlot);
+          const tgtSlotId=sideSlotToId(e.side,e.slot);
+          if(atkCard&&tgtSlotId){ Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,null,0,null,e.atkSide===State.mySide,null,'dodge'); break; }
+        }
         const slotId=sideSlotToId(e.side,e.slot);
         if(slotId) Anim.statusVfx(slotId,e.cause+'_miss');
         break;
@@ -11677,7 +12231,22 @@ function playSingleEvent(e){
       }
       case 'passive_revive': {
         const slotId=sideSlotToId(e.side,e.slot);
-        if(slotId) Anim.statusFloat(slotId,`REVIVED! +${e.hp}`,'#10b981');
+        const card=findCardBySideSlot(e.side,e.slot);
+        if(slotId) Anim.revivePassiveAnim(slotId,card||{currentHp:e.hp,classification:null});
+        break;
+      }
+      case 'revive': {
+        // Ability-triggered revive (executeRevive): the card returns to hand.
+        const card=findFullCardByInstanceId(e.side,e.card);
+        Anim.reviveToHandAnim(card,e.side,e.name?`${e.name} revived!`:null);
+        break;
+      }
+      case 'queue_revive': {
+        // Automatic classification-driven Revive Queue (processReviveQueue):
+        // same "back to hand" destination as an ability revive, just not
+        // triggered by another card's action, so no `via` field.
+        const card=findFullCardByInstanceId(e.side,e.card);
+        Anim.reviveToHandAnim(card,e.side,e.name?`${e.name} revived!`:null);
         break;
       }
       case 'curse_recoil': {
@@ -11712,14 +12281,16 @@ function playSingleEvent(e){
       }
       case 'reflect': {
         // The hit bounced off the defender (e.side/e.slot) and landed back
-        // on the original attacker (e.atkSide/e.atkSlot) instead - show both
-        // halves: a "reflected" cue on the defender, the actual damage
-        // number on the attacker who's the one really losing HP here.
-        const slotId=sideSlotToId(e.side,e.slot);
-        if(slotId) Anim.statusFloat(slotId,'REFLECTED!','#34d399');
+        // on the original attacker (e.atkSide/e.atkSlot) instead - the full
+        // lunge plays out same as any other attack, just with the 'reflect'
+        // impact (gold shield-burst, damage snaps back to the attacker's
+        // own slot) instead of the plain white one, see Anim.attackSequence.
+        const tgtSlotId=sideSlotToId(e.side,e.slot);
         const atkSlotId=sideSlotToId(e.atkSide,e.atkSlot);
-        if(atkSlotId) Anim.statusFloat(atkSlotId,`REFLECT  -${e.dmg}`,'#f87171');
-        livePatchCardHp(e.atkSide,e.atkSlot,e.dmg);
+        const atkCard=findCardBySideSlot(e.atkSide,e.atkSlot);
+        const applyReflect=()=>livePatchCardHp(e.atkSide,e.atkSlot,e.dmg);
+        if(atkCard&&tgtSlotId) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,null,e.dmg,null,e.atkSide===State.mySide,applyReflect,'reflect');
+        else applyReflect();
         break;
       }
       case 'rocks': {
@@ -11776,19 +12347,76 @@ function runNetCoinFlip(iWon){
   },180);
 }
 
-/* ── MATCH END (server decides, never Player.wins++/gold+= locally) ── */
+/* ── MATCH END (server decides, never Player.wins++/gold+= locally) ──
+ * Two-phase reveal, matching the game server's own finish()/finishDraw()
+ * split (see server/game-server/index.js):
+ *   1. handleMatchOver   - the win/loss/draw verdict. The game server
+ *      already knows this the instant the last creature dies, no round
+ *      trip needed, so it arrives (and this renders) essentially
+ *      instantly - no more sitting on a black screen waiting for a
+ *      rank/reward round trip just to find out who won.
+ *   2. handleMatchReward - the RP/gold/rank/tournament payload, which
+ *      genuinely does need that round trip (the main server's database),
+ *      arrives a moment later on the very same connection and animates
+ *      in on top of the result screen this already showed. */
+let _goRewardTimer=null;   // safety net if handleMatchReward never arrives
+let _goOldRank=null;       // Player.rank exactly as it stood before this match's reward lands
+let _goResult=null;        // 'win' | 'loss' | 'draw'
+
 function handleMatchOver(msg){
   State._mpOver=true; State.mp=false;
+  document.getElementById('tourney-match-ribbon').classList.remove('show');
+
+  _goResult = msg.result==='win' ? 'win' : msg.result==='draw' ? 'draw' : 'loss';
+  // Captured now, before applyServerProfile (handleMatchReward) ever
+  // touches Player.rank, so the reward phase has an honest "before" to
+  // animate away from.
+  _goOldRank = Player.rank ? {...Player.rank} : null;
+
+  const overlay=document.getElementById('game-over');
+  overlay.className='result-'+_goResult;
+  overlay.style.display='flex';
+
+  const titleEl=document.getElementById('game-over-text');
+  titleEl.className='go-title '+_goResult;
+  titleEl.textContent = _goResult==='win' ? 'VICTORY' : _goResult==='draw' ? 'DRAW' : 'DEFEAT';
+  // Re-triggers the entrance animation even if this overlay just played it
+  // a minute ago (Play Again -> another match).
+  titleEl.style.animation='none'; void titleEl.offsetWidth; titleEl.style.animation='';
+
+  document.getElementById('game-over-tourney-note').style.display='none';
+  document.getElementById('go-reward-line').className='go-reward-line';
+  document.getElementById('go-reward-line').textContent='';
+
+  // Everything already knowable without the reward round trip renders
+  // right away: the rank panel in its "before" state (with a shimmer
+  // where the RP change will go) and the opponent card in full, since
+  // name/icon/rank came down with match_found ages ago.
+  renderGameOverRankPanel(_goOldRank, null, false);
+  renderGameOverOpponentCard();
+  runGameOverParticles(_goResult);
+
+  clearTimeout(_goRewardTimer);
+  _goRewardTimer=setTimeout(handleMatchRewardTimeout, 15000);
+}
+
+/** The slower half: RP/gold/rank/profile/tournament, arrives a moment
+ * after handleMatchOver on the very same connection (see match_reward in
+ * GameNet.handle). Applies the authoritative profile exactly as before
+ * (server-decided, never Player.wins++/gold+= locally) and animates the
+ * difference from the snapshot handleMatchOver captured. */
+function handleMatchReward(msg){
+  clearTimeout(_goRewardTimer); _goRewardTimer=null;
   applyServerProfile(msg.profile);
-  const won=msg.result==='win';
-  // No explicit quest_state request needed here, recordQuestEvent's live
-  // push (server.js) already sends one proactively if this win progressed
-  // a win-X-games quest.
-  document.getElementById('game-over').style.display='flex';
-  const el=document.getElementById('game-over-text');
-  el.innerText=won?'VICTORY':'DEFEAT';
-  el.style.color=won?'#10b981':'#ef4444';
-  if(won&&msg.reward&&msg.reward.gold) showToast(`Victory! +${msg.reward.gold} Gold`);
+  renderGameOverRankPanel(_goOldRank, Player.rank||null, msg.ranked===false);
+
+  if(_goResult==='win' && msg.reward && msg.reward.gold){
+    const line=document.getElementById('go-reward-line');
+    line.textContent=`+${msg.reward.gold} Gold`;
+    line.classList.add('show');
+    spawnRewardBurst(document.getElementById('go-medal-slot'), {gold:msg.reward.gold}, null);
+  }
+
   const noteEl=document.getElementById('game-over-tourney-note');
   if(msg.tournament){
     const t=msg.tournament;
@@ -11797,7 +12425,7 @@ function handleMatchOver(msg){
       noteEl.innerHTML=t.championId===Net.userId
         ? `${renderTourneyTabIcon(13)} Tournament won!`
         : `${renderTourneyTabIcon(13)} Runner-up, so close!`;
-    } else if(won){
+    } else if(_goResult==='win'){
       noteEl.innerHTML=`${renderTourneyTabIcon(13)} Advancing to the ${escapeHtml(t.nextRoundLabel||'next round')}!`;
     } else {
       noteEl.innerHTML=`${renderTourneyTabIcon(13)} Eliminated from ${escapeHtml(t.eventName||'the tournament')}.`;
@@ -11809,7 +12437,216 @@ function handleMatchOver(msg){
     noteEl.style.display='none';
     noteEl.innerHTML='';
   }
-  document.getElementById('tourney-match-ribbon').classList.remove('show');
+}
+
+/** Reward follow-up genuinely never arrived (dropped connection, server
+ * hiccup between match_over and match_reward, etc). The verdict already
+ * on screen stays correct regardless (that part was never in doubt) -
+ * only the RP/gold numbers are still unknown - so this stops the shimmer
+ * with an honest note instead of spinning forever. The reward was still
+ * applied server-side either way; this is purely a display gap, so a
+ * fresh get_profile is enough to pick up the correct numbers next time
+ * they're shown (menu, rank card, etc). */
+function handleMatchRewardTimeout(){
+  _goRewardTimer=null;
+  const rpEl=document.getElementById('go-rp-value');
+  if(rpEl && rpEl.querySelector('.go-rp-shimmer')) rpEl.textContent='Results will sync shortly…';
+  if(typeof Net!=='undefined' && Net.authed) Net.send({type:'get_profile'});
+}
+
+/** Renders the "Your Result" card's medal + RP line + sub-rank pips.
+ * `newRank` is null during the fast reveal (handleMatchOver) - shows the
+ * pre-match rank as-is with a shimmer where the delta will go; once
+ * handleMatchReward calls this again with the real newRank, it animates
+ * the medal crossfade (only actually swaps art on a tier change), the RP
+ * counter, and the sub-rank ladder, and fires the promo flash for
+ * whichever kind of climb happened, if any. */
+function renderGameOverRankPanel(oldRank,newRank,casual){
+  const labelEl=document.getElementById('go-rank-label');
+  const rpEl=document.getElementById('go-rp-value');
+  const oldMedalEl=document.getElementById('go-medal-old');
+  const newMedalEl=document.getElementById('go-medal-new');
+  const slot=document.getElementById('go-medal-slot');
+
+  const shown=newRank||oldRank;
+  labelEl.textContent=shown?shown.label:'Unranked';
+  oldMedalEl.innerHTML=oldRank?medalSVG(oldRank.tier):'';
+
+  if(!newRank){
+    newMedalEl.innerHTML='';
+    slot.classList.remove('swap');
+    rpEl.innerHTML=casual
+      ? '<span style="color:var(--txt-muted);">Casual match — no rank change</span>'
+      : '<span class="go-rp-shimmer"></span>';
+    renderGameOverLadderPips(oldRank,oldRank);
+    return;
+  }
+
+  if(casual){
+    rpEl.innerHTML='<span style="color:var(--txt-muted);">Casual match — no rank change</span>';
+    newMedalEl.innerHTML=''; slot.classList.remove('swap');
+    renderGameOverLadderPips(oldRank,newRank);
+    return;
+  }
+
+  const oldPts=oldRank?oldRank.points:0;
+  const delta=newRank.points-oldPts;
+  const cls=delta>0?'pos':delta<0?'neg':'zero';
+  const sign=delta>0?'+':'';
+  rpEl.innerHTML=`<span class="go-rp-num ${cls}">${sign}${delta} RP</span> <span style="color:var(--txt-muted);">(${newRank.points} total)</span>`;
+
+  const oldTierIdx=oldRank?RANK_LADDER_TIERS.indexOf(oldRank.tier):-1;
+  const newTierIdx=RANK_LADDER_TIERS.indexOf(newRank.tier);
+  const tierChanged=oldRank&&newTierIdx!==oldTierIdx;
+
+  if(tierChanged||!oldRank){
+    newMedalEl.innerHTML=medalSVG(newRank.tier);
+    slot.classList.remove('swap'); void slot.offsetWidth;
+    requestAnimationFrame(()=>slot.classList.add('swap'));
+    if(tierChanged&&newTierIdx>oldTierIdx) showGameOverPromoFlash('tier',newRank.label);
+  } else {
+    newMedalEl.innerHTML='';
+    slot.classList.remove('swap');
+  }
+
+  renderGameOverLadderPips(oldRank,newRank);
+
+  if(oldRank&&!tierChanged){
+    const oldSubIdx=RANK_SUBS_DISPLAY.indexOf(oldRank.sub);
+    const newSubIdx=RANK_SUBS_DISPLAY.indexOf(newRank.sub);
+    if(newSubIdx>oldSubIdx) showGameOverPromoFlash('sub',newRank.label);
+  }
+}
+
+/** 5 pips = the 5 sub-ranks of whichever tier `rankForPips` is showing
+ * (mirrors RANK_SUBS_DISPLAY: index0=worst/V ... index4=best/I). A pip
+ * that was JUST crossed this match (same tier, higher sub than before)
+ * gets the little "pop" flourish instead of just silently appearing lit. */
+function renderGameOverLadderPips(oldRank,rankForPips){
+  const ladderEl=document.getElementById('go-ladder');
+  const r=rankForPips||oldRank;
+  if(!r){ ladderEl.innerHTML=''; return; }
+  const subIdx=RANK_SUBS_DISPLAY.indexOf(r.sub);
+  const sameTier=oldRank&&oldRank.tier===r.tier;
+  const oldSubIdx=sameTier?RANK_SUBS_DISPLAY.indexOf(oldRank.sub):-1;
+  ladderEl.innerHTML=RANK_SUBS_DISPLAY.map((sub,i)=>{
+    const filled=i<=subIdx;
+    const justPopped=sameTier&&filled&&i>oldSubIdx;
+    return `<div class="go-pip ${filled?'filled':''} ${justPopped?'pop':''}"></div>`;
+  }).join('');
+}
+
+/** Full-screen flash for a rank climb. 'sub' (moved up a division inside
+ * the same tier) is quick and modest; 'tier' (promoted to a whole new
+ * tier) is the showcase moment - bigger text, longer hold, a brighter
+ * flash, and reuses the same celebratory burst as any other reward. */
+function showGameOverPromoFlash(kind,label){
+  const el=document.getElementById('go-promo-flash');
+  const textEl=document.getElementById('go-promo-text');
+  textEl.innerHTML = kind==='tier'
+    ? `<span class="go-promo-big">RANK UP!</span><span class="go-promo-small">Promoted to ${escapeHtml(label)}</span>`
+    : `<span class="go-promo-big">DIVISION UP</span><span class="go-promo-small">${escapeHtml(label)}</span>`;
+  el.className='go-promo-flash '+kind;
+  void el.offsetWidth;
+  el.classList.add('show');
+  if(kind==='tier'){
+    const rect=document.getElementById('go-medal-slot').getBoundingClientRect();
+    setTimeout(()=>spawnRewardBurstAtRect(rect,null,null),150);
+  }
+  setTimeout(()=>{el.classList.remove('show');},kind==='tier'?2300:1450);
+}
+
+/** Opponent card on the result screen: fills instantly from data that's
+ * been on hand since match_found (no need to wait on anything), and
+ * clicking it opens their profile - a real server round trip for an
+ * actual player (see viewPlayerProfile/opponentId), or just what's
+ * already known locally for a bot (which has no persistent account to
+ * fetch, see State.opponentId's own doc comment). */
+function renderGameOverOpponentCard(){
+  document.getElementById('go-opp-avatar').innerHTML=renderIcon(State.opponentIcon||'star',22);
+  document.getElementById('go-opp-name').textContent=State.opponentName||'Opponent';
+  document.getElementById('go-opp-rank').innerHTML=State.opponentRank?renderRankBadge(State.opponentRank):'';
+}
+function openGameOverOpponentProfile(){
+  if(State.opponentId){
+    viewPlayerProfile(State.opponentId);
+  } else {
+    openProfileView({
+      name:State.opponentName||'Opponent', icon:State.opponentIcon||'star',
+      rank:State.opponentRank, bio:'A practice opponent conjured for this match.',
+    },{isOwn:false});
+  }
+}
+
+/* ── GAME OVER PARTICLES ───────────────────────────────────────────────
+ * A dedicated canvas layer for the result screen: a confetti burst for a
+ * win, a slow drift of embers for a loss, and a softer drift of amber
+ * dust for a draw. Self-contained (own rAF loop, stops itself the moment
+ * #game-over is no longer visible) rather than sharing state with the
+ * pack-opening particle system, which has its own lifecycle tied to a
+ * completely different overlay. */
+let _goParticleAnim=null,_goParticles=[];
+function runGameOverParticles(result){
+  const canvas=document.getElementById('go-canvas'); if(!canvas) return;
+  if(_goParticleAnim){ cancelAnimationFrame(_goParticleAnim); _goParticleAnim=null; }
+  canvas.width=canvas.clientWidth||window.innerWidth;
+  canvas.height=canvas.clientHeight||window.innerHeight;
+  const ctx=canvas.getContext('2d');
+  _goParticles=[];
+  const CONFETTI_COLORS=['#c4b5fd','#7c3aed','#34d399','#fbbf24','#60a5fa','#f472b6'];
+  const EMBER_COLORS=['#f87171','#991b1b','#94a3b8'];
+  const DUST_COLORS=['#fbbf24','#f59e0b','#c4b5fd'];
+  const spawnConfetti=()=>{
+    _goParticles.push({
+      x:Math.random()*canvas.width, y:-16-Math.random()*canvas.height*0.5,
+      vx:(Math.random()-.5)*1.6, vy:2.4+Math.random()*3.2,
+      rot:Math.random()*360, vr:(Math.random()-.5)*12,
+      w:4+Math.random()*5, h:8+Math.random()*6,
+      color:CONFETTI_COLORS[(Math.random()*CONFETTI_COLORS.length)|0],
+      sway:Math.random()*Math.PI*2, swaySpeed:.02+Math.random()*.03,
+    });
+  };
+  const spawnDrift=(colors)=>{
+    _goParticles.push({
+      x:Math.random()*canvas.width, y:canvas.height+6,
+      vx:(Math.random()-.5)*.3, vy:-(.22+Math.random()*.5),
+      w:1.3+Math.random()*2,
+      color:colors[(Math.random()*colors.length)|0],
+      sway:Math.random()*Math.PI*2, swaySpeed:.01+Math.random()*.015,
+      alpha:.1+Math.random()*.45, decay:.0018+Math.random()*.0022,
+    });
+  };
+  if(result==='win'){ for(let i=0;i<130;i++) spawnConfetti(); }
+  let frame=0;
+  function tick(){
+    frame++;
+    const overlay=document.getElementById('game-over');
+    if(!overlay||overlay.style.display!=='flex'){ _goParticleAnim=null; return; }
+    if(result!=='win' && frame%4===0 && _goParticles.length<70){
+      spawnDrift(result==='draw'?DUST_COLORS:EMBER_COLORS);
+    }
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    _goParticles=_goParticles.filter(p=>result==='win'?p.y<canvas.height+30:p.alpha>0.02);
+    _goParticles.forEach(p=>{
+      p.sway+=p.swaySpeed; p.x+=p.vx+Math.sin(p.sway)*.6; p.y+=p.vy; p.rot=(p.rot||0)+(p.vr||0);
+      if(result!=='win') p.alpha-=p.decay;
+      ctx.save();
+      ctx.translate(p.x,p.y); ctx.rotate((p.rot||0)*Math.PI/180);
+      ctx.globalAlpha=result==='win'?1:Math.max(0,p.alpha);
+      ctx.fillStyle=p.color;
+      if(result==='win') ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      else { ctx.beginPath(); ctx.arc(0,0,p.w,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    });
+    _goParticleAnim=requestAnimationFrame(tick);
+  }
+  _goParticleAnim=requestAnimationFrame(tick);
+}
+function stopGameOverParticles(){
+  if(_goParticleAnim){ cancelAnimationFrame(_goParticleAnim); _goParticleAnim=null; }
+  _goParticles=[];
+  const c=document.getElementById('go-canvas');
+  if(c) c.getContext('2d').clearRect(0,0,c.width,c.height);
 }
 
 /* ── PACK OPENING RESULT (server rolled the cards & debited currency) ── */
@@ -12353,9 +13190,12 @@ const TutEngine=(()=>{
       entity.graveyard=entity.graveyard.filter(c=>c!==dead);
       dead.currentHp=Math.max(1,Math.round(dead.maxHp*(te.revive.healPercent!=null?te.revive.healPercent:0.5)));
       dead.activeEffects=[];
-      if(!entity.activeCard) entity.activeCard=dead;
-      else if(!entity.activeCard2) entity.activeCard2=dead;
-      else return null;
+      // Matches the real server's executeRevive: comes back to HAND, at a
+      // percentage of max HP, never straight onto the board - see
+      // game-engine.js. Used to go straight into an open active slot here,
+      // which didn't match live play and made the revive-to-hand animation
+      // (see Anim.reviveToHandAnim) look wrong in the tutorial.
+      entity.hand.push(dead);
       events.push({ t:'revive', side, card:dead.instanceId, name:dead.name, hp:dead.currentHp, maxHp:dead.maxHp });
     } else {
       if(te.heal){
@@ -13129,6 +13969,7 @@ window.onload=()=>{
   // presses Enter, but Enter Arena/Find Match/pack purchases all await this same
   // promise themselves too, showing their own loading UI if it isn't done yet.
   loadChatImageCatalog(); // independent of card library/auth, chat images just need to be fetched once, in the background
+  loadLogbookContent(); // same deal - logbook-content.json, fetched once in the background so it's ready by the time the player opens the logbook
   ensureCardLibrary().then(loadPlayer).then(initGlobalChat);
 };
 </script>
