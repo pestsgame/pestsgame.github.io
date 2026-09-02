@@ -1,0 +1,113 @@
+{
+  "sections": [
+    {
+      "id": "swap",
+      "label": "Swap Mechanics",
+      "icon": "swap",
+      "sub": "Field control",
+      "paragraphs": [
+        "Placeholder, explain how swapping an active card in/out of a slot works, any cooldowns or turn costs, and how effects like Rocks interact with swapping.",
+        "Placeholder, cover the two-slot layout and any rules around swapping into an empty vs. occupied slot."
+      ]
+    },
+    {
+      "id": "classes",
+      "label": "Card Classifications",
+      "icon": "tiers",
+      "sub": "Normal · Pests · Boss · Overlord",
+      "paragraphs": [
+        "Placeholder, define Normal, PESTS, BOSS, and OVERLORD classifications, what makes a creature count as each, and how deck-building rules (at most one Boss/Overlord, Overlord decks going solo) work."
+      ]
+    },
+    {
+      "id": "structure",
+      "label": "Card Structure",
+      "icon": "cardStructure",
+      "sub": "HP · Ability/Passive · Attack",
+      "paragraphs": [
+        "Placeholder, break down a creature card's anatomy: HP pool, the top slot (ability or passive), the bottom attack, and how types/elements factor in."
+      ]
+    },
+    {
+      "id": "creatures",
+      "label": "Creature Cards",
+      "icon": "creature",
+      "sub": "Mobs · Dragons · Wizards",
+      "paragraphs": [
+        "Placeholder, explain the creature card types (mob/dragon/wizard), how they differ mechanically (if at all) and thematically."
+      ]
+    },
+    {
+      "id": "equipment",
+      "label": "Equipment Cards",
+      "icon": "duel",
+      "sub": "Weapons & Defenses",
+      "paragraphs": [
+        "Placeholder, explain weapon/defense cards: flat bonus, durability, amp/damp effect customization, and how they're equipped."
+      ]
+    },
+    {
+      "id": "shop",
+      "label": "Shop & Market",
+      "icon": "shopTab",
+      "sub": "Packs · Trading",
+      "paragraphs": [
+        "Placeholder, explain gold vs. gems, the different pack tiers and their odds, and how the player-to-player market/trading works."
+      ]
+    },
+    {
+      "id": "tournaments",
+      "label": "Tournaments",
+      "icon": "tourneyTab",
+      "sub": "Competitive play",
+      "paragraphs": [
+        "Placeholder, explain how tournaments are structured, entry requirements, brackets, and rewards."
+      ]
+    },
+    {
+      "id": "guild",
+      "label": "Guild & Friends",
+      "icon": "guildTab",
+      "sub": "Social features",
+      "paragraphs": [
+        "Placeholder, explain guilds (joining, chat, roles) and the friends list/social features."
+      ]
+    },
+    {
+      "id": "wincon",
+      "label": "Win Condition",
+      "icon": "flag",
+      "sub": "How a match ends",
+      "paragraphs": [
+        "Placeholder, explain total creature destruction as the win condition, and any draw scenarios."
+      ]
+    },
+    {
+      "id": "revive",
+      "label": "Revive System",
+      "icon": "revive",
+      "sub": "The Revive Queue",
+      "paragraphs": [
+        "Placeholder, explain the Revive Queue: classification-based costs/charges, oldest-to-newest processing, and the \"no partial progress\" rule for expensive revives."
+      ]
+    },
+    {
+      "id": "statuses",
+      "label": "Status Effects",
+      "icon": "statusEffect",
+      "sub": "Detailed overview",
+      "paragraphs": [
+        "Placeholder, go through every status effect (bleed, poison, burn, cryo, shock, soak, sleep, paralyze, confusion, curse, rocks, etc.) in detail: what each does, base values, and how amp/damp gear customization affects them."
+      ]
+    }
+  ],
+  "tutorialTab": {
+    "id": "tutorial",
+    "label": "Replay Tutorial",
+    "icon": "playTab",
+    "sub": "The Simga's Tutorial",
+    "paragraphs": [
+      "Placeholder, a short description of what the tutorial covers goes here."
+    ]
+  }
+}
