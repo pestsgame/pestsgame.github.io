@@ -866,6 +866,9 @@ img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;displ
 .currency-amount{font-family:'Cinzel',serif;font-size:.72rem;font-weight:700;color:#fde68a;line-height:1.1;}
 .currency-label{font-size:.54rem;letter-spacing:.12em;color:rgba(253,230,138,.8);text-transform:uppercase;}
 .currency-pill.gems .currency-amount{color:#a78bfa;}.currency-pill.gems .currency-label{color:rgba(167,139,250,.45);}
+.currency-pill.vestige .currency-amount{color:#4ade80;}.currency-pill.vestige .currency-label{color:rgba(74,222,128,.5);}
+.currency-pill.vestige{border-color:rgba(74,222,128,.12);}
+.currency-pill.vestige:hover{border-color:rgba(74,222,128,.3);}
 
 /* ── sidebar + tab layout ── */
 .menu-layout{flex:1;display:flex;overflow:hidden;}
@@ -952,6 +955,8 @@ img.cur-icon{width:13px;height:13px;object-fit:contain;vertical-align:-2px;displ
 #menu-panel-deck .deckbuilder-body{flex:1;overflow-y:auto;}
 #menu-panel-market{overflow:hidden;}
 #menu-panel-market .market-body{flex:1;overflow-y:auto;}
+#menu-panel-salvage{overflow:hidden;}
+#menu-panel-salvage .salvage-body{flex:1;overflow-y:auto;}
 #menu-panel-social{overflow:hidden;}
 #menu-panel-social .social-body{flex:1;overflow-y:auto;}
 #menu-panel-guild{overflow:hidden;}
@@ -1280,6 +1285,74 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .shop-row-header-line{flex:1;height:1px;}
 .shop-row-header-line.gold-line{background:linear-gradient(90deg,rgba(253,230,138,.15),transparent);}
 .shop-row-header-line.gem-line{background:linear-gradient(90deg,rgba(167,139,250,.15),transparent);}
+.shop-row-header-label.vestige-label{color:rgba(74,222,128,.85);}
+.shop-row-header-line.vestige-line{background:linear-gradient(90deg,rgba(74,222,128,.18),transparent);}
+
+/* ── SALVAGE TAB ── */
+.salvage-body{flex:1;overflow-y:auto;padding:20px 24px 28px;scrollbar-width:thin;scrollbar-color:rgba(74,222,128,.25) transparent;}
+.salvage-intro{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:10px;margin-bottom:20px;background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.18);}
+.salvage-intro-icon{flex-shrink:0;padding-top:1px;}
+.salvage-intro-title{font-family:'Cinzel',serif;font-size:.72rem;font-weight:800;color:#bbf7d0;letter-spacing:.03em;margin-bottom:4px;}
+.salvage-intro-sub{font-size:.62rem;line-height:1.6;color:rgba(187,247,208,.7);}
+.salvage-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.salvage-section-actions{display:flex;gap:8px;}
+.salvage-mini-btn{
+  font-family:'Cinzel',serif;font-size:.54rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:5px 11px;border-radius:6px;cursor:pointer;
+  background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:#86efac;
+  transition:background .15s,transform .14s;
+}
+.salvage-mini-btn:hover{background:rgba(74,222,128,.18);}
+.salvage-mini-btn:active{transform:scale(.95);}
+.salvage-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;margin-bottom:14px;}
+.salvage-card-slot{
+  position:relative;border-radius:10px;padding:8px 8px 9px;
+  background:linear-gradient(180deg,rgba(14,14,22,.9),rgba(6,6,12,.95));
+  border:1px solid rgba(255,255,255,.07);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:border-color .15s,box-shadow .15s;
+}
+.salvage-card-slot.selected{border-color:rgba(74,222,128,.55);box-shadow:0 0 0 1px rgba(74,222,128,.25),0 8px 22px rgba(74,222,128,.14);}
+.salvage-card-art{width:100%;display:flex;align-items:center;justify-content:center;}
+.salvage-card-art .card-scale-wrap{width:89px;height:133px;overflow:hidden;border-radius:6px;position:relative;}
+.salvage-card-art .card-inner-scale{width:144px;height:214px;transform:scale(.62);transform-origin:top left;}
+.salvage-card-art .card{cursor:default;}
+.salvage-card-name{font-size:.56rem;font-weight:700;color:#e5e7eb;text-align:center;line-height:1.25;min-height:2.2em;display:flex;align-items:center;justify-content:center;}
+.salvage-card-rarity{font-size:.48rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:1px 7px;border-radius:20px;}
+.salvage-card-value{display:flex;align-items:center;gap:3px;font-size:.56rem;font-weight:800;color:#86efac;}
+.salvage-card-value svg{flex-shrink:0;}
+.salvage-card-owned{font-size:.5rem;color:rgba(255,255,255,.4);letter-spacing:.04em;}
+.salvage-card-stepper{display:flex;align-items:center;gap:6px;margin-top:2px;}
+.salvage-step-btn{
+  width:20px;height:20px;border-radius:5px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e5e7eb;
+  font-weight:900;font-size:.7rem;line-height:1;transition:background .15s;
+}
+.salvage-step-btn:hover:not(:disabled){background:rgba(74,222,128,.2);border-color:rgba(74,222,128,.4);}
+.salvage-step-btn:disabled{opacity:.25;cursor:not-allowed;}
+.salvage-step-count{min-width:16px;text-align:center;font-family:'Cinzel',serif;font-weight:800;font-size:.68rem;color:#4ade80;}
+.salvage-empty{padding:30px 10px;text-align:center;font-size:.7rem;color:rgba(255,255,255,.35);}
+
+.salvage-confirm-bar{
+  position:sticky;bottom:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:12px 16px;border-radius:10px;margin-bottom:20px;
+  background:linear-gradient(180deg,rgba(9,16,10,.97),rgba(5,10,6,.99));
+  border:1px solid rgba(74,222,128,.35);box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.salvage-confirm-summary{font-size:.66rem;font-weight:700;color:#e5e7eb;}
+.salvage-confirm-total{display:flex;align-items:center;gap:5px;font-family:'Cinzel',serif;font-weight:900;font-size:.8rem;color:#4ade80;}
+.salvage-confirm-btn{
+  font-family:'Cinzel',serif;font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  padding:8px 18px;border-radius:7px;cursor:pointer;
+  background:linear-gradient(135deg,#22c55e,#15803d);border:1px solid rgba(74,222,128,.6);color:#0a1a0d;
+  transition:transform .14s,box-shadow .18s;
+}
+.salvage-confirm-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(74,222,128,.35);}
+.salvage-confirm-btn:active{transform:scale(.96);}
+
+.shop-pack-vestige-price{display:flex;align-items:center;gap:4px;font-family:'Cinzel',serif;font-size:.7rem;font-weight:900;color:#4ade80;}
+.shop-pack-vestige-price svg{flex-shrink:0;}
 
 /* Gold pack grid, 3 columns */
 .shop-pack-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 24px 6px;}
@@ -1399,6 +1472,74 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 .pack-theme-overlord .shop-pack-btn:hover:not(:disabled){background:rgba(239,68,68,.28);box-shadow:0 0 22px rgba(239,68,68,.42);}
 @keyframes overlordPulse{0%,100%{border-color:rgba(239,68,68,.2);}50%{border-color:rgba(239,68,68,.6);box-shadow:0 0 32px rgba(239,68,68,.24);}}
 .pack-theme-overlord.gem-pack{animation:overlordPulse 2.2s ease-in-out infinite;}
+
+.pack-theme-guardian .shop-pack-art-bg{background:linear-gradient(160deg,#031714,#052a24);}
+.pack-theme-guardian .shop-pack-art-glow{background:#2dd4bf;}
+.pack-theme-guardian:hover{border-color:rgba(45,212,191,.34);box-shadow:0 12px 40px rgba(45,212,191,.11);}
+.pack-theme-guardian .shop-pack-badge{background:rgba(45,212,191,.12);color:#5eead4;border:1px solid rgba(45,212,191,.22);}
+.pack-theme-guardian .shop-pack-btn{background:rgba(45,212,191,.1);border-color:rgba(45,212,191,.36);color:#5eead4;}
+.pack-theme-guardian .shop-pack-btn:hover:not(:disabled){background:rgba(45,212,191,.2);box-shadow:0 0 14px rgba(45,212,191,.28);}
+
+.pack-theme-fortunate .shop-pack-art-bg{background:linear-gradient(160deg,#0c1404,#182808);}
+.pack-theme-fortunate .shop-pack-art-glow{background:#a3e635;}
+.pack-theme-fortunate:hover{border-color:rgba(163,230,53,.36);box-shadow:0 12px 40px rgba(163,230,53,.12);}
+.pack-theme-fortunate .shop-pack-badge{background:rgba(163,230,53,.13);color:#bef264;border:1px solid rgba(163,230,53,.24);}
+.pack-theme-fortunate .shop-pack-btn{background:rgba(163,230,53,.11);border-color:rgba(163,230,53,.4);color:#bef264;}
+.pack-theme-fortunate .shop-pack-btn:hover:not(:disabled){background:rgba(163,230,53,.22);box-shadow:0 0 16px rgba(163,230,53,.3);}
+
+.pack-theme-champion .shop-pack-art-bg{background:linear-gradient(160deg,#1a0c00,#2e1600);}
+.pack-theme-champion .shop-pack-art-glow{background:#f59e0b;}
+.pack-theme-champion:hover{border-color:rgba(245,158,11,.4);box-shadow:0 13px 44px rgba(245,158,11,.15);}
+.pack-theme-champion .shop-pack-badge{background:rgba(245,158,11,.14);color:#fde68a;border:1px solid rgba(245,158,11,.26);}
+.pack-theme-champion .shop-pack-btn{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.42);color:#fde68a;}
+.pack-theme-champion .shop-pack-btn:hover:not(:disabled){background:rgba(245,158,11,.24);box-shadow:0 0 18px rgba(245,158,11,.32);}
+
+.pack-theme-relic .shop-pack-art-bg{background:linear-gradient(160deg,#170f02,#2c1e04);}
+.pack-theme-relic .shop-pack-art-glow{background:#d97706;}
+.pack-theme-relic:hover{border-color:rgba(217,119,6,.38);box-shadow:0 13px 44px rgba(217,119,6,.14);}
+.pack-theme-relic .shop-pack-badge{background:rgba(217,119,6,.14);color:#fbbf24;border:1px solid rgba(217,119,6,.26);}
+.pack-theme-relic .shop-pack-btn{background:rgba(217,119,6,.12);border-color:rgba(217,119,6,.4);color:#fbbf24;}
+.pack-theme-relic .shop-pack-btn:hover:not(:disabled){background:rgba(217,119,6,.22);box-shadow:0 0 16px rgba(217,119,6,.3);}
+
+.pack-theme-gemstone .shop-pack-art-bg{background:linear-gradient(160deg,#051020,#0a2040);}
+.pack-theme-gemstone .shop-pack-art-glow{background:#93c5fd;}
+.pack-theme-gemstone:hover{border-color:rgba(147,197,253,.45);box-shadow:0 14px 46px rgba(147,197,253,.17);}
+.pack-theme-gemstone .shop-pack-badge{background:rgba(147,197,253,.16);color:#bfdbfe;border:1px solid rgba(147,197,253,.3);}
+.pack-theme-gemstone .shop-pack-btn{background:rgba(147,197,253,.14);border-color:rgba(147,197,253,.46);color:#bfdbfe;}
+.pack-theme-gemstone .shop-pack-btn:hover:not(:disabled){background:rgba(147,197,253,.26);box-shadow:0 0 18px rgba(147,197,253,.34);}
+@keyframes gemstoneShimmer{0%,100%{border-color:rgba(147,197,253,.2);}55%{border-color:rgba(147,197,253,.55);box-shadow:0 0 26px rgba(147,197,253,.2);}}
+.pack-theme-gemstone.gem-pack{animation:gemstoneShimmer 2.6s ease-in-out infinite;}
+
+.pack-theme-mythos .shop-pack-art-bg{background:linear-gradient(160deg,#1a0416,#30082a);}
+.pack-theme-mythos .shop-pack-art-glow{background:#e879f9;}
+.pack-theme-mythos:hover{border-color:rgba(232,121,249,.5);box-shadow:0 14px 48px rgba(232,121,249,.2);}
+.pack-theme-mythos .shop-pack-badge{background:rgba(232,121,249,.18);color:#f0abfc;border:1px solid rgba(232,121,249,.32);}
+.pack-theme-mythos .shop-pack-btn{background:rgba(232,121,249,.16);border-color:rgba(232,121,249,.5);color:#f0abfc;}
+.pack-theme-mythos .shop-pack-btn:hover:not(:disabled){background:rgba(232,121,249,.28);box-shadow:0 0 22px rgba(232,121,249,.4);}
+@keyframes mythosPulse{0%,100%{border-color:rgba(232,121,249,.22);}50%{border-color:rgba(232,121,249,.62);box-shadow:0 0 32px rgba(232,121,249,.26);}}
+.pack-theme-mythos.gem-pack{animation:mythosPulse 2.2s ease-in-out infinite;}
+
+.pack-theme-collector .shop-pack-art-bg{background:linear-gradient(160deg,#121418,#20242c);}
+.pack-theme-collector .shop-pack-art-glow{background:#cbd5e1;}
+.pack-theme-collector:hover{border-color:rgba(203,213,225,.3);box-shadow:0 12px 40px rgba(203,213,225,.1);}
+.pack-theme-collector .shop-pack-badge{background:rgba(203,213,225,.12);color:#e2e8f0;border:1px solid rgba(203,213,225,.22);}
+.pack-theme-collector .shop-pack-btn{background:rgba(203,213,225,.1);border-color:rgba(203,213,225,.34);color:#e2e8f0;}
+.pack-theme-collector .shop-pack-btn:hover:not(:disabled){background:rgba(203,213,225,.2);box-shadow:0 0 14px rgba(203,213,225,.24);}
+
+.pack-theme-jackpot .shop-pack-art-bg{background:linear-gradient(160deg,#1e1300,#332200);}
+.pack-theme-jackpot .shop-pack-art-glow{background:#facc15;}
+.pack-theme-jackpot:hover{border-color:rgba(250,204,21,.5);box-shadow:0 14px 48px rgba(250,204,21,.2);}
+.pack-theme-jackpot .shop-pack-badge{background:rgba(250,204,21,.18);color:#fde047;border:1px solid rgba(250,204,21,.32);}
+.pack-theme-jackpot .shop-pack-btn{background:rgba(250,204,21,.16);border-color:rgba(250,204,21,.5);color:#fde047;}
+.pack-theme-jackpot .shop-pack-btn:hover:not(:disabled){background:rgba(250,204,21,.28);box-shadow:0 0 22px rgba(250,204,21,.4);}
+@keyframes jackpotPulse{0%,100%{border-color:rgba(250,204,21,.24);}50%{border-color:rgba(250,204,21,.65);box-shadow:0 0 34px rgba(250,204,21,.28);}}
+.pack-theme-jackpot.gem-pack{animation:jackpotPulse 1.8s ease-in-out infinite;}
+
+/* ── LOCKED PACKS ── rank-gated packs the account hasn't reached yet.
+   Purely cosmetic, see packUnlocked(); the server re-validates regardless. */
+.shop-pack.pack-locked{filter:grayscale(.7) brightness(.62);}
+.shop-pack.pack-locked .shop-pack-btn{cursor:not-allowed;}
+.shop-pack-lock-banner{position:absolute;top:8px;left:8px;right:8px;z-index:4;text-align:center;padding:4px 8px;border-radius:6px;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.55);color:#e2e8f0;border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(2px);}
 
 .market-card-rarity{font-size:.48rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 5px;border-radius:3px;}
 
@@ -1820,6 +1961,34 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   border-radius:20px;padding:8px 18px;font-size:.95rem;font-weight:800;color:#fde68a;margin-bottom:20px;
 }
 .tourney-champion-prize img{width:18px;height:18px;}
+
+/* ── rank-up unlock popup ── */
+#rank-unlock-overlay{
+  display:none;position:fixed;inset:0;z-index:1250;
+  align-items:center;justify-content:center;
+  background:rgba(4,4,12,.92);backdrop-filter:blur(8px);
+}
+#rank-unlock-overlay.open{display:flex;}
+.rank-unlock-modal{
+  width:min(440px,90vw);text-align:center;padding:34px 30px;
+  background:linear-gradient(160deg,rgba(129,140,248,.12),var(--panel) 60%);
+  border:1px solid rgba(129,140,248,.4);border-radius:18px;box-shadow:0 30px 90px rgba(0,0,0,.6);
+  transform:scale(.9);opacity:0;transition:transform .25s ease,opacity .25s ease;
+}
+#rank-unlock-overlay.open .rank-unlock-modal{transform:scale(1);opacity:1;}
+.rank-unlock-badge{font-size:2.4rem;margin-bottom:6px;}
+.rank-unlock-badge .rank-medal{width:56px;height:56px;filter:drop-shadow(0 4px 14px rgba(129,140,248,.45));}
+.rank-unlock-title{font-family:'Cinzel',serif;font-weight:900;font-size:1.25rem;color:#e0e7ff;margin:6px 0 14px;}
+.rank-unlock-body{font-size:.86rem;line-height:1.55;color:var(--txt-muted);margin-bottom:22px;}
+.rank-unlock-body b{color:#c7d2fe;font-weight:700;}
+.rank-unlock-body .ru-logbook-note{display:block;margin-top:10px;font-size:.76rem;color:#a5b4fc;font-style:italic;}
+
+/* ── feature-tab locks (guild/bazaar/tourney) ── mirrors the shop's
+   pack-locked treatment: cosmetic only, the server re-checks for real. */
+.tab-lock-overlay{display:none;position:absolute;inset:0;z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(8,8,14,.94);backdrop-filter:blur(6px);text-align:center;padding:20px;}
+.tab-lock-icon{color:#94a3b8;}
+.tab-lock-title{font-family:'Cinzel',serif;font-weight:800;font-size:1.05rem;color:#e2e8f0;}
+.tab-lock-sub{font-size:.8rem;color:var(--txt-muted);max-width:280px;}
 
 #guild-create-overlay{
   display:none;position:fixed;inset:0;z-index:1150;
@@ -2900,6 +3069,16 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <span class="currency-label">Gems</span>
         </div>
       </div>
+      <div class="currency-pill vestige">
+        <svg class="currency-pill-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2.5l7 4v11l-7 4-7-4v-11z" fill="rgba(74,222,128,.14)" stroke="#4ade80"/>
+          <path d="M12 2.5v18M5 6.5l7 4 7-4" stroke="#4ade80"/>
+        </svg>
+        <div class="currency-col">
+          <span class="currency-amount" id="menu-vestige">0</span>
+          <span class="currency-label">Vestige</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2933,6 +3112,14 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
           <span class="menu-tab-label">Shop</span>
           <span class="menu-tab-sub">Open Packs</span>
         </div>
+      </button>
+      <button class="menu-tab" onclick="switchMenuTab('salvage')" data-tab="salvage">
+        <span class="menu-tab-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l7 7M20 4l-7 7"/><path d="M12 11v9"/><path d="M7 20h10"/><path d="M4 4h5v5M20 4h-5v5"/></svg></span>
+        <div class="menu-tab-text">
+          <span class="menu-tab-label">Salvage</span>
+          <span class="menu-tab-sub">Cards · Vestige</span>
+        </div>
+        <span id="salvage-tab-badge" class="social-tab-badge" style="display:none;"></span>
       </button>
       <button class="menu-tab" onclick="switchMenuTab('social')" data-tab="social">
         <span class="menu-tab-icon">☍</span>
@@ -3142,6 +3329,59 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
             </div>
             <div class="shop-premium-grid" id="shop-pack-grid-gems"></div>
           </div>
+
+        </div>
+      </div>
+
+      <!-- SALVAGE PANEL -->
+      <div class="menu-panel" id="menu-panel-salvage">
+        <div class="panel-topbar">
+          <div class="panel-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;"><path d="M4 4l7 7M20 4l-7 7"/><path d="M12 11v9"/><path d="M7 20h10"/><path d="M4 4h5v5M20 4h-5v5"/></svg>Salvage</div>
+          <div class="panel-meta" id="menu-salvage-vestige-meta">0 Vestige</div>
+        </div>
+        <div class="salvage-body">
+
+          <div class="salvage-intro">
+            <div class="salvage-intro-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#4ade80" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2.5l7 4v11l-7 4-7-4v-11z" fill="rgba(74,222,128,.14)"/>
+                <path d="M12 2.5v18M5 6.5l7 4 7-4"/>
+              </svg>
+            </div>
+            <div class="salvage-intro-text">
+              <div class="salvage-intro-title">Break cards down into Vestige</div>
+              <div class="salvage-intro-sub">Salvaging a card is permanent. Rarer cards salvage for more Vestige, spend it below on a pack &mdash; any pack except the biggest gem-only chase packs.</div>
+            </div>
+          </div>
+
+          <!-- SALVAGE: pick cards from your collection -->
+          <div class="salvage-section">
+            <div class="salvage-section-head">
+              <div class="subscreen-section-label" style="margin-bottom:0;">Salvage Your Cards</div>
+              <div class="salvage-section-actions">
+                <button class="salvage-mini-btn" onclick="salvageSelectDuplicates()">Select Duplicates</button>
+                <button class="salvage-mini-btn" onclick="salvageClearSelection()">Clear</button>
+              </div>
+            </div>
+            <div class="salvage-card-grid" id="salvage-card-grid"></div>
+          </div>
+
+          <!-- Sticky confirm bar, only meaningful once at least one card is selected -->
+          <div class="salvage-confirm-bar" id="salvage-confirm-bar" style="display:none;">
+            <div class="salvage-confirm-summary" id="salvage-confirm-summary">0 cards selected</div>
+            <div class="salvage-confirm-total">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#4ade80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l7 4v11l-7 4-7-4v-11z" fill="rgba(74,222,128,.14)"/><path d="M12 2.5v18M5 6.5l7 4 7-4"/></svg>
+              <span id="salvage-confirm-total-amount">+0 Vestige</span>
+            </div>
+            <button class="salvage-confirm-btn" onclick="confirmSalvage()">Salvage Selected</button>
+          </div>
+
+          <!-- VESTIGE PACKS -->
+          <div class="shop-row-header" style="padding-top:18px;">
+            <div class="shop-row-header-label vestige-label">Vestige Packs</div>
+            <div class="shop-row-header-line vestige-line"></div>
+          </div>
+          <div class="shop-pack-grid" id="salvage-pack-grid"></div>
 
         </div>
       </div>
@@ -3888,6 +4128,20 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div class="tourney-champion-sub" id="tc-champion-sub"></div>
     <div class="tourney-champion-prize" id="tc-champion-prize"></div>
     <button class="pf-btn pf-btn-save" onclick="closeTourneyChampionModal()" style="width:100%;">Nice!</button>
+  </div>
+</div>
+
+<!-- ══════ RANK-UP UNLOCK POPUP ══════
+     Shown once per rank tier crossed, the next time the player lands back
+     in the lobby menu (see maybeShowRankUnlockPopup() / showMenu()). The
+     server (checkRankUnlocks in server.js) marks each tier "seen" the
+     moment it's sent down, so this never repeats for the same tier. -->
+<div id="rank-unlock-overlay">
+  <div class="rank-unlock-modal">
+    <div class="rank-unlock-badge" id="ru-tier-badge"></div>
+    <div class="rank-unlock-title" id="ru-title"></div>
+    <div class="rank-unlock-body" id="ru-body"></div>
+    <button class="pf-btn pf-btn-save" onclick="dismissRankUnlockPopup()" style="width:100%;">Nice!</button>
   </div>
 </div>
 
@@ -4859,7 +5113,7 @@ const State={turn:'PLAYER',phase:'MAIN',selectedSlot:null,pendingAtkIndex:null,p
   player:{hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyard:[]},
   enemy: {hp:100,maxHp:100,hand:[],activeCard:null,activeCard2:null,weaponCard:null,defenseCard:null,deck:[],graveyardCount:0}};
 /* multiplayer flags, false/0 until a real match is found and beginMultiplayerMatch() runs */
-State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';State.opponentRank=null;State.opponentId=null;
+State.mp=false;State.mySide=0;State._mpOver=false;State.opponentName='';State.opponentIcon='star';State.opponentBanner='violet';State.opponentRank=null;State.opponentId=null;
 
 /* ── HAND TRAY ───────────────────────────────────────── */
 let _handVisible=false,_handHideTimer=null;
@@ -5669,6 +5923,7 @@ const Player = {
   losses: 0,
   gold: 500,
   gems: 25,
+  vestige: 0, // salvage-system currency, see the Salvage tab; server-authoritative like gold/gems
   icon: 'star',
   banner: 'violet',
   bio: '',
@@ -5681,6 +5936,13 @@ const Player = {
   // here once its unlocking permanent quest has been completed.
   unlockedIcons: ['star','crown','skull','flame','blade','shield','moon','ward','thorn','storm','spider','scorpion','beetle','serpent','laurel'],
   unlockedBanners: ['violet','crimson','emerald','gold','azure','obsidian','rose','storm'],
+  // rank / peakRank are populated by applyServerProfile once the server's
+  // Engine.getRank result arrives; undefined until then (fine, every
+  // reader already falls back to Copper V). peakRank is the highest rank
+  // ever reached (never drops back down), it's what pack locks compare
+  // against, see packUnlocked() in the shop section.
+  rank: null,
+  peakRank: null,
 };
 
 // Default picker options, replaced with the server's exact allow-lists on auth_ok
@@ -6511,6 +6773,40 @@ function renderQuestSkeleton(){
  * responses include it), the real gold/gems total superseding the
  * optimistic counter-tick estimate either way. */
 function applyQuestState(state){
+  // Guards against a STALE 'quest_state' snapshot clobbering a claim
+  // that's already been applied optimistically but hasn't been confirmed
+  // (or failed) yet. This genuinely happens: opening the Quest Journal
+  // fires its own 'quest_state' request (see openQuestJournal), and
+  // claiming something moments later fires a second one from claim_quest/
+  // claim_milestone - claim_quest's own response does strictly more work
+  // (read+write, then the same rebuild) than a bare 'quest_state' read, so
+  // it routinely LOSES that race and arrives second. Without this guard,
+  // the plain, pre-claim 'quest_state' response lands after the optimistic
+  // UI already shows "claimed", flips it back to "Claim" for a moment, and
+  // then the real claim response arrives right after and flips it a THIRD
+  // time - exactly the "flickers like it failed, then goes back to
+  // claimed" bug. A quest/milestone claimed optimistically now stays
+  // visually claimed no matter what an unrelated snapshot says, until
+  // either the server itself also reports it claimed (the common case,
+  // which clears the pending flag below) or an explicit claim_failed
+  // error names it (revertOptimisticClaim, the only real "undo" path).
+  if(_optimisticQuestClaims.size && Array.isArray(state.quests)){
+    for(const q of state.quests){
+      if(!_optimisticQuestClaims.has(q.id)) continue;
+      if(q.claimed) _optimisticQuestClaims.delete(q.id); // now confirmed for real
+      else q.claimed=true; // still pending - don't let a stale snapshot undo it
+    }
+  }
+  if(_optimisticMilestoneClaims.size){
+    for(const key of [..._optimisticMilestoneClaims]){
+      const sep=key.indexOf(':'); const scope=key.slice(0,sep), milestone=Number(key.slice(sep+1));
+      const bar=scope==='daily'?state.dailyBar:scope==='weekly'?state.weeklyBar:null;
+      if(!bar) continue;
+      const claimedSet=new Set(bar.claimedMilestones||[]);
+      if(claimedSet.has(milestone)) _optimisticMilestoneClaims.delete(key); // confirmed for real
+      else bar.claimedMilestones=[...(bar.claimedMilestones||[]),milestone]; // still pending
+    }
+  }
   QuestState=state;
   clearTimeout(_qjLoadTimeout);
   document.getElementById('qj-header-spinner').classList.remove('active');
@@ -6860,6 +7156,8 @@ function showToast(msg,dur=2200,iconSvg=''){
 function refreshMenuUI(){
   document.getElementById('menu-gold').textContent = Player.gold.toLocaleString();
   document.getElementById('menu-gems').textContent = Player.gems.toLocaleString();
+  const vEl=document.getElementById('menu-vestige'); if(vEl)vEl.textContent=(Player.vestige||0).toLocaleString();
+  const salvageMeta=document.getElementById('menu-salvage-vestige-meta'); if(salvageMeta)salvageMeta.textContent=`${(Player.vestige||0).toLocaleString()} Vestige`;
   document.getElementById('menu-profile-name').innerHTML = `${escapeHtml(Player.name)} ${renderRankBadge(Player.rank,'lg')}`;
   document.getElementById('menu-avatar').innerHTML = renderIcon(Player.icon||'star',20);
   const avatarEl=document.getElementById('menu-avatar');
@@ -8085,6 +8383,29 @@ function startPresenceHeartbeat(){
   _presenceTimer=setInterval(beat, PRESENCE_HEARTBEAT_MS);
 }
 
+/** Cosmetic lock overlay for a rank-gated menu tab (guild/bazaar/tourney).
+ * Appended once per panel and just toggled after that; the panel itself
+ * (position:absolute) is already the positioning context, so inset:0
+ * covers exactly the tab content. Server re-checks the real thing
+ * (meetsFeatureRank) on every relevant action regardless of this. */
+function tabLocked(panelId,tier,label){
+  const panel=document.getElementById(panelId);
+  if(!panel) return;
+  let overlay=panel.querySelector('.tab-lock-overlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.className='tab-lock-overlay';
+    panel.appendChild(overlay);
+  }
+  overlay.innerHTML=`<div class="tab-lock-icon"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div><div class="tab-lock-title">${escapeHtml(label)} Locked</div><div class="tab-lock-sub">Reach ${escapeHtml(tier)} rank at least once to unlock ${escapeHtml(label)}.</div>`;
+  overlay.style.display='flex';
+}
+function tabUnlocked(panelId){
+  const panel=document.getElementById(panelId);
+  const overlay=panel&&panel.querySelector('.tab-lock-overlay');
+  if(overlay) overlay.style.display='none';
+}
+
 function switchMenuTab(tab){
   document.querySelectorAll('.menu-tab').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.tab===tab);
@@ -8097,9 +8418,22 @@ function switchMenuTab(tab){
   if(tab==='deck') refreshDeckBuilder();
   if(tab==='market') renderShop();
   if(tab==='social'){ if(!_socialLoadedOnce) showSocialLoading(); Net.send({type:'friends_list'}); }
-  if(tab==='guild'){ if(!_guildLoadedOnce) showGuildLoading(); Net.send({type:'guild_state'}); }
-  if(tab==='bazaar'){ initBazaarTab(); }
-  if(tab==='tourney'){ initTourneyTab(); }
+  if(tab==='guild'){
+    if(!featureUnlocked('Bronze')){ tabLocked('menu-panel-guild','Bronze','Guilds'); }
+    else { tabUnlocked('menu-panel-guild'); if(!_guildLoadedOnce) showGuildLoading(); Net.send({type:'guild_state'}); }
+  }
+  if(tab==='bazaar'){
+    if(!featureUnlocked('Iron')){ tabLocked('menu-panel-bazaar','Iron','the Marketplace'); }
+    else { tabUnlocked('menu-panel-bazaar'); initBazaarTab(); }
+  }
+  if(tab==='tourney'){
+    if(!featureUnlocked('Iron')){ tabLocked('menu-panel-tourney','Iron','Tournaments'); }
+    else { tabUnlocked('menu-panel-tourney'); initTourneyTab(); }
+  }
+  if(tab==='salvage'){
+    if(!featureUnlocked('Iron')){ tabLocked('menu-panel-salvage','Iron','Salvage'); }
+    else { tabUnlocked('menu-panel-salvage'); renderSalvageTab(); }
+  }
 }
 
 function enterArena(){
@@ -8127,6 +8461,48 @@ function enterArena(){
 function showMenu(){
   refreshMenuUI();
   showScreen('menu-screen');
+  maybeShowRankUnlockPopup();
+}
+
+/* ── RANK-UP UNLOCK POPUP ──────────────────────────────────────────
+ * Display names for what RANK_UNLOCKS (game-engine.js) can grant. Pack
+ * names come straight from PACK_DEFS so they never drift out of sync;
+ * features get their own short display label plus a note pointing at
+ * the logbook, per the design ("Check the logbook for more info"). */
+const RANK_UNLOCK_FEATURE_LABELS={
+  guilds:'Guilds', trading:'Trading', marketplace:'the Marketplace', tournaments:'Tournaments',
+};
+let _pendingRankUnlocks=[]; // filled from auth_ok, drained one at a time via showMenu()
+let _rankUnlockPopupOpen=false;
+
+function maybeShowRankUnlockPopup(){
+  if(_rankUnlockPopupOpen||!_pendingRankUnlocks.length) return;
+  showRankUnlockPopup(_pendingRankUnlocks.shift());
+}
+
+function showRankUnlockPopup(unlock){
+  const packNames=(unlock.packs||[]).map(id=>{ const p=PACK_DEFS.find(d=>d.id===id); return p?p.name:id; });
+  const featureNames=(unlock.features||[]).map(f=>RANK_UNLOCK_FEATURE_LABELS[f]||f);
+  const parts=[];
+  if(packNames.length) parts.push(`the <b>${packNames.join('</b>, <b>')}</b> pack${packNames.length>1?'s':''}`);
+  if(featureNames.length) parts.push(`<b>${featureNames.join('</b> and <b>')}</b>`);
+  const body=parts.length
+    ? `You've unlocked ${parts.join(' and ')}.`
+    : `You've reached a new rank.`;
+  const logbookNote=featureNames.length ? `<span class="ru-logbook-note">Check the logbook for more info.</span>` : '';
+  document.getElementById('ru-tier-badge').innerHTML=medalSVG(unlock.tier);
+  document.getElementById('ru-title').textContent=`You hit ${unlock.tier} rank!`;
+  document.getElementById('ru-body').innerHTML=body+logbookNote;
+  document.getElementById('rank-unlock-overlay').classList.add('open');
+  _rankUnlockPopupOpen=true;
+}
+
+function dismissRankUnlockPopup(){
+  document.getElementById('rank-unlock-overlay').classList.remove('open');
+  _rankUnlockPopupOpen=false;
+  // If more tiers were crossed while offline, show the next one right
+  // after this one's close transition finishes rather than stacking them.
+  setTimeout(maybeShowRankUnlockPopup, 280);
 }
 
 function returnToMenu(){
@@ -8671,6 +9047,24 @@ const RARITY_CONFIG={
 const RARITY_ORDER=['common','uncommon','rare','epic','legendary','mythic','fabled'];
 function rarityRank(r){return RARITY_ORDER.indexOf(r);}
 
+/* ── VESTIGE SALVAGE SYSTEM (client) ──────────────────────────────────
+ * Mirrors Engine.VESTIGE_SALVAGE_VALUES / Engine.VESTIGE_PACK_COSTS in
+ * server/game-engine.js exactly — display/UX only, the server re-derives
+ * both independently and never trusts these. Salvage tab itself unlocks
+ * at Iron (see SALVAGE_UNLOCK_TIER / featureUnlocked('Iron') calls below),
+ * same "peak rank crossed it at least once" gate as Bazaar/Tournaments. */
+const SALVAGE_UNLOCK_TIER='Iron';
+const VESTIGE_SALVAGE_VALUES={common:10,uncommon:25,rare:60,epic:150,legendary:400,mythic:1000,fabled:2500};
+function vestigeValueForRarity(r){return VESTIGE_SALVAGE_VALUES[r]||0;}
+// Packs purchasable with Vestige, and their Vestige price. Every pack
+// EXCEPT Gemstone Assortment, Mythos Collection, Collector's Mass,
+// Pack o' Jackpot, and Overlord's Hoard, per design.
+const VESTIGE_PACK_COSTS={
+  copper:120, standard:320, mob_pile:300, dragons_nest:300, arcane_parcel:300,
+  armament_cache:360, guardian_cache:360, fortunate_package:600, champions_pile:780, relic_stash:780,
+};
+function vestigePackCost(id){return VESTIGE_PACK_COSTS[id];}
+
 /* SVG art per pack theme, no emojis, pure SVG */
 const PACK_SVG={
   basic:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8745,6 +9139,65 @@ const PACK_SVG={
     <circle cx="28" cy="28" r="5" fill="rgba(96,165,250,.08)" stroke="rgba(96,165,250,.4)" stroke-width="1.5"/>
     <path d="M8 32 L14 26 L14 34 L22 34 L22 44 L14 44 L14 38 L8 38 Z" fill="rgba(96,165,250,.07)" stroke="rgba(96,165,250,.35)" stroke-width="1.2" stroke-linejoin="round"/>
   </svg>`,
+  guardian:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M28 6 L46 13 C46 28 42 42 28 50 C14 42 10 28 10 13 Z" fill="rgba(45,212,191,.07)" stroke="rgba(45,212,191,.55)" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M28 12 L40 17 C40 28 37 38 28 44 C19 38 16 28 16 17 Z" fill="none" stroke="rgba(45,212,191,.35)" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <path d="M28 20 L28 34 M21 27 L35 27" stroke="rgba(45,212,191,.6)" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
+  fortunate:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M28 30 C28 30 20 22 14 22 C9 22 6 26 6 30 C6 34 9 38 14 38 C20 38 28 30 28 30Z" fill="rgba(163,230,53,.08)" stroke="rgba(163,230,53,.55)" stroke-width="1.5"/>
+    <path d="M28 30 C28 30 36 22 42 22 C47 22 50 26 50 30 C50 34 47 38 42 38 C36 38 28 30 28 30Z" fill="rgba(163,230,53,.08)" stroke="rgba(163,230,53,.55)" stroke-width="1.5"/>
+    <path d="M28 30 C28 30 20 38 20 44 C20 49 24 52 28 52 C32 52 36 49 36 44 C36 38 28 30 28 30Z" fill="rgba(163,230,53,.08)" stroke="rgba(163,230,53,.55)" stroke-width="1.5"/>
+    <line x1="28" y1="30" x2="28" y2="14" stroke="rgba(163,230,53,.55)" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="28" cy="30" r="3" fill="rgba(163,230,53,.7)"/>
+  </svg>`,
+  champion:`<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 8 L44 16 L44 28 C44 40 38 48 32 52 C26 48 20 40 20 28 L20 16 Z" fill="rgba(245,158,11,.08)" stroke="rgba(245,158,11,.55)" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M25 22 L32 30 L39 22" fill="none" stroke="rgba(245,158,11,.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="36" r="4.5" fill="rgba(245,158,11,.18)" stroke="rgba(245,158,11,.7)" stroke-width="1.4"/>
+    <path d="M14 18 C10 20 8 24 10 28 C12 32 17 32 20 29" fill="none" stroke="rgba(245,158,11,.4)" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M50 18 C54 20 56 24 54 28 C52 32 47 32 44 29" fill="none" stroke="rgba(245,158,11,.4)" stroke-width="1.3" stroke-linecap="round"/>
+  </svg>`,
+  relic:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 10 L38 10 L38 18 C38 18 44 22 44 30 C44 40 36 46 28 46 C20 46 12 40 12 30 C12 22 18 18 18 18 Z" fill="rgba(217,119,6,.07)" stroke="rgba(217,119,6,.5)" stroke-width="1.6" stroke-linejoin="round"/>
+    <line x1="18" y1="10" x2="18" y2="18" stroke="rgba(217,119,6,.4)" stroke-width="1.4"/>
+    <line x1="38" y1="10" x2="38" y2="18" stroke="rgba(217,119,6,.4)" stroke-width="1.4"/>
+    <circle cx="28" cy="30" r="6" fill="rgba(217,119,6,.15)" stroke="rgba(217,119,6,.6)" stroke-width="1.4"/>
+    <path d="M22 40 L34 40" stroke="rgba(217,119,6,.35)" stroke-width="1.2" stroke-linecap="round"/>
+  </svg>`,
+  gemstone:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="28,6 44,20 36,50 20,50 12,20" fill="rgba(147,197,253,.1)" stroke="rgba(147,197,253,.6)" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="28,6 12,20 44,20" fill="none" stroke="rgba(147,197,253,.4)" stroke-width="1.1"/>
+    <line x1="20" y1="20" x2="28" y2="50" stroke="rgba(147,197,253,.35)" stroke-width="1"/>
+    <line x1="36" y1="20" x2="28" y2="50" stroke="rgba(147,197,253,.35)" stroke-width="1"/>
+    <line x1="20" y1="20" x2="36" y2="20" stroke="rgba(147,197,253,.35)" stroke-width="1"/>
+    <line x1="28" y1="6" x2="28" y2="20" stroke="rgba(147,197,253,.3)" stroke-width="1"/>
+  </svg>`,
+  mythos:`<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="24" fill="none" stroke="rgba(232,121,249,.25)" stroke-width="1" stroke-dasharray="2 3"/>
+    <circle cx="32" cy="32" r="17" fill="none" stroke="rgba(232,121,249,.4)" stroke-width="1.3"/>
+    <polygon points="32,17 40,27 37,44 27,44 24,27" fill="rgba(232,121,249,.08)" stroke="rgba(232,121,249,.6)" stroke-width="1.4" stroke-linejoin="round"/>
+    <circle cx="32" cy="32" r="4" fill="rgba(232,121,249,.85)"/>
+    <line x1="32" y1="4" x2="32" y2="12" stroke="rgba(232,121,249,.4)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="32" y1="52" x2="32" y2="60" stroke="rgba(232,121,249,.4)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="4" y1="32" x2="12" y2="32" stroke="rgba(232,121,249,.4)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="52" y1="32" x2="60" y2="32" stroke="rgba(232,121,249,.4)" stroke-width="1.2" stroke-linecap="round"/>
+  </svg>`,
+  collector:`<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="10" y="26" width="26" height="18" rx="2.5" fill="rgba(203,213,225,.06)" stroke="rgba(203,213,225,.4)" stroke-width="1.4" transform="rotate(-8 10 26)"/>
+    <rect x="14" y="20" width="26" height="18" rx="2.5" fill="rgba(203,213,225,.07)" stroke="rgba(203,213,225,.48)" stroke-width="1.4" transform="rotate(-2 14 20)"/>
+    <rect x="18" y="14" width="26" height="18" rx="2.5" fill="rgba(203,213,225,.09)" stroke="rgba(203,213,225,.6)" stroke-width="1.5"/>
+    <line x1="22" y1="20" x2="38" y2="20" stroke="rgba(203,213,225,.3)" stroke-width="1"/>
+    <line x1="22" y1="24" x2="34" y2="24" stroke="rgba(203,213,225,.22)" stroke-width="1"/>
+  </svg>`,
+  jackpot:`<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="14" y="30" width="16" height="16" rx="3" fill="rgba(250,204,21,.09)" stroke="rgba(250,204,21,.6)" stroke-width="1.6" transform="rotate(-12 22 38)"/>
+    <rect x="32" y="20" width="18" height="18" rx="3" fill="rgba(250,204,21,.11)" stroke="rgba(250,204,21,.7)" stroke-width="1.7" transform="rotate(10 41 29)"/>
+    <circle cx="22" cy="38" r="1.8" fill="rgba(250,204,21,.85)"/>
+    <circle cx="41" cy="24" r="1.6" fill="rgba(250,204,21,.85)"/>
+    <circle cx="45" cy="33" r="1.6" fill="rgba(250,204,21,.85)"/>
+    <path d="M8 50 L14 42 M50 50 L56 42" stroke="rgba(250,204,21,.35)" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>`,
   boss:`<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 50 C12 34 20 20 32 16 C44 20 52 34 52 50 L44 50 L44 44 L36 50 L32 42 L28 50 L20 44 L20 50 Z" fill="rgba(245,158,11,.08)" stroke="rgba(245,158,11,.5)" stroke-width="1.8" stroke-linejoin="round"/>
     <circle cx="24" cy="34" r="4" fill="rgba(245,158,11,.15)" stroke="rgba(245,158,11,.65)" stroke-width="1.5"/>
@@ -8789,48 +9242,103 @@ const FEATURED_SVG=`<svg width="90" height="90" viewBox="0 0 64 64" fill="none" 
   </svg>`;
 
 /* ── PACK DEFINITIONS ─────────────────────────────────── */
+/* `minRank`, when set, is a RANK_LADDER_TIERS name — the buyer's PEAK rank
+ * (Player.peakRank, highest ever reached, never follows a later losing
+ * streak back down) must have crossed into that tier at least once. This
+ * is purely a display/UX gate (packUnlocked() below); the server is the
+ * one that actually enforces it (Engine.meetsRankRequirement), so nothing
+ * here needs to be trusted. Numbers below mirror PACK_DEFS in
+ * server/game-engine.js exactly, keep them in sync if either changes. */
 const PACK_DEFS=[
-  {id:'basic',    currency:'gold', theme:'basic',    artH:110, badge:'Basic',    name:'Basic Pack',
-   size:3,  cost:80,
-   weights:{common:50,uncommon:35,rare:15,epic:0,legendary:0,mythic:0,fabled:0},
+  {id:'copper',    currency:'gold', theme:'basic',    artH:110, badge:'Copper',    name:'Copper Bundle',
+   size:3,  cost:80,  minRank:null,
+   weights:{common:62,uncommon:33,rare:5,epic:0,legendary:0,mythic:0,fabled:0},
    guarantees:[], filter:null,
-   desc:'A humble bundle. Solid odds on commons with a good shot at rare.'},
+   desc:'A humble bundle. Mostly commons, but a Rare here actually feels like gold.'},
   {id:'standard', currency:'gold', theme:'standard', artH:110, badge:'Standard', name:'Standard Pack',
-   size:5,  cost:200,
-   weights:{common:30,uncommon:32,rare:25,epic:10,legendary:3,mythic:0,fabled:0},
+   size:5,  cost:200, minRank:'Bronze',
+   weights:{common:43,uncommon:35,rare:19,epic:3,legendary:0,mythic:0,fabled:0},
    guarantees:[], filter:null,
-   desc:'Balanced odds across all rarities. Real chance at something powerful.'},
-  {id:'mob',      currency:'gold', theme:'mob',      artH:110, badge:'Mob',      name:'Mob Pack',
-   size:4,  cost:180,
-   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
+   desc:'The workhorse. Balanced odds and a real shot at Epic, though never a first Legendary.'},
+  {id:'mob_pile',      currency:'gold', theme:'mob',      artH:110, badge:'Mob',      name:'Mob Pile',
+   size:4,  cost:180, minRank:'Iron',
+   weights:{common:34,uncommon:34,rare:25,epic:6.5,legendary:0.5,mythic:0,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('mob'),
-   desc:'Mob creatures only. Standard rarity rates across four draws.'},
-  {id:'dragon',   currency:'gold', theme:'dragon',   artH:110, badge:'Dragon',   name:'Dragon Pack',
-   size:4,  cost:180,
-   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
+   desc:'Mob creatures only. Unlocks at Iron, where your first Legendary can start happening.'},
+  {id:'dragons_nest',   currency:'gold', theme:'dragon',   artH:110, badge:'Dragon',   name:"Dragon's Nest",
+   size:4,  cost:180, minRank:'Iron',
+   weights:{common:34,uncommon:34,rare:25,epic:6.5,legendary:0.5,mythic:0,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('dragon'),
-   desc:'Dragon-type cards only. Standard rates across four tries.'},
-  {id:'wizard',   currency:'gold', theme:'wizard',   artH:110, badge:'Wizard',   name:'Wizard Pack',
-   size:4,  cost:180,
-   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:5,mythic:1,fabled:0},
+   desc:'Dragon-type cards only. Unlocks at Iron, where your first Legendary can start happening.'},
+  {id:'arcane_parcel',   currency:'gold', theme:'wizard',   artH:110, badge:'Arcane',   name:'Arcane Parcel',
+   size:4,  cost:180, minRank:'Iron',
+   weights:{common:34,uncommon:34,rare:25,epic:6.5,legendary:0.5,mythic:0,fabled:0},
    guarantees:[], filter:c=>c.types?.includes('wizard'),
-   desc:'Wizard cards only. Harness the arcane across four draws.'},
-  {id:'armory',   currency:'gold', theme:'armory',   artH:110, badge:'Armory',   name:'Armory Pack',
-   size:5,  cost:220,
-   weights:{common:22,uncommon:30,rare:27,epic:15,legendary:6,mythic:0,fabled:0},
+   desc:'Wizard cards only. Unlocks at Iron, where your first Legendary can start happening.'},
+  {id:'armament_cache',   currency:'gold', theme:'armory',   artH:110, badge:'Armament',   name:'Armament Cache',
+   size:5,  cost:220, minRank:'Iron',
+   weights:{common:33,uncommon:32,rare:25,epic:9.5,legendary:0.5,mythic:0,fabled:0},
+   guarantees:[], filter:c=>c.cardType==='weapon',
+   desc:'Weapons only. A little better than the targeted creature packs, split across one category.'},
+  {id:'guardian_cache',   currency:'gold', theme:'guardian',   artH:110, badge:'Guardian',   name:'Guardian Cache',
+   size:5,  cost:220, minRank:'Iron',
+   weights:{common:33,uncommon:32,rare:25,epic:9.5,legendary:0.5,mythic:0,fabled:0},
+   guarantees:[], filter:c=>c.cardType==='defense',
+   desc:'Defenses only. A little better than the targeted creature packs, split across one category.'},
+  {id:'fortunate_package', currency:'gems', theme:'fortunate', artH:150, badge:'Fortune',  name:'Fortunate Package',
+   size:7,  cost:120, minRank:'Gold',
+   weights:{common:25,uncommon:30,rare:28,epic:15,legendary:1.8,mythic:0.2,fabled:0},
+   guarantees:[], filter:null,
+   desc:"Your first real high-rarity hunt. A huge step up from Standard — Mythic is still a freak occurrence."},
+  {id:'champions_pile',    currency:'gems', theme:'champion',  artH:150, badge:'Champion', name:"Champion's Pile",
+   size:7,  cost:160, minRank:'Gold',
+   weights:{common:22,uncommon:27,rare:28,epic:18,legendary:4.2,mythic:0.6,fabled:0},
+   guarantees:[], filter:c=>c.types?.includes('mob')||c.types?.includes('dragon')||c.types?.includes('wizard'),
+   desc:'Creatures only (Mob, Dragon, Wizard). A noticeable step up from Fortune.'},
+  {id:'relic_stash',       currency:'gems', theme:'relic',     artH:150, badge:'Relic',    name:'Relic Stash',
+   size:7,  cost:160, minRank:'Gold',
+   weights:{common:22,uncommon:27,rare:28,epic:18,legendary:4.2,mythic:0.6,fabled:0},
    guarantees:[], filter:c=>c.cardType==='weapon'||c.cardType==='defense',
-   desc:'Weapons and defenses only. Five equipment draws.'},
-  {id:'boss',     currency:'gems', theme:'boss',     artH:150, badge:'Boss',     name:'Boss Pack',
-   size:7,  cost:150,
-   weights:{common:0,uncommon:15,rare:32,epic:30,legendary:17,mythic:4,fabled:2},
-   guarantees:['legendary'], filter:null,
-   desc:'Guaranteed at least one Legendary card across 7 powerful draws.'},
+   desc:'Equipment only (Weapons, Defenses). A noticeable step up from Fortune.'},
+  {id:'gemstone_assortment', currency:'gems', theme:'gemstone', artH:150, badge:'Gemstone', name:'Gemstone Assortment',
+   size:8,  cost:240, minRank:'Diamond',
+   weights:{common:16,uncommon:22,rare:27,epic:22,legendary:11,mythic:1.8,fabled:0.2},
+   guarantees:[], filter:null,
+   desc:'Diamond-unlocked. The first pack where Fabled enters normal progression — still fucking rare.'},
+  {id:'mythos_collection',   currency:'gems', theme:'mythos',    artH:150, badge:'Mythos',   name:'Mythos Collection',
+   size:10, cost:340, minRank:'Mythic',
+   weights:{common:10,uncommon:16,rare:25,epic:24,legendary:18,mythic:6,fabled:1},
+   guarantees:[], filter:null,
+   desc:'Mythic-unlocked. The big endgame pack — Legendary+ is expected, Fabled is the jackpot.'},
+  {id:'collectors_mass',     currency:'gems', theme:'collector', artH:150, badge:'Bulk',     name:"Collector's Mass",
+   size:15, cost:260, minRank:'Gold',
+   weights:{common:38,uncommon:32,rare:21,epic:7.5,legendary:1.3,mythic:0.2,fabled:0},
+   guarantees:[], filter:null,
+   desc:"Deliberately bad rarity, absurd quantity. You're paying gems for a giant pile of cards, not optimal odds."},
+  {id:'jackpot', currency:'gems', theme:'jackpot',  artH:150, badge:'Jackpot',  name:"Pack 'o Jackpot",
+   size:3,  cost:150, minRank:'Gold',
+   weights:{common:0,uncommon:0,rare:25,epic:35,legendary:27,mythic:10,fabled:3},
+   guarantees:[], filter:null,
+   desc:'Only three cards, but no Commons or Uncommons at all. A proper gamble.'},
   {id:'overlord', currency:'gems', theme:'overlord', artH:150, badge:'Overlord', name:"Overlord's Hoard",
-   size:7,  cost:250,
-   weights:{common:0,uncommon:0,rare:30,epic:30,legendary:23,mythic:10,fabled:7},
-   guarantees:['mythic'], filter:null,
-   desc:'Guaranteed Mythic+. No commons or uncommons. Fabled is within reach.'},
+   size:10, cost:500, minRank:'Gold',
+   weights:{common:0,uncommon:0,rare:15,epic:25,legendary:30,mythic:20,fabled:10},
+   guarantees:[], filter:null,
+   desc:'An irresponsible amount of gems, for an irresponsible pack. No Commons or Uncommons, ever.'},
 ];
+
+/** Has this account's PEAK rank (Player.peakRank, never the current,
+ * droppable one) ever crossed into `tier`? Shared by pack locks and
+ * feature locks (guilds/trading/marketplace/tournaments); purely a
+ * display gate, mirrors Engine.meetsRankRequirement server-side, which
+ * is what's actually enforced regardless of what this returns. */
+function featureUnlocked(tier){
+  if(!tier) return true;
+  const have=RANK_LADDER_TIERS.indexOf((Player.peakRank&&Player.peakRank.tier)||'Copper');
+  const need=RANK_LADDER_TIERS.indexOf(tier);
+  return have>=0 && have>=need;
+}
+function packUnlocked(p){ return featureUnlocked(p.minRank); }
 
 function oddsHtml(weights){
   return Object.entries(weights).filter(([,w])=>w>0)
@@ -8841,21 +9349,25 @@ function packCardHtml(p){
   const isGem=p.currency==='gems';
   const balance=isGem?Player.gems:Player.gold;
   const canAfford=balance>=p.cost;
+  const unlocked=packUnlocked(p);
   const gemCls=isGem?'gem-pack':'';
+  const lockedCls=unlocked?'':'pack-locked';
   const svgArt=PACK_SVG[p.theme]||PACK_SVG.basic;
   const guaranteeNote=p.guarantees.length
     ?`<div class="shop-pack-guarantee">Guaranteed: ${p.guarantees.map(r=>RARITY_CONFIG[r].label+'+').join(', ')}</div>`:'';
   const priceHtml=isGem
     ?`<div class="shop-pack-gem-price"><img src="gem.png" alt="">${p.cost}</div>`
     :`<div class="shop-pack-price"><img src="coin.png" alt="">${p.cost}</div>`;
-  const btnLabel=canAfford?'Open Pack':(isGem?'Need Gems':'Need Gold');
+  const lockBanner=unlocked?'':`<div class="shop-pack-lock-banner">🔒 Unlocks at ${p.minRank}</div>`;
+  const btnLabel=!unlocked?`Requires ${p.minRank}`:(canAfford?'Open Pack':(isGem?'Need Gems':'Need Gold'));
   return `
-    <div class="shop-pack pack-theme-${p.theme} ${gemCls}">
-      <div class="shop-pack-art" style="height:${p.artH}px;">
+    <div class="shop-pack pack-theme-${p.theme} ${gemCls} ${lockedCls}">
+      <div class="shop-pack-art" style="height:${p.artH}px;position:relative;">
         <div class="shop-pack-art-bg"></div>
         <div class="shop-pack-art-glow"></div>
         ${svgArt}
         <div class="shop-pack-badge">${p.badge}</div>
+        ${lockBanner}
       </div>
       <div class="shop-pack-info">
         <div class="shop-pack-name">${p.name}</div>
@@ -8866,7 +9378,7 @@ function packCardHtml(p){
       </div>
       <div class="shop-pack-footer">
         ${priceHtml}
-        <button class="shop-pack-btn" ${canAfford?'':'disabled'} onclick="buyPack('${p.id}')">${btnLabel}</button>
+        <button class="shop-pack-btn" ${(canAfford&&unlocked)?'':'disabled'} onclick="buyPack('${p.id}')">${btnLabel}</button>
       </div>
     </div>`;
 }
@@ -8875,18 +9387,21 @@ function renderFeaturedBanner(){
   const el=document.getElementById('shop-featured-banner');
   if(!el) return;
   const p=PACK_DEFS.find(d=>d.id==='overlord');
-  const canAfford=Player.gems>=p.cost;
+  const unlocked=packUnlocked(p);
+  const canAfford=unlocked&&Player.gems>=p.cost;
+  const lockNote=unlocked?'':`<div class="shop-pack-lock-banner" style="position:static;display:inline-block;margin-bottom:6px;">🔒 Unlocks at ${p.minRank}</div>`;
   el.innerHTML=`
-    <div class="shop-featured-art">
+    <div class="shop-featured-art ${unlocked?'':'pack-locked'}">
       <div class="shop-featured-art-bg" style="background:linear-gradient(135deg,#18000a,#2c0014);"></div>
       ${FEATURED_SVG}
     </div>
     <div class="shop-featured-body">
       <div class="shop-featured-top">
         <div class="shop-featured-tag">Featured Pack</div>
+        ${lockNote}
         <div class="shop-featured-name">${p.name}</div>
         <div class="shop-featured-desc">${p.desc}</div>
-        <div class="shop-featured-guarantee">Guaranteed Legendary · No Commons · ${p.size} Cards</div>
+        <div class="shop-featured-guarantee">No Commons or Uncommons · ${p.size} Cards</div>
       </div>
       <div class="shop-featured-footer">
         <div class="shop-featured-meta">
@@ -8896,7 +9411,7 @@ function renderFeaturedBanner(){
         <div style="display:flex;align-items:center;gap:12px;">
           <div class="shop-featured-price"><img src="gem.png" alt="">${p.cost}</div>
           <button class="shop-featured-btn" ${canAfford?'':'disabled'} onclick="buyPack('${p.id}')">
-            ${canAfford?'Open Pack':'Need Gems'}
+            ${!unlocked?`Requires ${p.minRank}`:(canAfford?'Open Pack':'Need Gems')}
           </button>
         </div>
       </div>
@@ -8935,6 +9450,14 @@ const PACK_THEME_CFG={
   dragon:   {c1:'#1a0600',c2:'#300e00',accent:'#fb923c',glow:'rgba(251,146,60,.65)'},
   wizard:   {c1:'#020e16',c2:'#041c2c',accent:'#22d3ee',glow:'rgba(34,211,238,.6)'},
   armory:   {c1:'#060c1a',c2:'#0e1630',accent:'#60a5fa',glow:'rgba(96,165,250,.6)'},
+  guardian: {c1:'#031714',c2:'#052a24',accent:'#2dd4bf',glow:'rgba(45,212,191,.6)'},
+  fortunate:{c1:'#0c1404',c2:'#182808',accent:'#a3e635',glow:'rgba(163,230,53,.6)'},
+  champion: {c1:'#1c0e00',c2:'#321800',accent:'#f59e0b',glow:'rgba(245,158,11,.7)'},
+  relic:    {c1:'#170f02',c2:'#2c1e04',accent:'#d97706',glow:'rgba(217,119,6,.6)'},
+  gemstone: {c1:'#051020',c2:'#0a2040',accent:'#93c5fd',glow:'rgba(147,197,253,.7)'},
+  mythos:   {c1:'#1a0416',c2:'#30082a',accent:'#e879f9',glow:'rgba(232,121,249,.75)'},
+  collector:{c1:'#121418',c2:'#20242c',accent:'#cbd5e1',glow:'rgba(203,213,225,.45)'},
+  jackpot:  {c1:'#1e1300',c2:'#332200',accent:'#facc15',glow:'rgba(250,204,21,.8)'},
   boss:     {c1:'#1c0e00',c2:'#321800',accent:'#f59e0b',glow:'rgba(245,158,11,.7)'},
   overlord: {c1:'#180008',c2:'#2e0014',accent:'#ef4444',glow:'rgba(239,68,68,.7)'},
 };
@@ -9074,13 +9597,21 @@ function hidePackLoading(){
   _packLoadingActive=false;
 }
 
-function buyPack(packId){
+function buyPack(packId, useVestige=false){
   const packDef=PACK_DEFS.find(p=>p.id===packId);
   if(!packDef) return;
   const isGem=packDef.currency==='gems';
-  // Client-side balance check is just a friendly early heads-up, the server
-  // re-checks for real and is the only one that actually deducts anything.
-  if((isGem?Player.gems:Player.gold)<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
+  // Client-side checks are just friendly early heads-up, the server
+  // re-checks both the rank lock and the balance for real (see
+  // Engine.meetsRankRequirement/grantPack) and is the only thing that
+  // actually authorizes a pack or deducts anything.
+  if(!packUnlocked(packDef)){showToast(`Requires reaching ${packDef.minRank} rank at least once.`);return;}
+  if(useVestige){
+    if(!featureUnlocked(SALVAGE_UNLOCK_TIER)){showToast(`Requires reaching ${SALVAGE_UNLOCK_TIER} rank at least once.`);return;}
+    if(!Object.prototype.hasOwnProperty.call(VESTIGE_PACK_COSTS,packId)){showToast("That pack can't be bought with Vestige.");return;}
+    const vCost=vestigePackCost(packId);
+    if((Player.vestige||0)<vCost){showToast(`Not enough Vestige! Need ${vCost}.`);return;}
+  } else if((isGem?Player.gems:Player.gold)<packDef.cost){showToast(`Not enough ${isGem?'Gems':'Gold'}! Need ${packDef.cost}.`);return;}
   if(_packLoadingActive) return; // one purchase in flight at a time
 
   _packLoadingActive=true;
@@ -9094,14 +9625,14 @@ function buyPack(packId){
     if(serverIsReady() && Date.now()-startedAt>=MIN_MS){
       clearInterval(_packLoadingPoll); _packLoadingPoll=null;
       showPackLoading('Contacting The Archive...');
-      Net.send({type:'buy_pack', packId, requestId:reqId});
+      Net.send({type:'buy_pack', packId, requestId:reqId, currency: useVestige?'vestige':undefined});
       // safety net: if the server never answers, don't leave the dots spinning
       // forever - but don't forget about this request either, in case it
       // shows up late (see _packAbandonedId above).
       _packLoadingTimeout=setTimeout(()=>{
         hidePackLoading();
         _packAbandonedId=reqId;
-        showToast('⚠ The Archive is taking too long to respond. Please try again.');
+        showToast('The Archive is taking too long to respond. Please try again.');
       },12000);
       return;
     }
@@ -9158,6 +9689,212 @@ function defToDisplayCard(def){
   }
   return Object.assign({},def,{currentHp:def.hp,activeEffects:[]});
 }
+
+/* ══════════════════════════════════════
+   SALVAGE TAB (client)
+   Salvaging is destructive and server-authoritative: this file only ever
+   proposes a {cardId:qty} selection, the server (salvageCards in
+   server.js) re-validates ownership against the real collection, computes
+   the Vestige payout from Engine.vestigeValueForRarity, and is the only
+   thing that actually removes cards or credits Vestige. On success we
+   splice the salvaged copies out of Player.collection locally (mirrors
+   how a completed trade updates collections) rather than doing a full
+   profile refetch.
+══════════════════════════════════════ */
+let _salvageSelection={}; // cardId -> qty selected to salvage
+let _salvageRequestId=0;
+
+function salvageOwnedCounts(){ return collectionCountsClient(); }
+
+/** Every unique owned card id, sorted rarest-and-most-valuable first so
+ * the cards worth the most Vestige are the easiest to find and select. */
+function salvageSortedIds(){
+  const counts=salvageOwnedCounts();
+  return Object.keys(counts).filter(id=>CardById[id]).sort((a,b)=>{
+    const da=CardById[a],db=CardById[b];
+    const rd=rarityRank(db.rarity)-rarityRank(da.rarity);
+    if(rd)return rd;
+    return (da.name||'').localeCompare(db.name||'');
+  });
+}
+
+function renderSalvageTab(){
+  const meta=document.getElementById('menu-salvage-vestige-meta');
+  if(meta)meta.textContent=`${(Player.vestige||0).toLocaleString()} Vestige`;
+  renderSalvageCollection();
+  renderSalvagePacks();
+  updateSalvageConfirmBar();
+}
+
+function renderSalvageCollection(){
+  const grid=document.getElementById('salvage-card-grid');
+  if(!grid)return;
+  const counts=salvageOwnedCounts();
+  const ids=salvageSortedIds();
+  if(!ids.length){
+    grid.innerHTML='<div class="salvage-empty">No cards owned yet, open a pack first!</div>';
+    return;
+  }
+  grid.innerHTML=ids.map(id=>{
+    const def=CardById[id];
+    const owned=counts[id]||0;
+    const selected=_salvageSelection[id]||0;
+    const rcfg=RARITY_CONFIG[def.rarity]||RARITY_CONFIG.common;
+    const perCard=vestigeValueForRarity(def.rarity);
+    const displayCard=defToDisplayCard(def);
+    return `<div class="salvage-card-slot${selected>0?' selected':''}" data-salvage-id="${jsq(id)}">
+      <div class="salvage-card-art"><div class="card-scale-wrap"><div class="card-inner-scale">${renderCard(displayCard,false,-1,'db-card')}</div></div></div>
+      <div class="salvage-card-name">${escapeHtml(def.name)}</div>
+      <div class="salvage-card-rarity" style="color:${rcfg.color};background:${rcfg.color}22;">${rcfg.label}</div>
+      <div class="salvage-card-value">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l7 4v11l-7 4-7-4v-11z" fill="rgba(74,222,128,.16)"/><path d="M12 2.5v18M5 6.5l7 4 7-4"/></svg>
+        <span>${perCard} each</span>
+      </div>
+      <div class="salvage-card-owned">Owned ${owned}</div>
+      <div class="salvage-card-stepper">
+        <button class="salvage-step-btn" onclick="salvageStep('${jsq(id)}',-1)" ${selected<=0?'disabled':''}>-</button>
+        <span class="salvage-step-count">${selected}</span>
+        <button class="salvage-step-btn" onclick="salvageStep('${jsq(id)}',1)" ${selected>=owned?'disabled':''}>+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function salvageStep(cardId,delta){
+  const counts=salvageOwnedCounts();
+  const owned=counts[cardId]||0;
+  const cur=_salvageSelection[cardId]||0;
+  const next=Math.max(0,Math.min(owned,cur+delta));
+  if(next<=0) delete _salvageSelection[cardId]; else _salvageSelection[cardId]=next;
+  renderSalvageCollection();
+  updateSalvageConfirmBar();
+}
+
+/** Selects every duplicate copy (owned qty - 1) of every owned card,
+ * leaving exactly one of each behind — the common "clean up my binder"
+ * one-click action seen in most card games' disenchant/salvage screens. */
+function salvageSelectDuplicates(){
+  const counts=salvageOwnedCounts();
+  _salvageSelection={};
+  for(const [id,qty] of Object.entries(counts)){
+    if(qty>1 && CardById[id]) _salvageSelection[id]=qty-1;
+  }
+  renderSalvageCollection();
+  updateSalvageConfirmBar();
+  showToast('Selected all duplicate copies.');
+}
+
+function salvageClearSelection(){
+  _salvageSelection={};
+  renderSalvageCollection();
+  updateSalvageConfirmBar();
+}
+
+function salvageSelectionTotal(){
+  let cards=0,vestige=0;
+  for(const [id,qty] of Object.entries(_salvageSelection)){
+    const def=CardById[id]; if(!def||qty<=0)continue;
+    cards+=qty; vestige+=vestigeValueForRarity(def.rarity)*qty;
+  }
+  return {cards,vestige};
+}
+
+function updateSalvageConfirmBar(){
+  const bar=document.getElementById('salvage-confirm-bar');
+  if(!bar)return;
+  const {cards,vestige}=salvageSelectionTotal();
+  if(cards<=0){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const summary=document.getElementById('salvage-confirm-summary');
+  if(summary)summary.textContent=`${cards} card${cards===1?'':'s'} selected`;
+  const total=document.getElementById('salvage-confirm-total-amount');
+  if(total)total.textContent=`+${vestige.toLocaleString()} Vestige`;
+}
+
+let _salvageInFlight=false;
+function confirmSalvage(){
+  const {cards,vestige}=salvageSelectionTotal();
+  if(cards<=0 || _salvageInFlight) return;
+  const selection={...Object.fromEntries(Object.entries(_salvageSelection).filter(([,q])=>q>0))};
+  if(!Object.keys(selection).length) return;
+  if(!confirm(`Salvage ${cards} card${cards===1?'':'s'} for ${vestige.toLocaleString()} Vestige? This can't be undone.`)) return;
+  _salvageInFlight=true;
+  const reqId=++_salvageRequestId;
+  ensureCardLibrary();
+  Net.connect();
+  Net.send({type:'salvage_cards', cards:selection, requestId:reqId});
+}
+
+/** Server confirmed the salvage: splice the exact salvaged quantities out
+ * of Player.collection locally (never trust the client's own selection
+ * map for the actual removal, only what the server echoes back as
+ * `msg.salvaged`), credit the Vestige balance, and refresh every screen
+ * that shows either the collection or Vestige. */
+function handleSalvageResult(msg){
+  _salvageInFlight=false;
+  if(!Array.isArray(msg.salvaged))return;
+  for(const {cardId,qty} of msg.salvaged){
+    let n=qty;
+    for(let i=Player.collection.length-1;i>=0 && n>0;i--){
+      if(Player.collection[i]===cardId){ Player.collection.splice(i,1); n--; }
+    }
+    delete _salvageSelection[cardId];
+  }
+  if(typeof msg.newBalance==='number') Player.vestige=msg.newBalance;
+  savePlayer();
+  refreshMenuUI();
+  renderSalvageTab();
+  // Deck builder's own collection grid can be showing right now (or next
+  // time it's opened) with quantities that just changed underneath it.
+  if(document.getElementById('menu-panel-deck')?.classList.contains('active')) renderDBCollection();
+  showToast(`Salvaged for +${(msg.vestigeGained||0).toLocaleString()} Vestige.`);
+}
+
+function salvagePackCardHtml(p){
+  const balance=Player.vestige||0;
+  const cost=vestigePackCost(p.id);
+  const canAfford=balance>=cost;
+  const unlocked=packUnlocked(p); // pack's own rank lock still applies, see grantPack
+  const svgArt=PACK_SVG[p.theme]||PACK_SVG.basic;
+  const guaranteeNote=p.guarantees.length
+    ?`<div class="shop-pack-guarantee">Guaranteed: ${p.guarantees.map(r=>RARITY_CONFIG[r].label+'+').join(', ')}</div>`:'';
+  const lockBanner=unlocked?'':`<div class="shop-pack-lock-banner">Unlocks at ${p.minRank}</div>`;
+  const btnLabel=!unlocked?`Requires ${p.minRank}`:(canAfford?'Open Pack':'Need Vestige');
+  return `
+    <div class="shop-pack pack-theme-${p.theme} ${unlocked?'':'pack-locked'}">
+      <div class="shop-pack-art" style="height:${p.artH}px;position:relative;">
+        <div class="shop-pack-art-bg"></div>
+        <div class="shop-pack-art-glow"></div>
+        ${svgArt}
+        <div class="shop-pack-badge">${p.badge}</div>
+        ${lockBanner}
+      </div>
+      <div class="shop-pack-info">
+        <div class="shop-pack-name">${p.name}</div>
+        <div class="shop-pack-count">${p.size} Cards per Pack</div>
+        <div class="shop-pack-desc">${p.desc}</div>
+        ${guaranteeNote}
+        <div class="shop-pack-odds">${oddsHtml(p.weights)}</div>
+      </div>
+      <div class="shop-pack-footer">
+        <div class="shop-pack-vestige-price">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l7 4v11l-7 4-7-4v-11z" fill="rgba(74,222,128,.16)"/><path d="M12 2.5v18M5 6.5l7 4 7-4"/></svg>
+          ${cost}
+        </div>
+        <button class="shop-pack-btn" ${(canAfford&&unlocked)?'':'disabled'} onclick="buyPack('${p.id}',true)">${btnLabel}</button>
+      </div>
+    </div>`;
+}
+
+function renderSalvagePacks(){
+  const grid=document.getElementById('salvage-pack-grid');
+  if(!grid)return;
+  try{
+    const eligible=PACK_DEFS.filter(p=>Object.prototype.hasOwnProperty.call(VESTIGE_PACK_COSTS,p.id));
+    grid.innerHTML=eligible.map(p=>salvagePackCardHtml(p)).join('');
+  }catch(e){ console.error('[salvage] pack grid failed', e); }
+}
+
 
 /* ── DECK STATE ── */
 let _deckPointer=0, _deckFaceUp=false, _deckSpread=false;
@@ -10630,6 +11367,11 @@ const Net={
         this.authed=true;
         this.userId=msg.userId;
         applyServerProfile(msg.profile);
+        // Rank-unlock popups: queued here, drained one at a time the next
+        // time showMenu() actually runs (see maybeShowRankUnlockPopup()).
+        // The server already marked these "seen" the moment it sent them,
+        // so this queue is the only chance the player gets to see them.
+        if(Array.isArray(msg.rankUnlocks)&&msg.rankUnlocks.length) _pendingRankUnlocks.push(...msg.rankUnlocks);
         if(Array.isArray(msg.inMatchUserIds)) msg.inMatchUserIds.forEach(id=>PlayersInMatch.add(id));
         if(msg.profileOptions){
           if(Array.isArray(msg.profileOptions.icons))PROFILE_ICONS=msg.profileOptions.icons;
@@ -10706,6 +11448,7 @@ const Net={
       case 'match_found': this.matchId=msg.matchId; beginMultiplayerMatch(msg); break;
       case 'deck_saved': Player.deck=msg.cardIds; savePlayer(); refreshMenuUI(); showToast('✦ Deck saved!'); break;
       case 'pack_result': hidePackLoading(); handlePackResult(msg); break;
+      case 'salvage_result': handleSalvageResult(msg); break;
       case 'quest_state': applyQuestState(msg); break;
       case 'friends_list':
         (msg.friends||[]).forEach(f=>{ if(f.userId) applyMatchPresence([f.userId], !!f.inMatch); });
@@ -10935,6 +11678,16 @@ const Net={
         clearTourneyActionLoading();
         if(msg.reason==='claim_failed'){
           revertOptimisticClaim(msg.questId, msg.scope, msg.milestone);
+        } else if(msg.reason==='pack_locked'){
+          showToast(`🔒 That pack requires reaching ${msg.requiredRank||'a higher'} rank at least once.`, 4000);
+          renderShop();
+        } else if(msg.reason==='feature_locked'){
+          const label=RANK_UNLOCK_FEATURE_LABELS[msg.feature]||'That feature';
+          showToast(`🔒 ${label} unlocks once you've reached ${msg.requiredRank||'a higher'} rank.`, 4000);
+        } else if(msg.reason==='insufficient_funds'){
+          showToast('⚠ Not enough currency for that pack.');
+        } else if(msg.reason==='unknown_pack'){
+          showToast('⚠ Unknown pack, please refresh and try again.');
         } else if(msg.reason==='card_library_mismatch'){
           const overlay=document.getElementById('mp-connecting-overlay');
           if(overlay&&overlay.style.display==='flex'){
@@ -11289,9 +12042,14 @@ function applyServerProfile(p){
   Player.name=p.username||Player.name;
   if(typeof p.gold==='number')Player.gold=p.gold;
   if(typeof p.gems==='number')Player.gems=p.gems;
+  if(typeof p.vestige==='number')Player.vestige=p.vestige;
   if(typeof p.wins==='number')Player.wins=p.wins;
   if(typeof p.losses==='number')Player.losses=p.losses;
   if(p.rank)Player.rank=p.rank;
+  // peakRank is the highest rank this account has EVER reached (server-
+  // tracked, never follows rank back down after a losing streak) — it's
+  // what the shop compares pack.minRank against, see packUnlocked() below.
+  if(p.peakRank)Player.peakRank=p.peakRank;
   if(typeof p.icon==='string')Player.icon=p.icon;
   if(typeof p.banner==='string')Player.banner=p.banner;
   if(typeof p.bio==='string')Player.bio=p.bio;
@@ -11748,6 +12506,7 @@ function beginMultiplayerMatch(msg){
   _stateQueue=[]; _isPlayingState=false; // fresh playback queue for this match too
   State.opponentName=msg.opponentName||'Opponent';
   State.opponentIcon=msg.opponentIcon||'star';
+  State.opponentBanner=msg.opponentBanner||'violet'; // not rendered anywhere yet, kept for parity with opponentIcon/future use
   State.opponentRank=msg.opponentRank||null;
   // Only ever a real userId (never set for a bot seat, see match_found's
   // own doc comment server-side) - lets the post-match screen offer a real
@@ -12656,12 +13415,16 @@ function handlePackResult(msg){
   // No explicit quest_state request needed here, recordQuestEvent's live
   // push (server.js) already sends one proactively if this purchase
   // completed the buy-a-pack daily quest.
-  if(msg.currency==='gems')Player.gems=msg.newBalance; else Player.gold=msg.newBalance;
+  if(msg.currency==='gems')Player.gems=msg.newBalance;
+  else if(msg.currency==='vestige')Player.vestige=msg.newBalance;
+  else Player.gold=msg.newBalance;
   savePlayer();
-  const gEl=document.getElementById('menu-gold'), mEl=document.getElementById('menu-gems');
+  const gEl=document.getElementById('menu-gold'), mEl=document.getElementById('menu-gems'), vEl=document.getElementById('menu-vestige');
   if(gEl)gEl.textContent=Player.gold.toLocaleString();
   if(mEl)mEl.textContent=Player.gems.toLocaleString();
+  if(vEl)vEl.textContent=(Player.vestige||0).toLocaleString();
   refreshMenuUI();
+  if(document.getElementById('menu-panel-salvage')?.classList.contains('active')) renderSalvageTab();
   // server only sends {id,name,rarity,image}, the full card definition (topEffect etc.) is the
   // same static CardDB the client already has, so look it up locally for rendering.
   _packCards=msg.cards.map(c=>CardDB.find(d=>d.id===c.id)).filter(Boolean);
@@ -13018,88 +13781,109 @@ function gcDragEnd(e){
    instead of the WebSocket while a tutorial is active. Nothing outside
    this block is modified.
 
-   TUTORIAL_CARDS is the ONLY place with card content. It uses the exact
-   same shape as cards.json, so real cards can be dropped in later just by
-   replacing these objects. */
+   TUTORIAL_CARDS is the ONLY place with card content. Every entry here is
+   a verbatim copy of a real card straight out of cards.json (same id, same
+   name, same numbers), keyed by that same real id. This has to be a literal
+   copy rather than a live lookup into CardById: enterArena() kicks off
+   ensureCardLibrary() and startTutorial() in the same breath, deliberately
+   not awaiting the fetch (see enterArena's comment), so a first-time player
+   can be in the tutorial before the real library has necessarily finished
+   loading. Whenever cards.json's numbers for one of these ids change, copy
+   the new numbers here too, and double check the dialogue in THE SCRIPT
+   below still says the right thing, since several lines below hardcode
+   numbers that only hold for the current stats (search for "keep in sync"
+   comments at each such line). */
 
 const TUTORIAL_CARDS = {
-  // Step 2–4: your very first card. A blunt, honest mob, one big hit,
-  // one simple passive. Nothing to overwhelm a first-timer with.
-  tut_mob_a: {
-    id:'tut_mob_a', name:'Mudshell, the Tuskbreaker', rarity:'common',
-    types:['mob'], classification:'pests', hp:90, image:'',
-    topEffect:{ type:'passive', name:'Thick Hide', value:0, effects:[],
-      passiveReduction:{ flat:8 }, description:'\u2212 8 flat damage taken from every hit.' },
-    bottomAttack:{ name:'Skullcrusher Slam', damage:55, element:'physical', effects:[] },
-  }, 
-  // Step 4: intentionally weak, meant to die in one hit.
-  tut_weak_enemy: {
-    id:'tut_weak_enemy', name:', the Feeble Pestling', rarity:'common',
-    types:['mob'], classification:'pests', hp:30, image:'',
-    topEffect:{ type:'passive', name:'Fragile', value:0, effects:[],
-      passiveReduction:null, description:'No defensive traits, an easy target.' },
-    bottomAttack:{ name:'Nibble', damage:6, element:'physical', effects:[] },
+  // Step 2–4, 9: your very first card, and the one you're tempted to lean
+  // on in the finale. Real id 'clay_effigy'.
+  clay_effigy: {
+    id:'clay_effigy', name:'Mudshell the Clay Effigy', rarity:'common',
+    types:['mob'], classification:'normal', hp:150, image:'mudshell.png',
+    topEffect:{ type:'passive', name:'Clay Shell', value:0, effects:[],
+      passiveReduction:{ flat:25 }, description:'Block 25 damage from all attacks.' },
+    bottomAttack:{ name:'Slam', damage:100, element:'physical', effects:[{ type:'rocks', duration:1 }] },
+  },
+  // Step 4: intentionally overmatched, meant to die in one hit. Real id 'alf_wolf'.
+  alf_wolf: {
+    id:'alf_wolf', name:'Alf Wolf', rarity:'common',
+    types:['mob'], classification:'normal', hp:90, image:'alf_wolf.png',
+    topEffect:{ type:'passive', name:'Fur Armour', value:0, effects:[],
+      passiveReduction:{ flat:10 }, description:'Block 10 damage from all attacks.' },
+    bottomAttack:{ name:'Howl', damage:60, element:'physical', multiAttack:{ guaranteed:3 }, effects:[] },
   },
   // Step 5–7: the second hand card, swapped in, then tests fangs on it.
-  tut_swap_card: {
-    id:'tut_swap_card', name:'Arachnos, the Nimble Weevil', rarity:'common',
-    types:['mob'], classification:'pests', hp:65, image:'',
-    topEffect:{ type:'passive', name:'Evasive Carapace', value:0, effects:[],
-      passiveReduction:{ percent:0.2 }, description:'\u2212 20% incoming damage.' },
-    bottomAttack:{ name:'Quick Snap', damage:22, element:'physical', effects:[] },
+  // Real id 'poison_assasin'.
+  poison_assasin: {
+    id:'poison_assasin', name:'Arachnos the Poison Assasin', rarity:'common',
+    types:['mob'], classification:'normal', hp:100, image:'arachnos.png',
+    topEffect:{ type:'passive', name:'Weakness', value:0, effects:[],
+      passiveAmplify:{ elements:['physical','fire','water','lightning','ice','poison','shadow',
+        'earth','wind','arcane','nature','abyss','ruin','judgement'], percent:0.25 },
+      description:'All attacks deal 25% more damage.' },
+    bottomAttack:{ name:'Bite', damage:25, element:'poison', effects:[{ type:'mythicPoison', duration:3 }] },
   },
   // Step 5: a quiet second recruit that just holds Slot 2 so a real swap
-  // (both slots full) is possible to demonstrate, never fought, never named.
-  tut_filler_ally: {
-    id:'tut_filler_ally', name:'Stray Recruit', rarity:'common',
-    types:['mob'], classification:'pests', hp:40, image:'',
-    topEffect:{ type:'passive', name:'Keeping Watch', value:0, effects:[],
-      passiveReduction:null, description:'No defensive traits.' },
-    bottomAttack:{ name:'Poke', damage:4, element:'physical', effects:[] },
+  // (both slots full) is possible to demonstrate, never fought. Real id
+  // 'swamp_goblins'.
+  swamp_goblins: {
+    id:'swamp_goblins', name:'Swamp Goblins', rarity:'common',
+    types:['mob'], classification:'normal', hp:10, image:'swamp_goblins.png',
+    topEffect:{ type:'passive', name:'Goblin Pack', value:0, effects:[],
+      revive:{ guaranteed:2, chance:0.5 },
+      description:'Guaranteed two revives before having a 50% chance to revive after that.' },
+    bottomAttack:{ name:'Stick Stab', damage:100, element:'physical', effects:[{ type:'bleed', duration:1 }] },
   },
-  // Step 5-7: a mid-tier opponent that sticks around for a few steps. needs bleed
-  tut_enemy_2: {
-    id:'tut_enemy_2', name:'Ravel, the Bone Picker', rarity:'common',
-    types:['mob'], classification:'pests', hp:60, image:'',
-    topEffect:{ type:'passive', name:'Carrion Instinct', value:0, effects:[],
-      passiveReduction:null, description:'No defensive traits.' },
-    bottomAttack:{ name:'Bone Rake', damage:18, element:'physical', effects:[{ type:'bleed', duration:3 }] },
+  // Step 7: a mid-tier opponent that sticks around just long enough to show
+  // off Bleed. Real id 'skeleton_group'.
+  skeleton_group: {
+    id:'skeleton_group', name:'Skeleton Group', rarity:'common',
+    types:['mob'], classification:'normal', hp:50, image:'skeleton_group.png',
+    topEffect:{ type:'passive', name:'Skelly Friends', value:0, effects:[],
+      revive:{ chance:0.5 }, description:'50% chance to revive at full health.' },
+    bottomAttack:{ name:'Bone Throw', damage:70, element:'physical', effects:[{ type:'bleed', duration:2 }] },
   },
-  // Step 6 & 9: the weapon at the heart of the "aha" moment.
-  tut_weapon: {
-    id:'tut_weapon', name:'Cinderfang Blade', rarity:'epic',
-    cardType:'weapon', flatBonus:15, maxDurability:3, image:'',
-    ampEffects:{ burn:25 },
-    description:'+15 dmg. While equipped, any Burn you inflict deals 25 extra damage per turn.',
+  // Step 6 & 9: the weapon at the heart of the "aha" moment. Real id 'cannon'.
+  cannon: {
+    id:'cannon', name:'Cannon', rarity:'uncommon',
+    cardType:'weapon', flatBonus:60, maxDurability:5, image:'cannon.png',
+    ampEffects:{ burn:10 },
+    description:'Deal 60 more damage. Burn deals +10 damage. Lasts for 5 attacks.',
   },
   // Step 6: armour, shown alongside the weapon for a full equipment beat.
-  tut_defense: {
-    id:'tut_defense', name:'Bramshell Ward', rarity:'uncommon',
-    cardType:'defense', flatBonus:12, maxDurability:3, image:'',
-    description:'\u2212 12 flat damage taken.',
+  // Real id 'barrier_stone'.
+  barrier_stone: {
+    id:'barrier_stone', name:'Barrier Stone', rarity:'uncommon',
+    cardType:'defense', flatBonus:60, maxDurability:9, image:'barrier.png',
+    description:'Block 60 damage. Lasts for 9 attacks.',
   },
-  // Step 8 & 9: the wizard whose hex sets up the finale.
-  tut_wizard: {
-    id:'tut_wizard', name:'Nyxa, the Cinderborn Hex', rarity:'uncommon',
-    types:['wizard'], classification:'pests', hp:70, image:'',
-    topEffect:{ type:'ability', name:'Cinderborn Hex', element:'fire', value:0,
-      effects:[{ type:'burn', duration:2 }], description:'Cast to set the enemy ablaze with Burn.' },
-    bottomAttack:{ name:'Flame Lash', damage:20, element:'fire', effects:[{ type:'burn', duration:2 }] },
+  // Step 9: the wizard whose ability (a heal, not an attack) sets up the
+  // finale, then lands the Burn herself with her own attack. Real id
+  // 'lantern_bearer'.
+  lantern_bearer: {
+    id:'lantern_bearer', name:'Pellix the Lantern Bearer', rarity:'common',
+    types:['wizard'], classification:'normal', hp:150, image:'pellix.png',
+    topEffect:{ type:'ability', name:'Lantern Glow', value:0, element:'arcane', effects:[],
+      heal:{ amount:90, target:'ally' }, description:'Pick any card to heal 90 health.' },
+    bottomAttack:{ name:'Wick Spark', damage:85, element:'fire', effects:[{ type:'burn', duration:2 }] },
   },
-  // Step 8 & 9: the dragon/boss shown in the gallery, then the finale opponent.
-  tut_dragon: {
-    id:'tut_dragon', name:'Vorrax, the Ember-Scaled', rarity:'epic',
-    types:['dragon'], classification:'boss', hp:140, image:'',
-    topEffect:{ type:'attack', name:'Wing Buffet', value:25, element:'wind', effects:[] },
-    bottomAttack:{ name:'Molten Bite', damage:35, element:'fire', effects:[{ type:'burn', duration:2 }] },
+  // Step 8's Pests example, display-only: a wizard a real step up from a
+  // Normal mob. Real id 'golden_boy_of_apes'.
+  golden_boy_of_apes: {
+    id:'golden_boy_of_apes', name:'Kongra the Golden Boy of Apes', rarity:'epic',
+    types:['wizard'], classification:'pests', hp:550, image:'kongra.png',
+    topEffect:{ type:'attack', name:'Fire of Gold', value:200, element:'fire',
+      effects:[{ type:'burn', duration:5 }] },
+    bottomAttack:{ name:'Golden Fury', damage:125, element:'physical', multiAttack:{ guaranteed:2 }, effects:[] },
   },
-  // Step 8: display-only mythic overlord, for the classification gallery.
-  tut_overlord: {
-    id:'tut_overlord', name:'Nyxrot, the Infinite Swarm', rarity:'mythic',
-    types:['mob','wizard','dragon'], classification:'overlord', hp:260, image:'',
-    topEffect:{ type:'passive', name:'Endless Hunger', value:0, effects:[],
-      passiveReduction:{ percent:0.3, flat:10 }, description:'\u2212 30%, then \u2212 10 flat damage taken.' },
-    bottomAttack:{ name:'World Devourer', damage:70, element:'shadow', effects:[{ type:'bleed', duration:3 }] },
+  // Step 8 & 9: the dragon/boss shown in the gallery, then the finale
+  // opponent. Real id 'astral_warden'.
+  astral_warden: {
+    id:'astral_warden', name:'Ecliptic the Astral Warden', rarity:'mythic',
+    types:['dragon'], classification:'boss', hp:900, image:'ecliptic.png',
+    topEffect:{ type:'passive', name:'Cosmic Scales', value:0, effects:[], immuneEffects:['confusion'],
+      passiveReduction:{ flat:70 }, description:'Block 70 damage from all attacks. Immune to Confusion.' },
+    bottomAttack:{ name:'Starborn Beam', damage:300, element:'arcane', effects:[{ type:'confusion', duration:2 }] },
   },
 };
 
@@ -13653,7 +14437,7 @@ let _tutMudshell=null,_tutArachnos=null,_tutWeapon=null,_tutDefense=null;
 async function tutStepDeployAndAnatomy(){
   Tutorial.setStep(2,'Deploying a Card');
   tutClearBoard();
-  _tutMudshell=tutCreateCard('tut_mob_a');
+  _tutMudshell=tutCreateCard('clay_effigy');
   tutSetHand([_tutMudshell]);
   showHandTray();
   await Tutorial.say(["Your hand contains your available cards. Right now: one very grumpy mob."]);
@@ -13663,9 +14447,12 @@ async function tutStepDeployAndAnatomy(){
   Tutorial.clearHighlight();
 
   Tutorial.setStep(3,'Card Anatomy');
+  // keep in sync: clay_effigy.hp
   await Tutorial.say(["One-hundred fifty hit points, that's how much he can take before he's finished."],{highlight:'#inspect-card-wrap .card-hp-badge'});
   await Tutorial.say(["A Mob: the simplest kind of creature. And a normal card, no special indicators."],{highlight:'#inspect-card-wrap .card-typerow'});
+  // keep in sync: clay_effigy.topEffect (Clay Shell, flat 25)
   await Tutorial.say(["Clay Shell, his passive, automatically deducts 25 damage off of every attack he sustains."],{highlight:'#inspect-card-wrap .card-eff-row.psv'});
+  // keep in sync: clay_effigy.bottomAttack (Slam, 100 dmg)
   await Tutorial.say(["Slam, one-hundred damage. That's his attack, and his only trick."],{highlight:'#inspect-card-wrap .card-footer .card-eff-row.atk'});
   await Tutorial.say(["And no, there's no toll to pay, deploying costs you nothing."]);
   await Tutorial.say(["You can do it as many times as you want, as long as that slot hasn't acted yet."]);
@@ -13678,7 +14465,7 @@ async function tutStepDeployAndAnatomy(){
 
 async function tutStepAttack(){
   Tutorial.setStep(4,'Attacking');
-  const mite=tutCreateCard('tut_weak_enemy');
+  const mite=tutCreateCard('alf_wolf');
   State.enemy.activeCard=mite;
   Tutorial.setCounts(1,1,1,1);
   updateUI();
@@ -13687,8 +14474,9 @@ async function tutStepAttack(){
   await Tutorial.waitAction(o=>o.type==='attack');
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
+  // keep in sync: Slam(100) - Fur Armour(10 flat) = 90, exactly alf_wolf.hp
   await Tutorial.say([
-    "One-hundred damage. Alf Wolf only had ninety hit points. And now he's nowhere to be found.",
+    "One-hundred damage, minus his own Fur Armour. Alf Wolf only had ninety hit points to give. And now he's nowhere to be found.",
     "That's the whole loop. Deploy, attack, damage, and the enemy answers by losing a creature. One down, but standard decks contain 8 creatures.",
   ]);
   Tutorial.setCounts(1,1,0,1);
@@ -13696,14 +14484,14 @@ async function tutStepAttack(){
 
 async function tutStepSwap(){
   Tutorial.setStep(5,'Swapping');
-  const filler=tutCreateCard('tut_filler_ally');
+  const filler=tutCreateCard('swamp_goblins');
   State.player.activeCard2=filler;
   updateUI();
-  await Tutorial.say(["An Arachnos has joined you in the second slot, don't mind him. Careful where you plant your feet, that last attack loosened the ground under Mudshell."]);
+  await Tutorial.say(["A pack of Swamp Goblins has joined you in the second slot, don't mind them. Careful where you plant your feet, that last attack loosened the ground under Mudshell."]);
   _tutMudshell.activeEffects.push({ type:'rocks', duration:3 });
   updateUI();
   await Tutorial.say(["See that badge? Rocks. It triggers the instant a card swaps into or out of an active slot, and it deals fifty damage."]);
-  _tutArachnos=tutCreateCard('tut_swap_card');
+  _tutArachnos=tutCreateCard('poison_assasin');
   tutSetHand([_tutArachnos]);
   showHandTray();
   await Tutorial.say(["Sometimes your active card isn't the best choice. You can swap it for another."]);
@@ -13723,8 +14511,8 @@ async function tutStepSwap(){
 
 async function tutStepEquipment(){
   Tutorial.setStep(6,'Equipment');
-  _tutWeapon=tutCreateCard('tut_weapon');
-  _tutDefense=tutCreateCard('tut_defense');
+  _tutWeapon=tutCreateCard('cannon');
+  _tutDefense=tutCreateCard('barrier_stone');
   tutSetHand([_tutWeapon,_tutDefense]);
   await Tutorial.say(["Arena of Pests has some gear you can use. You get weapons, which make you deal more damage, and armour, which reduces incoming damage."]);
   await Tutorial.prompt("Inspect the Cannon, then equip it.",{highlight:'#hand-tray-inner .card'});
@@ -13734,21 +14522,23 @@ async function tutStepEquipment(){
   Tutorial._guard=null;Tutorial._guardNudge=null;
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["Plus sixety damage, every hit, for as long as it holds together. Five attacks before it breaks."]);
-  await Tutorial.prompt("This weapon amplifies Burn damage. Inspect the Barrier Stone, then equip it too.",{highlight:'#hand-tray-inner .card'});
+  // keep in sync: cannon.flatBonus(60)/maxDurability(5)/ampEffects.burn(10)
+  await Tutorial.say(["Plus sixty damage, every hit, for as long as it holds together. Five attacks before it breaks. It's also got a trick up its barrel: any Burn you cause while it's equipped hits ten harder, every turn. Hold onto that."]);
+  await Tutorial.prompt("Inspect the Barrier Stone, then equip it too.",{highlight:'#hand-tray-inner .card'});
   await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===_tutDefense.instanceId);
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["Minus sixety damage taken. Weapons and armour both wear down, watch the number in the corner."]);
+  // keep in sync: barrier_stone.flatBonus(60)
+  await Tutorial.say(["Minus sixty damage taken. Weapons and armour both wear down, watch the number in the corner."]);
 }
 
 async function tutStepStatus(){
   Tutorial.setStep(7,'Status Effects');
-  const ravel=tutCreateCard('tut_enemy_2');
-  State.enemy.activeCard=ravel;
+  const skellies=tutCreateCard('skeleton_group');
+  State.enemy.activeCard=skellies;
   Tutorial.setCounts(1,1,1,2);
   updateUI();
-  await Tutorial.say(["Not every pest in this Arena is harmless. This one bites, and leaves something behind."],{highlight:'#enemy-active-slot'});
+  await Tutorial.say(["Not every pest in this Arena is harmless. This lot throws more than bones."],{highlight:'#enemy-active-slot'});
   Tutorial.lock();
   await new Promise(res=>setTimeout(res,900));
   if(Tutorial._cancelled)return;
@@ -13771,62 +14561,72 @@ async function tutStepStatus(){
 async function tutStepTypes(){
   Tutorial.setStep(8,'Card Types');
   tutClearBoard();
-  const gMudshell=tutCreateCard('tut_mob_a');
-  const gNyxa=tutCreateCard('tut_wizard');
-  const gVorrax=tutCreateCard('tut_dragon');
-  const gNyxrot=tutCreateCard('tut_boss');
-  State.player.activeCard=gMudshell; State.player.activeCard2=gNyxa;
-  State.enemy.activeCard=gVorrax; State.enemy.activeCard2=gNyxrot;
-  Tutorial.setCounts(2,2,2,2);
+  // Only Mudshell ever sits on the player's own side here: everything you
+  // actually own and play with in this tutorial is a Normal card. Pests and
+  // Boss are shown as enemy-only, "here's what's coming" examples. Overlord
+  // isn't shown as a card at all, just described.
+  const gMudshell=tutCreateCard('clay_effigy');
+  const gKongra=tutCreateCard('golden_boy_of_apes');
+  const gEcliptic=tutCreateCard('astral_warden');
+  State.player.activeCard=gMudshell;
+  State.enemy.activeCard=gKongra; State.enemy.activeCard2=gEcliptic;
+  Tutorial.setCounts(1,1,2,2);
   updateUI();
   await Tutorial.say(["Step back a moment. Every creature you'll face has a Type, and a Classification."]);
-  await Tutorial.say(["Mudshell is a Mob, common muscle. And a normal card besides: the lowest, most disposable class in the Arena."],{highlight:'#player-active-slot'});
-  await Tutorial.say(["Nyxa is a wizard. He doesn't out-muscle anything, he out-thinks it."],{highlight:'#player-active-slot-2'});
-  await Tutorial.say(["That is mom. A Wizard, and a PESTS card. A real step up from anything you've fought so far."],{highlight:'#enemy-active-slot'});
-  await Tutorial.say(["And that... is Nyxrot. A powerful Dragon, and a BOSS card. and the second highest class there is. The highlight of most decks."],{highlight:'#enemy-active-slot-2'});
-  await Tutorial.say(["And... there are OVERLORDs. The strongest card type out there. Only three exist as of now, and we couldnt even get out hands on one."]);
+  await Tutorial.say(["Mudshell is a Mob, common muscle. And a normal card besides: the lowest, most disposable class in the Arena. Everything you've got in hand so far is built the same way."],{highlight:'#player-active-slot'});
+  await Tutorial.say(["Kongra is a wizard. He doesn't out-muscle anything, he out-thinks it. And a PESTS card: a real step up from anything you've fought so far."],{highlight:'#enemy-active-slot'});
+  await Tutorial.say(["That's Ecliptic. A powerful Dragon, and a BOSS card, the second highest class there is. The highlight of most decks."],{highlight:'#enemy-active-slot-2'});
+  await Tutorial.say(["Above even that, there are OVERLORDs. The strongest card type out there. Only three exist as of now, and none of us have gotten our hands on one, so you won't find one sitting on this board."]);
   await Tutorial.say(["Type is HOW a creature fights. Class is how DANGEROUS it is. Remember both."]);
 }
 
 async function tutStepFinale(){
   Tutorial.setStep(9,'The Combo');
   tutClearBoard();
-  const mobA=tutCreateCard('tut_mob_a');
-  const wiz=tutCreateCard('tut_wizard');
-  const wpn=tutCreateCard('tut_weapon');
+  const mobA=tutCreateCard('clay_effigy');
+  const wiz=tutCreateCard('lantern_bearer');
+  const wpn=tutCreateCard('cannon');
   tutSetHand([mobA,wiz,wpn]);
-  State.enemy.activeCard=tutCreateCard('tut_dragon');
+  State.enemy.activeCard=tutCreateCard('astral_warden');
   Tutorial.setCounts(2,2,1,1);
   updateUI();
   showHandTray();
+  // keep in sync: Slam(100) - Cosmic Scales(70 flat) = 30
   await Tutorial.say([
-    "Last lesson. Vorrax again, and this time he isn't posing.",
-    "Look at your hand. Mudshell could hit him for fifty-five right now. Tempting, isn't it.",
-    "But you've learned better tricks than brute force. Deploy Nyxa instead.",
+    "Last lesson. Ecliptic again, and this time he isn't posing.",
+    "Look at your hand. Mudshell could hit him for thirty right now, Cosmic Scales eat the rest. Hardly worth the trip.",
+    "You've learned better tricks than brute force. Deploy Pellix instead.",
   ]);
   Tutorial._guard=o=>!(o.type==='deploy'&&o.instanceId===mobA.instanceId);
-  Tutorial._guardNudge=()=>Tutorial.nudge('Not Mudshell, not yet. Deploy Nyxa.');
-  await Tutorial.prompt("Inspect Nyxa, then deploy her.",{highlight:'#hand-tray-inner .card'});
+  Tutorial._guardNudge=()=>Tutorial.nudge('Not Mudshell, not yet. Deploy Pellix.');
+  await Tutorial.prompt("Inspect Pellix, then deploy her.",{highlight:'#hand-tray-inner .card'});
   await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===wiz.instanceId);
   Tutorial._guard=null;Tutorial._guardNudge=null;
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["She's in position, but her hex doesn't just happen the moment she lands. You call on it, same as an attack."]);
-  await Tutorial.prompt("Inspect Nyxa, then use Cinderborn Hex on Vorrax.",{highlight:'#player-active-slot'});
+  await Tutorial.say(["She's in position, but an ability doesn't just happen the moment a card lands. You call on it yourself, same as an attack."]);
+  // She took a knock getting here, purely to give Lantern Glow something real to heal.
+  wiz.currentHp=60;
+  updateUI();
+  await Tutorial.say(["Pellix took a knock on the way in. Good thing Lantern Glow can patch that right back up."]);
+  await Tutorial.prompt("Inspect Pellix, then use Lantern Glow on herself.",{highlight:'#player-active-slot'});
   await Tutorial.waitAction(o=>o.type==='use_ability');
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["Her hex catches, Vorrax is Burning. Ten damage a turn, base. Now, make it worse."]);
-  await Tutorial.prompt("Inspect the Cinderfang Blade, then equip it.",{highlight:'#hand-tray-inner .card'});
+  // keep in sync: lantern_bearer.topEffect.heal.amount(90): 60+90 caps at maxHp 150
+  await Tutorial.say(["Back to full. Not every ability hits the enemy, some just keep your own side standing. Either way, you call on it, you don't wait for it."]);
+  await Tutorial.prompt("Inspect the Cannon, then equip it.",{highlight:'#hand-tray-inner .card'});
   await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===wpn.instanceId);
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["This blade doesn't just cut deeper, any Burn YOU cause now scorches for twenty-five more, every turn, for as long as it's equipped."]);
-  await Tutorial.prompt("Inspect Nyxa, then attack with Flame Lash, relight that fire.",{highlight:'#player-active-slot'});
+  await Tutorial.say(["You've used this one before. Plus sixty damage, five attacks before it breaks, and any Burn you cause while it's on hits ten harder, every turn."]);
+  await Tutorial.prompt("Inspect Pellix, then attack with Wick Spark, set him alight.",{highlight:'#player-active-slot'});
   await Tutorial.waitAction(o=>o.type==='attack');
   if(Tutorial._cancelled)return;
   Tutorial.clearHighlight();
-  await Tutorial.say(["Direct hit, and the Burn catches the amplification. Ten a turn just became thirty-five."]);
+  // keep in sync: Wick Spark(85)+Cannon(60)=145, -70 Cosmic Scales = 75 direct;
+  // burn tick 10 base + 10 Cannon amp = 20/turn
+  await Tutorial.say(["Direct hit, seventy-five through those scales, and he's Burning: ten a turn, base, plus ten more from the Cannon. Twenty a turn, for two turns."]);
   await Tutorial.prompt("End your turn, let it feed.",{actionLabel:'End Turn \u25b8',actionFn:()=>GameNet.send({type:'end_turn'})});
   await Tutorial.waitAction(o=>o.type==='end_turn');
   if(Tutorial._cancelled)return;
@@ -13837,9 +14637,10 @@ async function tutStepFinale(){
   if(Tutorial._cancelled)return;
   Tutorial.setAction(null);
   const vHp=State.enemy.activeCard?State.enemy.activeCard.currentHp:0;
+  // keep in sync: astral_warden.hp(900); Mudshell-alone comparison: 900-30=870
   await Tutorial.say([
-    `Look at him. From one hundred forty down to ${vHp}, and he's STILL burning.`,
-    "Mudshell's one big swing would have left him standing at eighty-five. Fire and steel, working together, very nearly finished him, and you've only attacked once.",
+    `Look at him. From nine hundred down to ${vHp}, and he was STILL burning a moment ago.`,
+    "Mudshell's one big swing would have only brought him to eight-hundred seventy. Fire and steel, working together, did nearly four times the work, and you've only attacked once.",
     "Cards aren't strong alone in this Arena. They're strong together. That's the whole game.",
   ]);
 }
