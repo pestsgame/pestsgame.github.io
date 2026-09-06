@@ -1876,25 +1876,139 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 #tourney-create-overlay.open{display:flex;}
 #tourney-create-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
 
-/* ── login / sign-up modal ── */
+/* ── login / sign-up modal ──
+   Deliberately its OWN theme rather than reusing .profile-modal: this is
+   the gate into the arena, styled after the start-screen's portal/rune
+   motif (rotating sigil, chasing border light, drifting embers) instead
+   of the flat settings-panel look every other modal shares. */
 .auth-overlay{
   display:none;position:fixed;inset:0;z-index:1400;
   align-items:center;justify-content:center;
   background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
 }
 .auth-overlay.open{display:flex;}
-.auth-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
-.auth-tabs{display:flex;gap:8px;margin-bottom:4px;}
-.auth-tab{
-  flex:1;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12);color:var(--txt-dim);font-family:'Cinzel',serif;
-  font-weight:700;font-size:.72rem;letter-spacing:.03em;cursor:pointer;
+
+.auth-modal{
+  position:relative;width:min(400px,92vw);max-height:90vh;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:rgba(139,92,246,.35) transparent;
+  border-radius:20px;background:radial-gradient(ellipse 120% 90% at 50% -10%,rgba(109,40,217,.16),transparent 60%),#0a0a16;
+  box-shadow:0 30px 90px rgba(0,0,0,.65),0 0 60px rgba(109,40,217,.18);
+  clip-path:circle(0% at 50% 38%);opacity:0;transform:scale(.92);
+  transition:clip-path .6s cubic-bezier(.4,0,.2,1),opacity .35s ease,transform .6s cubic-bezier(.34,1.4,.64,1);
 }
-.auth-tab.active{background:rgba(124,58,237,.18);border-color:#7c3aed;color:#fff;}
+.auth-modal.in{clip-path:circle(150% at 50% 38%);opacity:1;transform:scale(1);}
+.auth-modal.auth-shake{animation:authShake .4s ease;}
+@keyframes authShake{
+  0%,100%{transform:translateX(0);}
+  20%{transform:translateX(-8px);}40%{transform:translateX(7px);}
+  60%{transform:translateX(-5px);}80%{transform:translateX(3px);}
+}
+/* chasing light rim: a rotating conic gradient sitting a hair outside the
+   modal's own opaque background, so only a thin glowing ring shows through */
+.auth-modal::before{
+  content:'';position:absolute;inset:-1.5px;border-radius:21px;z-index:0;
+  background:conic-gradient(from 0deg,transparent 0%,rgba(196,181,253,.95) 6%,transparent 16%,transparent 55%,rgba(124,58,237,.9) 68%,transparent 80%);
+  animation:authBorderSpin 6s linear infinite;
+}
+.auth-modal::after{
+  content:'';position:absolute;inset:1px;border-radius:19px;z-index:1;background:inherit;background-color:#0a0a16;
+}
+@keyframes authBorderSpin{to{transform:rotate(360deg);}}
+.auth-modal-inner{position:relative;z-index:2;padding:30px 26px 24px;display:flex;flex-direction:column;gap:16px;}
+
+.auth-close-x{
+  position:absolute;top:14px;right:14px;z-index:5;width:28px;height:28px;border-radius:50%;
+  background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.2);color:#fff;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;
+  transition:background .15s,transform .15s;
+}
+.auth-close-x:hover{background:rgba(0,0,0,.55);transform:rotate(90deg);}
+
+/* embers drifting up inside the modal, same family as the start-screen
+   sparks, so the gate reads as part of the same magic rather than a
+   generic settings box dropped on top of it */
+.auth-embers{position:absolute;inset:0;z-index:2;overflow:hidden;border-radius:20px;pointer-events:none;}
+.auth-embers span{
+  position:absolute;bottom:-10px;width:3px;height:3px;border-radius:50%;
+  background:#c4b5fd;box-shadow:0 0 6px 2px rgba(167,139,250,.8);
+  opacity:0;animation-name:authEmberFloat;animation-timing-function:ease-in;animation-iteration-count:infinite;
+}
+@keyframes authEmberFloat{
+  0%{transform:translateY(0) scale(.6);opacity:0;}
+  12%{opacity:.9;}
+  85%{opacity:.25;}
+  100%{transform:translateY(-320px) scale(1.15);opacity:0;}
+}
+
+.auth-sigil{width:60px;height:60px;margin:0 auto;position:relative;flex-shrink:0;}
+.auth-sigil-ring{position:absolute;inset:0;border-radius:50%;border:1.5px dashed rgba(167,139,250,.55);}
+.auth-sigil-ring-1{animation:authSigilSpin 10s linear infinite;}
+.auth-sigil-ring-2{inset:9px;border:1px solid rgba(196,181,253,.4);animation:authSigilSpin 7s linear infinite reverse;}
+@keyframes authSigilSpin{to{transform:rotate(360deg);}}
+.auth-sigil-core{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.35rem;
+  color:#e9d5ff;text-shadow:0 0 14px rgba(167,139,250,.95),0 0 30px rgba(124,58,237,.7);
+  animation:authSigilPulse 2.4s ease-in-out infinite;
+}
+@keyframes authSigilPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.14);}}
+
+.auth-modal-title{
+  font-family:'Cinzel',serif;font-weight:900;font-size:1.3rem;text-align:center;letter-spacing:.05em;
+  text-transform:uppercase;background:linear-gradient(170deg,#fff 0%,#c4b5fd 45%,#7c3aed 90%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 18px rgba(139,92,246,.55));
+}
+.auth-modal-sub{font-size:.7rem;color:rgba(196,181,253,.65);text-align:center;letter-spacing:.02em;margin-top:-10px;}
+
+.auth-tabs{position:relative;display:flex;gap:0;padding:4px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);}
+.auth-tab-slider{
+  position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:8px;z-index:0;
+  background:linear-gradient(135deg,#3c1a7a,#7c3aed);box-shadow:0 2px 12px rgba(124,58,237,.5);
+  transition:transform .32s cubic-bezier(.4,0,.2,1);
+}
+.auth-tabs.mode-signup .auth-tab-slider{transform:translateX(100%);}
+.auth-tab{
+  position:relative;z-index:1;flex:1;padding:9px 10px;border-radius:8px;background:transparent;
+  border:none;color:var(--txt-dim);font-family:'Cinzel',serif;
+  font-weight:700;font-size:.72rem;letter-spacing:.03em;cursor:pointer;transition:color .2s;
+}
+.auth-tab.active{color:#fff;}
+
+.auth-fields{display:flex;flex-direction:column;}
+.auth-field{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .38s cubic-bezier(.4,0,.2,1),opacity .3s ease,margin-bottom .38s cubic-bezier(.4,0,.2,1);}
+.auth-field:not(:last-child){margin-bottom:16px;}
+.auth-field-inner{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:8px;}
+.auth-field.auth-field-collapsed{grid-template-rows:0fr;opacity:0;margin-bottom:0;}
+.auth-input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(139,92,246,.15);}
 .auth-error{
   background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:#fca5a5;
   border-radius:8px;padding:8px 12px;font-size:.68rem;line-height:1.5;
 }
+
+.auth-modal-actions{display:flex;flex-direction:column;gap:10px;padding-top:4px;}
+.auth-submit-btn{
+  width:100%;font-family:'Cinzel',serif;font-size:.82rem;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:#e9d5ff;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(60,10,100,.85),rgba(109,40,217,.75));
+  border:1px solid rgba(139,92,246,.7);border-radius:8px;padding:13px 20px;cursor:pointer;
+  transition:transform .18s,border-color .2s,box-shadow .2s;
+  box-shadow:0 0 26px rgba(109,40,217,.35),inset 0 1px 0 rgba(255,255,255,.07);
+}
+.auth-submit-btn::before{
+  content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.22) 40%,transparent 60%);
+  transform:translateX(-100%);
+}
+.auth-submit-btn:hover::before{transform:translateX(100%);transition:transform .7s ease;}
+.auth-submit-btn:hover{transform:translateY(-2px);border-color:rgba(196,181,253,.95);box-shadow:0 0 42px rgba(139,92,246,.55),0 8px 22px rgba(0,0,0,.5);}
+.auth-submit-btn:active{transform:scale(.97);}
+.auth-submit-btn:disabled{cursor:default;}
+.auth-submit-btn.busy{color:transparent;}
+.auth-submit-btn.busy::after{
+  content:'';position:absolute;top:50%;left:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
+  border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;
+  animation:authSpin .7s linear infinite;
+}
+@keyframes authSpin{to{transform:rotate(360deg);}}
 
 .tourney-field-row{display:flex;gap:12px;}
 .tourney-field-row>div{flex:1;min-width:0;}
@@ -3065,33 +3179,56 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
      login credential only, never shown to other players - that's the
      separate, freely-editable "display name" in profile settings. -->
 <div id="auth-overlay" class="auth-overlay" onclick="if(event.target===this)closeAuthOverlay();">
-  <div class="profile-modal" onclick="event.stopPropagation()">
-    <div class="profile-modal-top">
-      <div class="profile-modal-hero banner-violet">
-        <div class="close-x" onclick="closeAuthOverlay()">✕</div>
-      </div>
+  <div class="auth-modal" id="auth-modal" onclick="event.stopPropagation()">
+    <div class="auth-embers" aria-hidden="true">
+      <span style="left:8%;animation-delay:0s;animation-duration:5.5s;"></span>
+      <span style="left:22%;animation-delay:1.1s;animation-duration:6.5s;"></span>
+      <span style="left:38%;animation-delay:.4s;animation-duration:5s;"></span>
+      <span style="left:55%;animation-delay:2s;animation-duration:7s;"></span>
+      <span style="left:68%;animation-delay:.8s;animation-duration:5.8s;"></span>
+      <span style="left:82%;animation-delay:1.6s;animation-duration:6.2s;"></span>
+      <span style="left:92%;animation-delay:.2s;animation-duration:5.2s;"></span>
     </div>
-    <div class="profile-modal-body">
-      <div class="auth-tabs">
+    <div class="auth-close-x" onclick="closeAuthOverlay()">✕</div>
+    <div class="auth-modal-inner">
+      <div class="auth-sigil">
+        <div class="auth-sigil-ring auth-sigil-ring-1"></div>
+        <div class="auth-sigil-ring auth-sigil-ring-2"></div>
+        <div class="auth-sigil-core" id="auth-sigil-core">✦</div>
+      </div>
+      <div class="auth-modal-title">Enter the Arena</div>
+      <div class="auth-modal-sub">Sign in to save your progress across battles</div>
+
+      <div class="auth-tabs" id="auth-tabs-wrap">
+        <div class="auth-tab-slider"></div>
         <button type="button" class="auth-tab active" id="auth-tab-login" onclick="setAuthMode('login')">Log In</button>
         <button type="button" class="auth-tab" id="auth-tab-signup" onclick="setAuthMode('signup')">Sign Up</button>
       </div>
-      <div id="auth-signup-displayname-row" style="display:none;">
-        <label class="pf-field-label">Display Name <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">shown to other players, optional</span></label>
-        <input type="text" id="auth-displayname-input" class="pf-name-input" maxlength="24" placeholder="Leave blank for a random one" autocomplete="nickname" onkeydown="handleAuthFormKeydown(event)">
-      </div>
-      <div>
-        <label class="pf-field-label">Username <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">private, for logging in only</span></label>
-        <input type="text" id="auth-username-input" class="pf-name-input" maxlength="20" placeholder="lowercase letters, numbers, underscores" autocomplete="username" onkeydown="handleAuthFormKeydown(event)">
-      </div>
-      <div>
-        <label class="pf-field-label">Password</label>
-        <input type="password" id="auth-password-input" class="pf-name-input" maxlength="72" placeholder="At least 8 characters" autocomplete="current-password" onkeydown="handleAuthFormKeydown(event)">
+
+      <div class="auth-fields">
+        <div id="auth-signup-displayname-row" class="auth-field auth-field-collapsed">
+          <div class="auth-field-inner">
+            <label class="pf-field-label">Display Name <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">shown to other players, optional</span></label>
+            <input type="text" id="auth-displayname-input" class="pf-name-input auth-input" maxlength="24" placeholder="Leave blank for a random one" autocomplete="nickname" onkeydown="handleAuthFormKeydown(event)">
+          </div>
+        </div>
+        <div class="auth-field">
+          <div class="auth-field-inner">
+            <label class="pf-field-label">Username <span style="opacity:.55;font-weight:500;text-transform:none;letter-spacing:0;">private, for logging in only</span></label>
+            <input type="text" id="auth-username-input" class="pf-name-input auth-input" maxlength="20" placeholder="lowercase letters, numbers, underscores" autocomplete="username" onkeydown="handleAuthFormKeydown(event)">
+          </div>
+        </div>
+        <div class="auth-field">
+          <div class="auth-field-inner">
+            <label class="pf-field-label">Password</label>
+            <input type="password" id="auth-password-input" class="pf-name-input auth-input" maxlength="72" placeholder="At least 8 characters" autocomplete="current-password" onkeydown="handleAuthFormKeydown(event)">
+          </div>
+        </div>
       </div>
       <div id="auth-error" class="auth-error" style="display:none;"></div>
-      <div class="profile-modal-actions">
+      <div class="auth-modal-actions">
         <button class="pf-btn pf-btn-cancel" id="auth-guest-btn" style="display:none;" onclick="continueAsGuestDev()">Continue without an account</button>
-        <button class="pf-btn pf-btn-save" id="auth-submit-btn" onclick="submitAuthForm()">Log In</button>
+        <button class="auth-submit-btn" id="auth-submit-btn" onclick="submitAuthForm()">Log In</button>
       </div>
     </div>
   </div>
@@ -8625,7 +8762,6 @@ function switchMenuTab(tab){
 }
 
 function enterArena(){
-  window._stopRuneEngine&&window._stopRuneEngine();
   requireAuthThen(()=>{
     // First time anyone's opened the arena on this browser: get them oriented
     // with the tutorial instead of dropping them straight into an empty menu.
@@ -8637,11 +8773,13 @@ function enterArena(){
     if(!aopHasSeenTutorial()){
       ensureCardLibrary();
       Net.connect();
+      window._stopRuneEngine&&window._stopRuneEngine();
       document.getElementById('start-screen').style.display='none';
       startTutorial();
       return;
     }
     beginServerWait(()=>{
+      window._stopRuneEngine&&window._stopRuneEngine();
       document.getElementById('start-screen').style.display='none';
       showMenu();
     });
@@ -11732,27 +11870,43 @@ async function requireAuthThen(cb){
   _afterAuthSuccess = cb;
   openAuthOverlay();
 }
+let _authCloseTimer=null;
 function openAuthOverlay(){
+  clearTimeout(_authCloseTimer);
   document.getElementById('auth-guest-btn').style.display = window._authAccountsUnavailable ? '' : 'none';
-  document.getElementById('auth-overlay').classList.add('open');
+  const overlay=document.getElementById('auth-overlay');
+  const modal=document.getElementById('auth-modal');
+  overlay.classList.add('open');
+  modal.classList.remove('in');
+  void modal.offsetWidth; // force layout so the browser paints the closed state before animating in
+  requestAnimationFrame(()=>{ requestAnimationFrame(()=>modal.classList.add('in')); });
   setAuthMode('login');
   setTimeout(()=>{ const el=document.getElementById('auth-username-input'); if(el) el.focus(); }, 50);
 }
 function closeAuthOverlay(){
-  document.getElementById('auth-overlay').classList.remove('open');
+  const overlay=document.getElementById('auth-overlay');
+  const modal=document.getElementById('auth-modal');
+  modal.classList.remove('in');
+  clearTimeout(_authCloseTimer);
+  _authCloseTimer=setTimeout(()=>overlay.classList.remove('open'), 450);
 }
 function setAuthMode(mode){
   Auth.mode = mode;
   document.getElementById('auth-tab-login').classList.toggle('active', mode==='login');
   document.getElementById('auth-tab-signup').classList.toggle('active', mode==='signup');
-  document.getElementById('auth-signup-displayname-row').style.display = mode==='signup' ? '' : 'none';
+  document.getElementById('auth-tabs-wrap').classList.toggle('mode-signup', mode==='signup');
+  document.getElementById('auth-signup-displayname-row').classList.toggle('auth-field-collapsed', mode!=='signup');
   document.getElementById('auth-submit-btn').textContent = mode==='signup' ? 'Create Account' : 'Log In';
   document.getElementById('auth-password-input').autocomplete = mode==='signup' ? 'new-password' : 'current-password';
+  const sigil=document.getElementById('auth-sigil-core');
+  if(sigil) sigil.textContent = mode==='signup' ? '✧' : '✦';
   hideAuthError();
 }
 function showAuthError(text){
   const el=document.getElementById('auth-error');
   el.textContent=text; el.style.display='';
+  const modal=document.getElementById('auth-modal');
+  if(modal){ modal.classList.remove('auth-shake'); void modal.offsetWidth; modal.classList.add('auth-shake'); }
 }
 function hideAuthError(){ document.getElementById('auth-error').style.display='none'; }
 const AUTH_ERROR_MESSAGES = {
@@ -11772,8 +11926,8 @@ async function submitAuthForm(){
   const displayName=(document.getElementById('auth-displayname-input').value||'').trim();
   if(!username || !password){ showAuthError('Enter a username and password.'); return; }
   Auth.busy=true;
-  const btn=document.getElementById('auth-submit-btn'); const oldText=btn.textContent;
-  btn.textContent='…'; btn.disabled=true;
+  const btn=document.getElementById('auth-submit-btn');
+  btn.classList.add('busy'); btn.disabled=true;
   try{
     const { status, data } = Auth.mode==='signup' ? await Auth.signup(username, password, displayName) : await Auth.login(username, password);
     if(status===200 && data && data.accessToken){
@@ -11795,7 +11949,7 @@ async function submitAuthForm(){
   }catch(e){
     showAuthError('Could not reach the server, please try again.');
   }finally{
-    Auth.busy=false; btn.textContent=oldText; btn.disabled=false;
+    Auth.busy=false; btn.classList.remove('busy'); btn.disabled=false;
   }
 }
 /** Dev-mode-only escape hatch, offered solely after the server tells us
