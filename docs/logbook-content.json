@@ -6,8 +6,10 @@
       "icon": "swap",
       "sub": "Field control",
       "paragraphs": [
-        "Placeholder, explain how swapping an active card in/out of a slot works, any cooldowns or turn costs, and how effects like Rocks interact with swapping.",
-        "Placeholder, cover the two-slot layout and any rules around swapping into an empty vs. occupied slot."
+        "Swapping is the main feature in Arena of PESTS's gameplay.",
+        "The board consists of two creature slots. During any point during your turn, you can swap out any card that hasn't acted yet. This is relevant because of two things.",
+        "Rocks. The effect that deals 50 damage to the affected card when you swap it in or out.",
+        "Effects. Every effect has a turn based duration. However, effects only actually deal their effect when the affected creature is present on the board. If the creature is simple in your hand, the effect's turn timer burns out, but the effect's damage does not carry out."
       ]
     },
     {
@@ -16,7 +18,12 @@
       "icon": "tiers",
       "sub": "Normal · Pests · Boss · Overlord",
       "paragraphs": [
-        "Placeholder, define Normal, PESTS, BOSS, and OVERLORD classifications, what makes a creature count as each, and how deck-building rules (at most one Boss/Overlord, Overlord decks going solo) work."
+        "Card classifications are labels that tell you the overall power level of the card.",
+        "There are four classifications in Arena of PESTS:",
+        "Normal - The basic classification. The most common, but the most essential classification.",
+        "PESTS - The \"Elite\" classification. Rarer than Normal, yet still abundant.",
+        "BOSS - The second strongest classification. You can only have one BOSS card in your deck.",
+        "OVERLORD - The classification of cards that belongs to the epitome of strength. You can only have one OVERLORD card in your deck, and if you have an OVERLORD, you are NOT permitted to bring any BOSS or PESTS cards."
       ]
     },
     {
@@ -25,7 +32,9 @@
       "icon": "cardStructure",
       "sub": "HP · Ability/Passive · Attack",
       "paragraphs": [
-        "Placeholder, break down a creature card's anatomy: HP pool, the top slot (ability or passive), the bottom attack, and how types/elements factor in."
+        "There are two card types in Arena of PESTS. Creature cards, and Equipment cards.",
+        "Creature cards typically have an HP value, an Ability, Passive, or Attack in their top slot, and an Attack in their bottom slot.",
+        "Equipment cards have a durability value, a flat bonus value, and some have an effect amplification modifier, or an effect dampening modifier."
       ]
     },
     {
@@ -34,7 +43,10 @@
       "icon": "creature",
       "sub": "Mobs · Dragons · Wizards",
       "paragraphs": [
-        "Placeholder, explain the creature card types (mob/dragon/wizard), how they differ mechanically (if at all) and thematically."
+        "Creature cards consist of 3 types. Mob cards, Dragon cards, and Wizard cards. Mechanically, they do not differ, the only difference is the common archetype of cards between types.",
+        "The HP value on creature cards determines how much total damage they can take before dying.",
+        "The top slot can contain an Ability, Passive, or an Attack. Abilities function the same as attacks, as they use up that card's turn when you use it. Abilites can cast large status effect debuffs, revive fallen cards, or heal allies or yourself. Passives can block a flat amount of damage from incoming attacks, or deduct a percentage of incoming attacks. They can also provide complete immunity to certain effects if specified. But be careful, as some attack elements can bypass the damage reduction. There are also Revive Passives, which prevent death on the specified conditions. And sometimes, the top slot can offer an alternate attack, which functions the same as a traditional attack.",
+        "The bottom slot contains an Attack. Attacks usually deal damage and can apply a status effect to the attacked creature. Every attack has an element, and if you use the right element of attack on the right creature, you can bypass a creature's defense completely. Some attacks can heal your own allies instead of dealing damage."
       ]
     },
     {
@@ -43,7 +55,10 @@
       "icon": "duel",
       "sub": "Weapons & Defenses",
       "paragraphs": [
-        "Placeholder, explain weapon/defense cards: flat bonus, durability, amp/damp effect customization, and how they're equipped."
+        "Equipment cards consist of 2 types. Weapon cards, and Defense cards. Unlike Creature cards, Weapon cards and Defense cards do differ mechanically.",
+        "Both Weapon and Defense cards have a durability value. For Weapon cards, this determines how many outgoing attacks it can modify. for Defense cards, it determines how many incoming attacks it can modify.",
+        "Weapon cards can modify outgoing attacks by increasing the damage dealt by a flat amount. For a multi-attack, the flat increase is spread across the multiple attacks. Some Weapon cards can amplify certain status effects when that Weapon is deployed. Some Weapon cards can also add a status effect to every attack.",
+        "Defense cards can modify incoming attacks by decreasing the damage taken by a flat amount. For a multi-attack, the flat reduction is spread across the multiple attacks. Some Defense cards can dampen certain status effects what that Defense is deployed."
       ]
     },
     {
@@ -53,6 +68,16 @@
       "sub": "Packs · Trading",
       "paragraphs": [
         "Placeholder, explain gold vs. gems, the different pack tiers and their odds, and how the player-to-player market/trading works."
+      ]
+    },
+    {
+      "id": "vestige",
+      "label": "Vestige & Salvage",
+      "icon": "vestige",
+      "sub": "Break cards down for Vestige",
+      "paragraphs": [
+        "Placeholder, explain the salvage system: unlocking it at Iron rank, turning an owned card into Vestige based on its rarity, and that salvaging is permanent and one-way.",
+        "Placeholder, cover which packs can be bought with Vestige instead of gold/gems, and that Vestige never bypasses a pack's normal rank lock."
       ]
     },
     {
@@ -97,7 +122,19 @@
       "icon": "statusEffect",
       "sub": "Detailed overview",
       "paragraphs": [
-        "Placeholder, go through every status effect (bleed, poison, burn, cryo, shock, soak, sleep, paralyze, confusion, curse, rocks, etc.) in detail: what each does, base values, and how amp/damp gear customization affects them."
+        "Status effects are effects like Bleed or Burn that apply a modifier to your creature, that usually takes place on your turn. The effects work as follows:",
+        "Bleed: deal 10 damage each turn",
+        "Poison: deal 25 damage each turn",
+        "Strong poison: deal 50 damage each turn",
+        "Mythic poison: deal 75 damage each turn",
+        "Curse: attacks deal 25% damage of the attack damage to themselves",
+        "Confusion: enemy attacks have a 12.5% chance to miss.",
+        "Sleep and Paralyze: 12.5% skip enemy turn",
+        "Burn: deal 10 damage each turn and attacks deal 25% less damage",
+        "Shock: attacks have a 12.5% chance to miss and deal 25 damage",
+        "Soak: enemy attacks deal 25% less damage and have a 12.5% to miss",
+        "Cryo: 12.5% chance to skip enemy turn and deal 10 damage",
+        "Rocks: deal 50 damage when opponents switch or swap into battle"
       ]
     }
   ],
@@ -107,7 +144,7 @@
     "icon": "playTab",
     "sub": "The Simga's Tutorial",
     "paragraphs": [
-      "Placeholder, a short description of what the tutorial covers goes here."
+      "Replay the tutorial if you skipped it, or if you just want to play it again."
     ]
   }
 }
