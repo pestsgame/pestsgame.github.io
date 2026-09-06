@@ -1882,6 +1882,8 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
   align-items:center;justify-content:center;
   background:rgba(4,4,12,.88);backdrop-filter:blur(7px);
 }
+.auth-overlay.open{display:flex;}
+.auth-overlay.open .profile-modal{transform:scale(1) translateY(0);opacity:1;}
 .auth-tabs{display:flex;gap:8px;margin-bottom:4px;}
 .auth-tab{
   flex:1;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,.04);
@@ -11186,15 +11188,18 @@ function ensureCardLibrary(){
 
 /** Single source of truth for "can we actually talk to the server right now",
  * used by every loading screen so they all agree on what "ready" means.
- * Requires _playerLoaded + Player.guestId in addition to the network/auth
- * checks, so Enter Arena (and Find Match, and pack purchases) can never let
- * the player through before a real, stable id has been established. */
-function serverIsReady(){ return _playerLoaded && !!Player.guestId && !!CardLibraryHash && Net.connected && Net.authed; }
+ * Requires _playerLoaded + a local identity (either a real account's
+ * Player.session, or the dev-mode-only Player.guestId - see Auth/
+ * requireAuthThen) in addition to the network/auth checks, so Enter Arena
+ * (and Find Match, and pack purchases) can never let the player through
+ * before a real, stable id has been established. */
+function hasLocalIdentity(){ return !!(Player.session && Player.session.accessToken) || !!Player.guestId; }
+function serverIsReady(){ return _playerLoaded && hasLocalIdentity() && !!CardLibraryHash && Net.connected && Net.authed; }
 function serverWaitStatusText(){
   if(!_playerLoaded) return 'Loading your profile…';
   if(!CardLibraryHash) return 'Loading the card library…';
   if(!Net.connected) return 'Could not reach the arena server, retrying…';
-  if(!Net.authed || !Player.guestId) return 'Connected, waiting on the server…';
+  if(!Net.authed || !hasLocalIdentity()) return 'Connected, waiting on the server…';
   return 'Ready!';
 }
 
@@ -11715,12 +11720,12 @@ async function requireAuthThen(cb){
 }
 function openAuthOverlay(){
   document.getElementById('auth-guest-btn').style.display = window._authAccountsUnavailable ? '' : 'none';
-  document.getElementById('auth-overlay').style.display='flex';
+  document.getElementById('auth-overlay').classList.add('open');
   setAuthMode('login');
   setTimeout(()=>{ const el=document.getElementById('auth-username-input'); if(el) el.focus(); }, 50);
 }
 function closeAuthOverlay(){
-  document.getElementById('auth-overlay').style.display='none';
+  document.getElementById('auth-overlay').classList.remove('open');
 }
 function setAuthMode(mode){
   Auth.mode = mode;
@@ -14038,18 +14043,20 @@ function friendshipStatusFor(userId){
 }
 
 function ensureChatIdentity(){
-  // Reuses the same stable guestId the arena WS server uses for reconnects,
-  // so a player's chat identity and match identity line up. Generated once
-  // and persisted, same as Connection.connect() does.
-  // Guarded by _playerLoaded for the same reason Net.authenticate() is: this
-  // must never mint a new id before loadPlayer() has had a chance to restore
-  // the real one from localStorage, or it will overwrite it.
-  if(!Player.guestId && _playerLoaded){
+  // Reuses the same stable id the arena WS server knows this player as, so a
+  // player's chat identity and match identity always line up. For a real
+  // account that's Net.userId (the Supabase user id the server confirmed in
+  // auth_ok) - Player.guestId only still applies in dev mode with no
+  // Supabase configured at all (see Auth/requireAuthThen). Guarded by
+  // _playerLoaded for the same reason Net.authenticate() is: this must
+  // never mint a new guestId before loadPlayer() has had a chance to
+  // restore the real one from localStorage, or it will overwrite it.
+  if(!Net.userId && !Player.guestId && _playerLoaded){
     Player.guestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('g-'+Date.now()+'-'+Math.random().toString(16).slice(2));
     savePlayer();
   }
   return {
-    id: Player.guestId,
+    id: Net.userId || Player.guestId,
     name: (Player.name||'Pestmaster').slice(0,40),
     icon: Player.icon||'star',
     banner: Player.banner||'violet',
