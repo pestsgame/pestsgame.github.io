@@ -5273,11 +5273,18 @@ function inspectCard(index){
     let btns='';
     if(!s1){
       btns+=`<button class="inspect-btn inspect-btn-deploy" onclick="deployFromInspect('slot1')">→ Deploy Slot 1</button>`;
+    } else if(State.actedThisTurn.has('slot1')){
+      // Already attacked (or otherwise acted) this turn - locked in for the rest of it,
+      // see handleDeploy's actedThisTurn check server-side. Shown disabled with a reason
+      // rather than just omitted, so it's clear this is a rule, not a missing feature.
+      btns+=`<button class="inspect-btn inspect-btn-swap" disabled style="opacity:.45;cursor:not-allowed;">↔ Swap Slot 1 <span style="opacity:.6;font-size:.55rem">already acted</span></button>`;
     } else {
       btns+=`<button class="inspect-btn inspect-btn-swap" onclick="deployFromInspect('slot1')">↔ Swap Slot 1 <span style="opacity:.6;font-size:.55rem">${s1.name}</span></button>`;
     }
     if(!s2){
       btns+=`<button class="inspect-btn inspect-btn-deploy" onclick="deployFromInspect('slot2')">→ Deploy Slot 2</button>`;
+    } else if(State.actedThisTurn.has('slot2')){
+      btns+=`<button class="inspect-btn inspect-btn-swap" disabled style="opacity:.45;cursor:not-allowed;">↔ Swap Slot 2 <span style="opacity:.6;font-size:.55rem">already acted</span></button>`;
     } else {
       btns+=`<button class="inspect-btn inspect-btn-swap" onclick="deployFromInspect('slot2')">↔ Swap Slot 2 <span style="opacity:.6;font-size:.55rem">${s2.name}</span></button>`;
     }
@@ -6030,8 +6037,14 @@ const Player = {
   session: null, // { accessToken, refreshToken, expiresAt } from /auth/login|signup|refresh - the account's actual identity
   wins: 0,
   losses: 0,
-  gold: 500,
-  gems: 25,
+  // These are placeholder values only, overwritten the moment a real profile
+  // arrives from the server (see applyServerProfile) - a brand-new account
+  // actually starts at 0/0 server-side (see supabase-schema.sql), the only
+  // free currency it ever gets is the one-time 75-gem tutorial bonus. Kept
+  // at 0/0 here too, not some other placeholder number, so there's nothing
+  // misleading to flash on screen in the gap before that first sync lands.
+  gold: 0,
+  gems: 0,
   vestige: 0, // salvage-system currency, see the Salvage tab; server-authoritative like gold/gems
   icon: 'star',
   banner: 'violet',
@@ -7282,12 +7295,13 @@ function editProfileFromView(){
  * is simpler and just as fast, and enterArena()'s requireAuthThen() will
  * immediately prompt for login again since Player.session is now gone. */
 function logoutFromProfileView(){
-  if(!confirm('Log out of this account? You\'ll need your username and password to log back in.')) return;
-  Auth.logout();
-  try{ localStorage.removeItem('aop_player_authSkipped'); }catch(e){}
-  window._authSkipped=false;
-  try{ if(Net.ws) Net.ws.close(); }catch(e){}
-  location.reload();
+  showGConfirm('Log Out?', "You'll need your username and password to log back in.", 'Log Out', ()=>{
+    Auth.logout();
+    try{ localStorage.removeItem('aop_player_authSkipped'); }catch(e){}
+    window._authSkipped=false;
+    try{ if(Net.ws) Net.ws.close(); }catch(e){}
+    location.reload();
+  });
 }
 
 let _profileLoadingTimeout=null;
@@ -12596,6 +12610,8 @@ const GameNet={
           // real docs/chat-images/image.json - it needs every id the
           // client catalog has, not just the two placeholder entries.
           showToast("⚠ That image isn't in the official catalog, message blocked.", 3600);
+        } else if(msg.reason==='card_already_acted'){
+          showToast("⚠ That card already acted this turn, it can't be swapped out.", 3600);
         }
         break;
     }
@@ -14616,6 +14632,11 @@ const TutEngine=(()=>{
       // Both slots full: this mirrors the real server, which swaps into whichever
       // slot the client asked for via `slot` ('slot1' by default if unspecified).
       const swapSlot=slot==='slot2'?'slot2':'slot1';
+      // Mirrors handleDeploy's actedThisTurn check server-side: a card that already
+      // acted this turn can't be swapped out. The player-facing Swap button is already
+      // disabled for this case (see inspectCard), so this is really just keeping this
+      // local copy honest with the real rule, not something reachable through the UI.
+      if(side===0 && State.actedThisTurn.has(swapSlot)) return null;
       const activeKey=swapSlot==='slot2'?'activeCard2':'activeCard';
       events.push({ t:'deploy', side, slotType:swapSlot, card, swapped:true });
       const outgoingSurvived=applyRocksOnSwap(side,swapSlot,events);
@@ -15276,11 +15297,18 @@ function startTutorial(){
 }
 
 /* ── PATCHES: route game actions through the tutorial engine while active,
-   without touching a single line of the real multiplayer code paths ── */
-const _tutOrigNetSend=Net.send.bind(Net);
-Net.send=function(obj){
+   without touching a single line of the real multiplayer code paths ──
+   Every real battle action (deploy/attack/use_ability/end_turn) is sent via
+   GameNet.send (the in-match socket) - Net.send is the LOBBY socket, used
+   for menus/chat/matchmaking, never battle actions. Patching Net.send here
+   used to be a no-op during the tutorial's actual gameplay: it just meant
+   every deploy/attack/end_turn click during the tutorial fell through to
+   GameNet.send's own idle no-op (no real match, so no ws to send on),
+   silently doing nothing. */
+const _tutOrigGameNetSend=GameNet.send.bind(GameNet);
+GameNet.send=function(obj){
   if(Tutorial.active){ Tutorial.handleIntent(obj); return; }
-  return _tutOrigNetSend(obj);
+  return _tutOrigGameNetSend(obj);
 };
 
 const _tutOrigInspectCard=inspectCard;
