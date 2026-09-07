@@ -7,9 +7,9 @@
       "sub": "Field control",
       "paragraphs": [
         "Swapping is the main feature in Arena of PESTS's gameplay.",
-        "The board consists of two creature slots. During any point during your turn, you can swap out any card that hasn't acted yet. This is relevant because of two things.",
+        "The board consists of two creature slots. At any point during your turn, you can swap out any card that hasn't acted yet. This is relevant because of two things.",
         "Rocks. The effect that deals 50 damage to the affected card when you swap it in or out.",
-        "Effects. Every effect has a turn based duration. However, effects only actually deal their effect when the affected creature is present on the board. If the creature is simple in your hand, the effect's turn timer burns out, but the effect's damage does not carry out."
+        "Effects. Every effect has a turn based duration. However, effects only actually deal their effect when the affected creature is present on the board. If the creature is simply in your hand, the effect's turn timer burns out, but the effect's damage does not occur."
       ]
     },
     {
@@ -18,12 +18,12 @@
       "icon": "tiers",
       "sub": "Normal · Pests · Boss · Overlord",
       "paragraphs": [
-        "Card classifications are labels that tell you the overall power level of the card.",
+        "Card classifications are labels that indicate the overall power level of the card.",
         "There are four classifications in Arena of PESTS:",
         "Normal - The basic classification. The most common, but the most essential classification.",
         "PESTS - The \"Elite\" classification. Rarer than Normal, yet still abundant.",
         "BOSS - The second strongest classification. You can only have one BOSS card in your deck.",
-        "OVERLORD - The classification of cards that belongs to the epitome of strength. You can only have one OVERLORD card in your deck, and if you have an OVERLORD, you are NOT permitted to bring any BOSS or PESTS cards."
+        "OVERLORD - The classification of cards that represents the pinnacle of strength. You can only have one OVERLORD card in your deck, and if you have an OVERLORD, you are NOT permitted to bring any BOSS or PESTS cards."
       ]
     },
     {
@@ -32,7 +32,7 @@
       "icon": "cardStructure",
       "sub": "HP · Ability/Passive · Attack",
       "paragraphs": [
-        "There are two card types in Arena of PESTS. Creature cards, and Equipment cards.",
+        "There are two card types in Arena of PESTS. Creature cards and Equipment cards.",
         "Creature cards typically have an HP value, an Ability, Passive, or Attack in their top slot, and an Attack in their bottom slot.",
         "Equipment cards have a durability value, a flat bonus value, and some have an effect amplification modifier, or an effect dampening modifier."
       ]
@@ -43,9 +43,9 @@
       "icon": "creature",
       "sub": "Mobs · Dragons · Wizards",
       "paragraphs": [
-        "Creature cards consist of 3 types. Mob cards, Dragon cards, and Wizard cards. Mechanically, they do not differ, the only difference is the common archetype of cards between types.",
+        "Creature cards consist of three types. Mob cards, Dragon cards, and Wizard cards. Mechanically, they do not differ. The only difference is the common archetype of cards between types.",
         "The HP value on creature cards determines how much total damage they can take before dying.",
-        "The top slot can contain an Ability, Passive, or an Attack. Abilities function the same as attacks, as they use up that card's turn when you use it. Abilites can cast large status effect debuffs, revive fallen cards, or heal allies or yourself. Passives can block a flat amount of damage from incoming attacks, or deduct a percentage of incoming attacks. They can also provide complete immunity to certain effects if specified. But be careful, as some attack elements can bypass the damage reduction. There are also Revive Passives, which prevent death on the specified conditions. And sometimes, the top slot can offer an alternate attack, which functions the same as a traditional attack.",
+        "The top slot can contain an Ability, Passive, or an Attack. Abilities function the same as attacks, as they use up that card's turn when you use it. Abilities can cast large status effect debuffs, revive fallen cards, or heal allies or yourself. Passives can block a flat amount of damage from incoming attacks, or deduct a percentage of incoming attacks. They can also provide complete immunity to certain effects if specified. But be careful, as some attack elements can bypass the damage reduction. There are also Revive Passives, which prevent death on the specified conditions. And sometimes, the top slot can offer an alternate attack, which functions the same as a traditional attack.",
         "The bottom slot contains an Attack. Attacks usually deal damage and can apply a status effect to the attacked creature. Every attack has an element, and if you use the right element of attack on the right creature, you can bypass a creature's defense completely. Some attacks can heal your own allies instead of dealing damage."
       ]
     },
@@ -55,10 +55,10 @@
       "icon": "duel",
       "sub": "Weapons & Defenses",
       "paragraphs": [
-        "Equipment cards consist of 2 types. Weapon cards, and Defense cards. Unlike Creature cards, Weapon cards and Defense cards do differ mechanically.",
-        "Both Weapon and Defense cards have a durability value. For Weapon cards, this determines how many outgoing attacks it can modify. for Defense cards, it determines how many incoming attacks it can modify.",
+        "Equipment cards consist of 2 types. Weapon cards and Defense cards. Unlike Creature cards, Weapon cards and Defense cards do differ mechanically.",
+        "Both Weapon and Defense cards have a durability value. For Weapon cards, this determines how many outgoing attacks it can modify. For Defense cards, it determines how many incoming attacks it can modify.",
         "Weapon cards can modify outgoing attacks by increasing the damage dealt by a flat amount. For a multi-attack, the flat increase is spread across the multiple attacks. Some Weapon cards can amplify certain status effects when that Weapon is deployed. Some Weapon cards can also add a status effect to every attack.",
-        "Defense cards can modify incoming attacks by decreasing the damage taken by a flat amount. For a multi-attack, the flat reduction is spread across the multiple attacks. Some Defense cards can dampen certain status effects what that Defense is deployed."
+        "Defense cards can modify incoming attacks by decreasing the damage taken by a flat amount. For a multi-attack, the flat reduction is spread across the multiple attacks. Some Defense cards can dampen certain status effects when that Defense is deployed."
       ]
     },
     {
@@ -67,7 +67,10 @@
       "icon": "shopTab",
       "sub": "Packs · Trading",
       "paragraphs": [
-        "Placeholder, explain gold vs. gems, the different pack tiers and their odds, and how the player-to-player market/trading works."
+        "The shop is a place where you can purchase packs to get new cards. There are many packs, ranging from Copper Bundle to Mythos Collection.",
+        "Different packs have different rates determining what rarity of card you get, what kind of card you get, and the minimum/maximum rarity available in that pack. Higher level packs are only available when you hit a certain rank.",
+        "The Bazaar, or the Marketplace, is a place for you to buy, sell, or auction off your cards to other players. you can sell them for Gold or Gems.",
+        "Trading is something you can do with another player. You can exchange Gold, Gems, and cards."
       ]
     },
     {
@@ -76,8 +79,8 @@
       "icon": "vestige",
       "sub": "Break cards down for Vestige",
       "paragraphs": [
-        "Placeholder, explain the salvage system: unlocking it at Iron rank, turning an owned card into Vestige based on its rarity, and that salvaging is permanent and one-way.",
-        "Placeholder, cover which packs can be bought with Vestige instead of gold/gems, and that Vestige never bypasses a pack's normal rank lock."
+        "Salvaging is when you destroy your owned cards in exchange for Vestige, which can be used to buy certain packs.",
+        "Higher-rarity cards give you more Vestige, and better packs cost more Vestige."
       ]
     },
     {
@@ -86,7 +89,7 @@
       "icon": "tourneyTab",
       "sub": "Competitive play",
       "paragraphs": [
-        "Placeholder, explain how tournaments are structured, entry requirements, brackets, and rewards."
+        "Tournaments are events you can participate in that can offer large rewards if you win."
       ]
     },
     {
@@ -95,7 +98,10 @@
       "icon": "guildTab",
       "sub": "Social features",
       "paragraphs": [
-        "Placeholder, explain guilds (joining, chat, roles) and the friends list/social features."
+        "Guilds are a way to band with other players to get perks. Purchases in the Bazaar typically has a 10% tax. If you are buying from a guildmate, the tax is reduced to 5%.",
+        "You can charge an entry fee as a guild leader to profit from potential members.",
+        "Friends are a way to keep in touch with other players. It provides an easy way to Duel or Trade with other players.",
+        "There are many chats: A global chat, which everyone can see; a guild chat where only your guildmates can see; and a battle chat for matches, where you can communicate with your opponent."
       ]
     },
     {
@@ -104,7 +110,8 @@
       "icon": "flag",
       "sub": "How a match ends",
       "paragraphs": [
-        "Placeholder, explain total creature destruction as the win condition, and any draw scenarios."
+        "The win condition in Arena of PESTS is very simple. Kill every one of your opponent's creature cards.",
+        "There are very few ways for a match to result in a draw, one of them being if your last creature dies to the Curse status effect at the same time you kill your opponent's last creature."
       ]
     },
     {
@@ -113,7 +120,12 @@
       "icon": "revive",
       "sub": "The Revive Queue",
       "paragraphs": [
-        "Placeholder, explain the Revive Queue: classification-based costs/charges, oldest-to-newest processing, and the \"no partial progress\" rule for expensive revives."
+        "Arena of PESTS has a very thorough revive system.",
+        "Every card costs a certain amount of revive charges to come back from the dead, and every card grants a certain amount of revive charges to the killer on death.",
+        "Normal cards cost one revive charge and grant none. PESTS cards cost one revive charge and grant one. BOSS and OVERLORD cards cost two revive charges and grant two.",
+        "The order of revivals is determined by which death is the oldest at the time. For example, if Card A dies first, and then Card B dies, if you get a revive charge, Card A will revive.",
+        "Cards that cost two revival charges follow a very particular rule. They do not partially progress. Meaning, they require two charges at once to revive. If you only get one revive charge, the two-charge costing creature is skipped, and the next one-charge costing creature gets revived. The only exception to this rule is when the two-charge creature is the only creature in the revive queue. In that case, the charges can build up to meet the cost. Revive charges do not save if there are no cards in the revive queue.",
+        "Other ways to revive exist, like Passive revives, that have a condition to revive on death, and Revive Abilities, which can consume that creature's turn in exchange for a singular revival of any Normal or PESTS creature. Revive Abilities cannot be used two turns in a row."
       ]
     },
     {
@@ -122,17 +134,17 @@
       "icon": "statusEffect",
       "sub": "Detailed overview",
       "paragraphs": [
-        "Status effects are effects like Bleed or Burn that apply a modifier to your creature, that usually takes place on your turn. The effects work as follows:",
+        "Status effects are effects like Bleed or Burn that apply a modifier to your creature and usually takes place on your turn. The effects work as follows:",
         "Bleed: deal 10 damage each turn",
         "Poison: deal 25 damage each turn",
         "Strong poison: deal 50 damage each turn",
         "Mythic poison: deal 75 damage each turn",
-        "Curse: attacks deal 25% damage of the attack damage to themselves",
+        "Curse: attacks deal 25% damage of the damage to the attacker",
         "Confusion: enemy attacks have a 12.5% chance to miss.",
-        "Sleep and Paralyze: 12.5% skip enemy turn",
+        "Sleep and Paralyze: 12.5% chance to skip the enemy's turn",
         "Burn: deal 10 damage each turn and attacks deal 25% less damage",
         "Shock: attacks have a 12.5% chance to miss and deal 25 damage",
-        "Soak: enemy attacks deal 25% less damage and have a 12.5% to miss",
+        "Soak: enemy attacks deal 25% less damage and have a 12.5% chance to miss",
         "Cryo: 12.5% chance to skip enemy turn and deal 10 damage",
         "Rocks: deal 50 damage when opponents switch or swap into battle"
       ]
@@ -144,7 +156,7 @@
     "icon": "playTab",
     "sub": "The Simga's Tutorial",
     "paragraphs": [
-      "Replay the tutorial if you skipped it, or if you just want to play it again."
+      "Replay the tutorial if you skipped it, or if you just want to play it again. The tutorial covers things like how the game works, how to operate cards, and what a match feels like."
     ]
   }
 }
