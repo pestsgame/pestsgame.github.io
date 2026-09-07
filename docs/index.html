@@ -15261,6 +15261,20 @@ const Tutorial={
       if(this._guardNudge) this._guardNudge(obj);
       return;
     }
+    // Stop the spotlight ring's per-frame getBoundingClientRect() loop the
+    // instant the expected action is recognized, rather than leaving it
+    // running until `finish` resolves below. `finish` is deliberately held
+    // back until the whole deploy/swap/attack animation has actually
+    // finished playing (see each TutEngine function's own comment on why),
+    // which used to mean the ring kept forcing a synchronous layout every
+    // single rAF tick for the full ~300-900ms the animation was mid-flight
+    // - fighting the CSS transition for the main thread and making
+    // otherwise-smooth deploy/swap animations stutter, something real
+    // matches never suffer since they never run this highlight loop at
+    // all. The action itself is already fully determined by `obj` (none of
+    // the matchFns above look at the second `result` arg), so it's safe to
+    // clear the ring here, well before the animation-complete callback.
+    if(this._expect&&this._expect.matchFn(obj)) this.clearHighlight();
     // `finish` is passed to TutEngine as its onDone callback rather than
     // being called on TutEngine's own (synchronous) return value: an
     // action with something to animate only calls it once that animation
@@ -15320,6 +15334,17 @@ const Tutorial={
     // finishing every step, just reaching this exit (early-quit included), the
     // server is the one that actually dedupes this to "once ever per account".
     Net.sendWhenReady({type:'tutorial_bonus'});
+    // tutorial_bonus's own server reply (whatever shape it takes) was never
+    // wired into a case here in Net.handle's switch, so the credited gems
+    // never actually reached Player.gems/the topbar - same "display gap"
+    // handleMatchRewardTimeout already works around elsewhere by just
+    // asking for a fresh, known-handled 'profile' push instead of trying to
+    // special-case every possible reward reply. sendWhenReady preserves
+    // ordering (queued sends flush in order on auth_ok, and an already-
+    // authed socket just sends both immediately, one after the other on
+    // the same connection), so this always lands after the server's
+    // grant has actually been applied, not racing it.
+    Net.sendWhenReady({type:'get_profile'});
     showMenu();
   },
 };
@@ -15550,6 +15575,16 @@ async function tutStepFinale(){
   Tutorial.clearHighlight();
   // keep in sync: lantern_bearer.topEffect.heal.amount(90): 60+90 caps at maxHp 150
   await Tutorial.say(["Back to full. Not every ability hits the enemy, some just keep your own side standing. Either way, you call on it, you don't wait for it."]);
+  // useAbility() above marked slot1 as acted this turn (same one-action-
+  // per-slot-per-turn rule the real server enforces - see handleDeploy's
+  // already_acted check), which would leave the inspect overlay's Attack
+  // button disabled (see canActNow, gated on !actedThisTurn.has(slot)) for
+  // the "attack with Wick Spark" step coming up, making it unrecoverable
+  // the same way tutStepSwap's Mudshell issue was. A real new turn is what
+  // clears this in an actual match; simulate that turn boundary here too,
+  // rather than making the player click through a scripted "end turn"
+  // that teaches nothing new.
+  State.actedThisTurn.delete('slot1');
   await Tutorial.prompt("Inspect the Cannon, then equip it.",{highlight:'#hand-tray-inner .card'});
   await Tutorial.waitAction(o=>o.type==='deploy'&&o.instanceId===wpn.instanceId);
   if(Tutorial._cancelled)return;
