@@ -4042,6 +4042,10 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
     <div id="mp-queue-title" style="font-size:1.4rem;font-weight:900;letter-spacing:.08em;color:#a78bfa;">✦ FINDING OPPONENT ✦</div>
     <div style="width:46px;height:46px;border:4px solid rgba(167,139,250,.25);border-top-color:#a78bfa;border-radius:50%;animation:mp-spin 1s linear infinite;"></div>
     <div style="font-size:.75rem;color:#94a3b8;letter-spacing:.05em;">Hang tight, matching you with another Pestmaster…</div>
+    <div style="display:flex;gap:22px;font-size:.8rem;color:#c4b5fd;letter-spacing:.04em;font-family:inherit;">
+      <div>Elapsed: <span id="mp-queue-elapsed">0:00</span></div>
+      <div>Est. wait: <span id="mp-queue-estimate">…</span></div>
+    </div>
     <button class="bbtn bbtn-restart" style="padding:10px 26px;font-size:.85rem;" onclick="cancelMatchmaking()">Cancel</button>
   </div>
 </div>
@@ -5496,6 +5500,29 @@ function inspectBoardCard(side,slot){
 }
 
 function closeInspect(){
+  if(Tutorial.active && State.turn!=='PLAYER'){
+    // The tutorial's Card Anatomy narration (tutStepDeployAndAnatomy)
+    // deliberately keeps this overlay open across several locked say()
+    // calls that highlight parts of it (see the lock()/unlock() split in
+    // Tutorial.say/prompt) - State.turn is 'ENEMY' the whole time on
+    // purpose. But nothing was stopping the backdrop click or the
+    // overlay's own Cancel button from closing it anyway mid-narration,
+    // and inspectCard() itself refuses to reopen anything while
+    // State.turn isn't 'PLAYER' (see its own guard above) - so an
+    // accidental close here left the player looking at a highlight ring
+    // pointing at nothing, with no visible way back in until every
+    // remaining line was tapped through and the turn unlocked on its
+    // own. Blocking the close here instead, with the same nudge
+    // handleIntent's turn-check already uses for the same "narration is
+    // pinning something open on purpose" situation, keeps the overlay
+    // (and whatever it's currently highlighting) right where the script
+    // expects it. Never affects anything outside the tutorial, or any
+    // tutorial moment where the board is actually unlocked (Tutorial.
+    // prompt's own inspect-and-act steps, e.g. tutStepSwap, are
+    // unaffected since State.turn is 'PLAYER' there).
+    Tutorial.nudge("Hold that thought, let's finish this bit first.");
+    return;
+  }
   _inspectIndex=-1;
   clearPendingAction(); // abort any not-yet-fully-armed action (e.g. Cancel out of a revive's graveyard picker)
   const ov=document.getElementById('inspect-overlay');
@@ -11347,10 +11374,19 @@ function ensureCardLibrary(){
  * before a real, stable id has been established. */
 function hasLocalIdentity(){ return !!(Player.session && Player.session.accessToken) || !!Player.guestId; }
 function serverIsReady(){ return _playerLoaded && hasLocalIdentity() && !!CardLibraryHash && Net.connected && Net.authed; }
-function serverWaitStatusText(){
+/** `elapsedMs` is how long beginServerWait() has been polling. Once it's
+ * been long enough that a cold Render boot is the likely explanation
+ * (rather than an ordinary sub-second connect), the "retrying…" message
+ * upgrades to an explicit wake-up estimate with a running seconds count,
+ * same reasoning as authWaitStatusText() above. */
+function serverWaitStatusText(elapsedMs=0){
   if(!_playerLoaded) return 'Loading your profile…';
   if(!CardLibraryHash) return 'Loading the card library…';
-  if(!Net.connected) return 'Could not reach the arena server, retrying…';
+  if(!Net.connected){
+    const secs=Math.round((elapsedMs||0)/1000);
+    if(secs<8) return 'Could not reach the arena server, retrying…';
+    return `Waking up the arena server — this can take up to a minute (${secs}s so far)…`;
+  }
   if(!Net.authed || !hasLocalIdentity()) return 'Connected, waiting on the server…';
   return 'Ready!';
 }
@@ -11817,8 +11853,20 @@ const Auth = {
   },
   /** Returns true once Player.session holds an access token good for at
    * least a few more seconds, refreshing first if it's stale/near expiry.
-   * False (and Player.session cleared) if there's no session, or the
-   * refresh token itself no longer works (revoked/expired). */
+   * False if there's no session to refresh, or the server just isn't
+   * reachable right now. Player.session is only ever CLEARED when the
+   * main server explicitly says the refresh token itself is no good
+   * (401/403, see handleAuthRefresh's invalid_session case) — a 429
+   * (rate-limited at Render/Cloudflare's edge), a 502/503/504 (the main
+   * server is a free-tier instance still cold-booting from sleep, which
+   * this project's own wake-ping comments note can take 30-60+ seconds),
+   * or any network/timeout error are all just "don't know yet, ask
+   * again shortly", not "this account is logged out." Treating those the
+   * same as an actual invalid token was exactly the "asks you to log in
+   * even though you're already logged in" bug: the very first refresh
+   * attempt right after the main server wakes from idle is the one most
+   * likely to hit a transient status like this, and wiping a perfectly
+   * good session at that exact moment guaranteed the login prompt. */
   async ensureFreshSession(){
     if(this.sessionLooksValid()) return true;
     const s = Player.session;
@@ -11828,12 +11876,15 @@ const Auth = {
         method:'POST', headers:{'content-type':'application/json'},
         body: JSON.stringify({ refreshToken: s.refreshToken }),
       });
-      if(!res.ok){ Player.session=null; savePlayer(); return false; }
+      if(!res.ok){
+        if(res.status===401 || res.status===403){ Player.session=null; savePlayer(); }
+        return false;
+      }
       const data = await res.json();
       Player.session = { accessToken:data.accessToken, refreshToken:data.refreshToken, expiresAt:data.expiresAt };
       savePlayer();
       return true;
-    }catch(e){ return false; }
+    }catch(e){ return false; } // network error/timeout: also transient, leave the session alone
   },
   async _request(path, body){
     const res = await fetch(resolveArenaHttpUrl()+path, {
@@ -11866,9 +11917,52 @@ const Auth = {
 let _afterAuthSuccess = null;
 async function requireAuthThen(cb){
   if(window._authSkipped){ cb(); return; }
-  if(await Auth.ensureFreshSession()){ cb(); return; }
+  if(await ensureFreshSessionWithRetries()){ cb(); return; }
   _afterAuthSuccess = cb;
   openAuthOverlay();
+}
+
+/** Retries ensureFreshSession() with backoff instead of giving up on the
+ * first failure. The main server is a free-tier instance that spins down
+ * after idle and can take 30-60+ seconds to wake back up on the next
+ * request (see game-registry.js's wake-ping comments) — the very first
+ * refresh attempt right after it's been asleep is EXPECTED to fail with a
+ * transient status (429 from the edge, 502/503/504 while it boots) or a
+ * timeout, not a sign the session itself is bad. ensureFreshSession only
+ * clears Player.session when the server explicitly rejects the refresh
+ * token (401/403), so that's the one case this bails out of immediately
+ * with no retries — no amount of waiting fixes an actually-invalid
+ * session. Shows the same connecting overlay used elsewhere, with a
+ * running estimate, so a real cold start reads as "hang on, waking the
+ * server up" instead of silently sitting there before eventually dumping
+ * the player onto a login screen they never should have needed. */
+async function ensureFreshSessionWithRetries(){
+  const RETRY_DELAYS_MS=[1000,2000,4000,8000,15000,15000]; // ~45s total, in line with a cold Render boot
+  if(await Auth.ensureFreshSession()) return true;
+  if(!Player.session || !Player.session.refreshToken) return false;
+  const startedAt=Date.now();
+  showConnectingOverlay(authWaitStatusText(0));
+  try{
+    for(let i=0;i<RETRY_DELAYS_MS.length;i++){
+      await new Promise(r=>setTimeout(r,RETRY_DELAYS_MS[i]));
+      showConnectingOverlay(authWaitStatusText(Date.now()-startedAt));
+      if(await Auth.ensureFreshSession()) return true;
+      if(!Player.session || !Player.session.refreshToken) return false;
+    }
+    return false;
+  } finally {
+    hideConnectingOverlay();
+  }
+}
+/** `elapsedMs` since we started waiting on a session refresh. Ramps from a
+ * plain "reconnecting" message up to an explicit "waking up the server,
+ * this can take up to a minute" estimate once it's been long enough that
+ * a cold boot is the likely explanation, with a running seconds counter
+ * so it reads as active progress rather than a stuck screen. */
+function authWaitStatusText(elapsedMs){
+  const secs=Math.round(elapsedMs/1000);
+  if(secs<8) return 'Reconnecting to your account…';
+  return `Waking up the arena server — this can take up to a minute (${secs}s so far)…`;
 }
 let _authCloseTimer=null;
 function openAuthOverlay(){
@@ -12125,6 +12219,19 @@ const Net={
         showToast('✦ Password updated!');
         break;
       case 'queue_status': this.inQueue=msg.inQueue; break;
+      // Server-authoritative ETA for the current queue wait - see
+      // sendQueueEstimate/scheduleQueueEstimate server-side for what this
+      // number actually is (never the true bot-fallback delay, never a
+      // hint one exists at all) and for why it arrives on an irregular,
+      // server-chosen schedule rather than a fixed client-polled interval.
+      // Displayed as-is, verbatim, until the next one of these replaces
+      // it - no client-side ticking/extrapolation of our own between
+      // updates, the client's only job here is to show whatever number
+      // it's handed.
+      case 'queue_estimate':
+        _queueEstimateMs=msg.estimatedRemainingMs;
+        updateQueueTimerDisplay();
+        break;
       // A fresh match, OR (msg.resumed===true) this same lobby socket just
       // reconnected while a match of ours was still live - either way,
       // beginMultiplayerMatch() opens/reopens GameNet with whatever ticket
@@ -13146,7 +13253,7 @@ function beginServerWait(onReady){
   const MIN_MS=450;
   ensureCardLibrary();
   Net.connect();
-  showConnectingOverlay(serverWaitStatusText());
+  showConnectingOverlay(serverWaitStatusText(0));
   clearInterval(_connectingInterval);
   _connectingInterval=setInterval(()=>{
     if(serverIsReady() && Date.now()-startedAt>=MIN_MS){
@@ -13154,9 +13261,30 @@ function beginServerWait(onReady){
       onReady();
       return;
     }
-    showConnectingOverlay(serverWaitStatusText());
+    showConnectingOverlay(serverWaitStatusText(Date.now()-startedAt));
     if(!Net.connected) Net.connect();
   },200);
+}
+
+let _queueEstimateMs=null; // last estimatedRemainingMs the server sent us, verbatim, or null before the first one arrives
+let _queueJoinedAt=null;
+let _queueTimerInterval=null;
+
+/** Renders the elapsed/estimate line inside the queue overlay. Elapsed is
+ * purely local (just wall-clock time since we sent queue_join, nothing
+ * server-side to it) and ticks every 250ms via _queueTimerInterval below.
+ * The estimate is NOT ticked or extrapolated locally at all - it's
+ * whatever _queueEstimateMs currently holds, updated only when a fresh
+ * queue_estimate message overwrites it (see the WS handler), on a timing
+ * entirely of the server's choosing. Shows "…" until the first estimate
+ * has actually arrived rather than guessing at one locally. */
+function updateQueueTimerDisplay(){
+  const elapsedEl=document.getElementById('mp-queue-elapsed');
+  const estEl=document.getElementById('mp-queue-estimate');
+  if(!elapsedEl||!estEl||_queueJoinedAt==null)return;
+  const fmt=ms=>{ const s=Math.max(0,Math.round(ms/1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+  elapsedEl.textContent=fmt(Date.now()-_queueJoinedAt);
+  estEl.textContent=_queueEstimateMs!=null?fmt(_queueEstimateMs):'…';
 }
 
 function showQueueOverlay(){
@@ -13166,11 +13294,20 @@ function showQueueOverlay(){
   el.style.display='flex';
   playLoadingEnterTransition(el);
   LoadingRunes.start('mp-queue-runes');
+  _queueEstimateMs=null;
+  _queueJoinedAt=Date.now();
+  updateQueueTimerDisplay();
+  clearInterval(_queueTimerInterval);
+  _queueTimerInterval=setInterval(updateQueueTimerDisplay,250); // just re-paints elapsed; the estimate only changes when the server sends a new one
 }
 function hideQueueOverlay(){
   const el=document.getElementById('mp-queue-overlay');
   el.style.display='none';
   LoadingRunes.stop('mp-queue-runes');
+  clearInterval(_queueTimerInterval);
+  _queueTimerInterval=null;
+  _queueEstimateMs=null;
+  _queueJoinedAt=null;
 }
 
 function startMultiplayerGame(){
@@ -14697,17 +14834,17 @@ const TutEngine=(()=>{
    * key for heal(ally)/effects abilities, or a graveyard instanceId for a
    * revive; which one it needs is entirely determined by the card's own
    * topEffect, exactly like the server. */
-  function useAbility(side,slotKey,target){
+  function useAbility(side,slotKey,target,onDone){
     const entity=entityOf(side);
     const card=slotKey==='slot1'?entity.activeCard:entity.activeCard2;
-    if(!card)return null;
+    if(!card){ if(onDone)onDone(null); return null; }
     const te=card.topEffect;
-    if(!te||te.type!=='ability')return null;
+    if(!te||te.type!=='ability'){ if(onDone)onDone(null); return null; }
     const events=[];
     if(te.revive){
       const dead=(entity.graveyard||[]).find(c=>c.instanceId===target);
-      if(!dead)return null;
-      if(dead.classification==='boss'||dead.classification==='overlord')return null;
+      if(!dead){ if(onDone)onDone(null); return null; }
+      if(dead.classification==='boss'||dead.classification==='overlord'){ if(onDone)onDone(null); return null; }
       entity.graveyard=entity.graveyard.filter(c=>c!==dead);
       dead.currentHp=Math.max(1,Math.round(dead.maxHp*(te.revive.healPercent!=null?te.revive.healPercent:0.5)));
       dead.activeEffects=[];
@@ -14726,7 +14863,7 @@ const TutEngine=(()=>{
           events.push({ t:'heal', side, card:card.instanceId, targetCard:null, amount, target:'side' });
         } else if(h.target==='ally'){
           const allyCard=target==='slot2'?entity.activeCard2:entity.activeCard;
-          if(!allyCard)return null;
+          if(!allyCard){ if(onDone)onDone(null); return null; }
           const before=allyCard.currentHp;
           allyCard.currentHp=Math.min(allyCard.maxHp,allyCard.currentHp+amount);
           events.push({ t:'heal', side, card:card.instanceId, targetCard:allyCard.instanceId, amount:allyCard.currentHp-before, target:allyCard===card?'self':'ally' });
@@ -14739,15 +14876,32 @@ const TutEngine=(()=>{
       if(te.effects&&te.effects.length){
         const oppSide=side===0?1:0, opp=entityOf(oppSide);
         const targetCard=target==='slot2'?opp.activeCard2:opp.activeCard;
-        if(!targetCard)return null;
+        if(!targetCard){ if(onDone)onDone(null); return null; }
         te.effects.forEach(eff=>applyEffectToCard(targetCard,eff,null));
         events.push({ t:'ability', card:card.instanceId, target:targetCard.instanceId });
       }
     }
     State.actedThisTurn.add(slotKey);
-    playServerEvents(events);
-    updateUI();
-    return { events };
+    const result={ events };
+    // playServerEvents' second arg is the "do this once the animation has
+    // actually played" callback. Calling updateUI() as a bare follow-up
+    // statement instead (as this used to) fires the full authoritative
+    // re-render one JS tick ahead of the animation's own setTimeout-
+    // scheduled playback (see _scheduleAnim), stomping the DOM before
+    // there's anything on screen to see - real matches never make this
+    // mistake (see finalize() passed into playServerEvents for the 'state'
+    // message handler). But that alone isn't enough in here: `onDone` is
+    // what lets Tutorial.handleIntent hold off resolving the current
+    // waitAction() until the animation has actually played, rather than
+    // the instant this function returns - the next tutorial line
+    // (typically a say()/prompt()/setCounts() call, all of which force
+    // their own immediate updateUI()) resumes as a microtask, which JS
+    // always runs before the next setTimeout tick fires regardless of
+    // delay, so without this an animation would still get raced and
+    // stomped by whatever narration comes right after it, even though
+    // updateUI() itself is no longer called too early in isolation.
+    playServerEvents(events, ()=>{ updateUI(); if(onDone) onDone(result); });
+    return result;
   }
 
   function applyRocksOnSwap(side,slotKey,events){
@@ -14762,10 +14916,10 @@ const TutEngine=(()=>{
     return true;
   }
 
-  function deploy(side,instanceId,slot){
+  function deploy(side,instanceId,slot,onDone){
     const entity=entityOf(side);
     const idx=entity.hand.findIndex(c=>c.instanceId===instanceId);
-    if(idx===-1)return null;
+    if(idx===-1){ if(onDone)onDone(null); return null; }
     const card=entity.hand[idx];
     const events=[];
     if(card.cardType==='weapon'){
@@ -14790,7 +14944,7 @@ const TutEngine=(()=>{
       // acted this turn can't be swapped out. The player-facing Swap button is already
       // disabled for this case (see inspectCard), so this is really just keeping this
       // local copy honest with the real rule, not something reachable through the UI.
-      if(side===0 && State.actedThisTurn.has(swapSlot)) return null;
+      if(side===0 && State.actedThisTurn.has(swapSlot)){ if(onDone)onDone(null); return null; }
       const activeKey=swapSlot==='slot2'?'activeCard2':'activeCard';
       events.push({ t:'deploy', side, slotType:swapSlot, card, swapped:true });
       const outgoingSurvived=applyRocksOnSwap(side,swapSlot,events);
@@ -14799,9 +14953,10 @@ const TutEngine=(()=>{
       if(outgoingSurvived&&old) entity.hand.push(old);
       applyRocksOnSwap(side,swapSlot,events);
     }
-    playServerEvents(events);
-    updateUI();
-    return { events };
+    const result={ events };
+    // see useAbility's comment above on the onDone/timing reasoning
+    playServerEvents(events, ()=>{ updateUI(); if(onDone) onDone(result); });
+    return result;
   }
 
   function effectiveDmg(afflictedSide,ed,type,baseDmg){
@@ -14818,10 +14973,10 @@ const TutEngine=(()=>{
     return Math.max(0,dmg);
   }
 
-  function attack(side,slot,targetSlot,atkIndex){
+  function attack(side,slot,targetSlot,atkIndex,onDone){
     const atkEntity=entityOf(side), oppSide=side===0?1:0, defEntity=entityOf(oppSide);
     const ac=slot==='slot1'?atkEntity.activeCard:atkEntity.activeCard2;
-    if(!ac)return null;
+    if(!ac){ if(onDone)onDone(null); return null; }
     const src=atkIndex===0?ac.topEffect:ac.bottomAttack;
     const atkDef={ name:src.name, damage:(src.value!=null?src.value:src.damage), effects:src.effects||[], element:src.element };
     const targetCard=targetSlot==='slot1'?defEntity.activeCard:defEntity.activeCard2;
@@ -14836,8 +14991,9 @@ const TutEngine=(()=>{
     }
     if(!targetCard){
       events.push({ t:'hit', atkSide:side, atkSlot:slot, atkCard:ac.instanceId, defSide:oppSide, defSlot:null, tgtCard:null, direct:true, dmg:0, name:atkDef.name, element:atkDef.element });
-      playServerEvents(events); updateUI();
-      return { events, dmg:0, died:false };
+      const result={ events, dmg:0, died:false };
+      playServerEvents(events, ()=>{ updateUI(); if(onDone) onDone(result); }); // see useAbility's comment above
+      return result;
     }
     let dReduce=0,defenseRef=null;
     if(defEntity.defenseCard){
@@ -14865,9 +15021,9 @@ const TutEngine=(()=>{
     if(targetCard.currentHp<=0) died=killCard(oppSide,tgtSlotKey,events);
 
     if(side===0){ State.actedThisTurn.add(slot); }
-    playServerEvents(events);
-    updateUI();
-    return { events, dmg, died };
+    const result={ events, dmg, died };
+    playServerEvents(events, ()=>{ updateUI(); if(onDone) onDone(result); }); // see useAbility's comment above
+    return result;
   }
 
   function processTurnStart(side){
@@ -14896,22 +15052,34 @@ const TutEngine=(()=>{
     return events;
   }
 
-  function endTurn(){
+  function endTurn(onDone){
     // One click resolves a full, quiet round: the enemy's turn starts
     // (their DoTs tick), then immediately passes back to the player's
     // turn (the player's DoTs tick). There's no real opponent to wait on
-    // in a tutorial, so both half-turns resolve in a single call.
+    // in a tutorial, so both half-turns resolve in a single call. Both
+    // sides' DoT math runs synchronously up front, same as before - it's
+    // only the two updateUI() full-board re-renders that now wait for
+    // each half's own dot-tick animation to actually finish playing (see
+    // useAbility's comment above on why a bare updateUI() call right
+    // after playServerEvents used to skip the animation instead - and,
+    // same as there, `onDone` is what lets Tutorial.handleIntent hold off
+    // resolving the end_turn waitAction() until BOTH halves have actually
+    // finished animating, not merely the instant this function returns).
     State.turn='ENEMY';
     clearPendingAction();
     updateUI();
     const evEnemy=processTurnStart(1);
-    playServerEvents(evEnemy);
-    updateUI();
     const evPlayer=processTurnStart(0);
-    playServerEvents(evPlayer);
-    State.turn='PLAYER'; State.actedThisTurn=new Set();
-    updateUI();
-    return { evEnemy, evPlayer };
+    const result={ evEnemy, evPlayer };
+    playServerEvents(evEnemy, ()=>{
+      updateUI();
+      playServerEvents(evPlayer, ()=>{
+        State.turn='PLAYER'; State.actedThisTurn=new Set();
+        updateUI();
+        if(onDone) onDone(result);
+      });
+    });
+    return result;
   }
 
   return { deploy, attack, useAbility, endTurn, applyEffectToCard, killCard };
@@ -15093,15 +15261,26 @@ const Tutorial={
       if(this._guardNudge) this._guardNudge(obj);
       return;
     }
-    let result=null;
-    if(obj.type==='deploy') result=TutEngine.deploy(0,obj.instanceId,obj.slot);
-    else if(obj.type==='attack') result=TutEngine.attack(0,obj.slot,obj.target,obj.atkIndex);
-    else if(obj.type==='use_ability') result=TutEngine.useAbility(0,obj.slot,obj.target);
-    else if(obj.type==='end_turn') result=TutEngine.endTurn();
-    this.reapplyHighlight();
-    if(this._expect&&this._expect.matchFn(obj,result)){
-      const r=this._expect.resolve; this._expect=null; r({ obj, result });
-    }
+    // `finish` is passed to TutEngine as its onDone callback rather than
+    // being called on TutEngine's own (synchronous) return value: an
+    // action with something to animate only calls it once that animation
+    // has actually played (see each TutEngine function's own comment on
+    // why), an invalid/no-op action calls it immediately. Either way,
+    // waitAction()'s promise - and therefore whatever say()/prompt() line
+    // comes right after it in the tutorial script - never resolves before
+    // this does, which is what stops that next line's own forced
+    // updateUI() from racing and stomping the animation.
+    const finish=(result)=>{
+      this.reapplyHighlight();
+      if(this._expect&&this._expect.matchFn(obj,result)){
+        const r=this._expect.resolve; this._expect=null; r({ obj, result });
+      }
+    };
+    if(obj.type==='deploy') TutEngine.deploy(0,obj.instanceId,obj.slot,finish);
+    else if(obj.type==='attack') TutEngine.attack(0,obj.slot,obj.target,obj.atkIndex,finish);
+    else if(obj.type==='use_ability') TutEngine.useAbility(0,obj.slot,obj.target,finish);
+    else if(obj.type==='end_turn') TutEngine.endTurn(finish);
+    else finish(null);
   },
   handleInspect(index){
     this.reapplyHighlight();
@@ -15230,6 +15409,16 @@ async function tutStepAttack(){
 
 async function tutStepSwap(){
   Tutorial.setStep(5,'Swapping');
+  // Mudshell (slot1) already spent this turn's action attacking in the
+  // previous step (tutStepAttack adds 'slot1' to State.actedThisTurn).
+  // The real match engine correctly refuses to swap an already-acted
+  // slot (see handleDeploy's already_acted check, mirrored client-side
+  // at the disabled "already acted" Swap button), so without clearing
+  // this the swap this very step is teaching would be impossible to
+  // perform. A real new turn is what clears the flag in an actual
+  // match; simulate that turn boundary here rather than making the
+  // player click through a scripted "end turn" that teaches nothing new.
+  State.actedThisTurn.delete('slot1');
   const filler=tutCreateCard('swamp_goblins');
   State.player.activeCard2=filler;
   updateUI();
@@ -15422,17 +15611,47 @@ async function runTutorial(){
 
 /* ── ENTRY / EXIT ──────────────────────────────────────────────────────── */
 /* ── FIRST-TIME DETECTION ─────────────────────────────────────────────
-   A plain localStorage flag: the simplest reliable signal for "has this
-   browser ever opened the tutorial before" without guessing at server-side
-   account fields. Wrapped in try/catch since storage can be blocked
-   (private browsing, locked-down environments), if so, just don't force
-   the tutorial on anyone rather than risk erroring out Play entirely. */
+   Per-ACCOUNT, not per-browser: a new account should always get the
+   tutorial (and its one-time gem bonus, which the server already gates
+   per-account in grantTutorialBonus) even on a device where a different
+   account already ran through it. currentAccountId() pulls the account's
+   id straight out of the Supabase access token already sitting in
+   Player.session — pure local decode, no network call, so this stays
+   just as instant as the old flag. Falls back to a single shared key
+   when there's no session yet (dev-mode/guest play).
+   Wrapped in try/catch since storage can be blocked (private browsing,
+   locked-down environments), if so, just don't force the tutorial on
+   anyone rather than risk erroring out Play entirely. */
+function currentAccountId(){
+  try{
+    const token = Player.session && Player.session.accessToken;
+    if(!token) return null;
+    const payload = token.split('.')[1];
+    const json = JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+    return json.sub || null;
+  }catch(e){ return null; }
+}
 function aopHasSeenTutorial(){
-  try{ return localStorage.getItem('aop_tutorial_seen')==='1'; }
-  catch(e){ return true; }
+  const uid = currentAccountId();
+  const key = uid ? `aop_tutorial_seen_${uid}` : 'aop_tutorial_seen';
+  try{
+    if(localStorage.getItem(key)==='1') return true;
+    // One-time migration off the old shared flag, so whoever's already
+    // logged in when this ships doesn't get the tutorial forced on them
+    // again just because of this change. Runs at most once ever — doing
+    // this on every check instead would let a brand-new account inherit
+    // "seen" from whichever account set the legacy flag, reintroducing
+    // the exact bug this is fixing.
+    if(uid && localStorage.getItem('aop_tutorial_seen_migrated')!=='1'){
+      localStorage.setItem('aop_tutorial_seen_migrated','1');
+      if(localStorage.getItem('aop_tutorial_seen')==='1'){ localStorage.setItem(key,'1'); return true; }
+    }
+    return false;
+  }catch(e){ return true; }
 }
 function aopMarkTutorialSeen(){
-  try{ localStorage.setItem('aop_tutorial_seen','1'); }catch(e){}
+  const uid = currentAccountId();
+  try{ localStorage.setItem(uid ? `aop_tutorial_seen_${uid}` : 'aop_tutorial_seen', '1'); }catch(e){}
 }
 
 function startTutorial(){
