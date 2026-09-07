@@ -89,7 +89,9 @@
       "icon": "tourneyTab",
       "sub": "Competitive play",
       "paragraphs": [
-        "Tournaments are events you can participate in that can offer large rewards if you win."
+        "Tournaments are events you can participate in that can offer large rewards if you win.",
+        "Official tournaments are tournaments hosted by Arena of PESTS, and automatically create more brackets and can contain unlimited participants. The winner of each bracket recieves 80% of all participation fees paid by the participants of your bracket.",
+        "Unofficial tournaments are tournaments that are hosted by other players. They can configure the prize pool %, entry fee, and max participants. Unofficial tournaments can only have one bracket."
       ]
     },
     {
