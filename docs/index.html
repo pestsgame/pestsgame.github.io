@@ -5207,7 +5207,7 @@ const Anim={
    *   the damage number/red flash happen there instead of at the target -
    *   `onImpact` is whatever the caller wired up to patch the right side's
    *   HP either way, this function never assumes who actually takes it. */
-  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer,onImpact,outcome='hit'){
+  attackSequence(attackerSlotId,targetSlotId,attackerCard,_targetCard,damage,_elem,isPlayer,onImpact,outcome='hit',combo=null){
     if(!this.ready)return;
     const pw=this.power(attackerCard);
     const attackerSlot=document.getElementById(attackerSlotId);if(!attackerSlot){if(onImpact)onImpact();return;}
@@ -5232,11 +5232,17 @@ const Anim={
     const dx=tx-sx,dy=ty-sy;
     const frac=[.45,.65,.88][pw-1]||.45;
     const lungeFrac=outcome==='dodge'?frac+.1:frac; // dodge: the whiff carries a little further past where the target WAS
+    // Combo swings snap in a beat faster each time (capped) so a 3-4 swing
+    // multi-attack reads as an accelerating flurry rather than the exact
+    // same-tempo lunge repeated identically, and get a warm amber glow
+    // instead of the plain white one so each swing visibly reads as part of
+    // a chain, not a fresh unrelated attack.
+    const comboGlow=combo?`rgba(251,191,${Math.max(36,146-combo.index*30)},.85)`:null;
     requestAnimationFrame(()=>{
       clone.style.transform=`translate(${dx*lungeFrac}px,${dy*lungeFrac}px) scale(${1.05+pw*.05})`;
-      clone.style.boxShadow=`0 0 ${10+pw*18}px rgba(200,220,255,.75)`;
+      clone.style.boxShadow=combo?`0 0 ${10+pw*18+combo.index*4}px ${comboGlow}`:`0 0 ${10+pw*18}px rgba(200,220,255,.75)`;
     });
-    const impactT=120+pw*30;
+    const impactT=Math.max(70,120+pw*30-(combo?Math.min(combo.index-1,3)*18:0));
     setTimeout(()=>{
       if(outcome==='dodge'){
         const tCardEl=targetSlot&&targetSlot.querySelector('.card');
@@ -5290,6 +5296,20 @@ const Anim={
       this.shake(pw);
       if(pw>=3){this.screenPulse();setTimeout(()=>this.screenPulse(),115);}
       if(!targetSlotId)this.flashHp(isPlayer?'enemy':'player');
+      if(combo){
+        // A swing counter chip near the target, amber to match the lunge
+        // glow above, so a multi-hit attack visibly reads as "2/3" landing
+        // in sequence instead of `total` identical single-hit animations
+        // in a row with no indication they're the same attack. The final
+        // swing gets its own bigger flourish (extra burst + a screen pulse
+        // it wouldn't otherwise earn at this power level) as the flurry's
+        // capstone hit.
+        if(targetRect) this.statusFloat(targetSlotId,`HIT ${combo.index}/${combo.total}`,'#fbbf24');
+        if(combo.index>=combo.total){
+          this.burst(tx,ty,14+pw*6,Math.min(3,pw+1));
+          if(pw<3) this.screenPulse();
+        }
+      }
       // HP text itself used to only catch up once the *entire* event queue
       // finished (finalize()/updateUI(), possibly several more hits away),
       // so a hit's damage number would fly and land while the HP badge sat
@@ -11913,10 +11933,30 @@ const Auth = {
  * login/signup modal opens and `cb` runs once it succeeds (or once the
  * player picks "continue without an account", dev-mode only). Skips the
  * whole dance for the rest of this browser session once that choice is
- * made, so it's a one-time prompt, not a nag on every click. */
+ * made, so it's a one-time prompt, not a nag on every click.
+ *
+ * Waits for loadPlayer() first: Player.session only exists once that's
+ * restored Player from localStorage, and loadPlayer() itself only runs
+ * after ensureCardLibrary()'s network fetch resolves (see window.onload) -
+ * so a player clicking "Enter Arena" fast enough could reach this with
+ * Player.session still at its unset default, no different from actually
+ * being logged out. That's the "shown the login form despite already
+ * being signed in" bug: ensureFreshSessionWithRetries() sees no session at
+ * all (not even a refresh token to retry with) and opens the modal
+ * immediately, even though the real session is sitting in localStorage a
+ * few hundred ms away from being read. Closing the modal and clicking
+ * Enter Arena again "just works" only because loadPlayer() has finished
+ * by then. */
 let _afterAuthSuccess = null;
+function waitForPlayerLoaded(){
+  if(_playerLoaded) return Promise.resolve();
+  return new Promise(resolve=>{
+    const iv=setInterval(()=>{ if(_playerLoaded){ clearInterval(iv); resolve(); } },20);
+  });
+}
 async function requireAuthThen(cb){
   if(window._authSkipped){ cb(); return; }
+  await waitForPlayerLoaded();
   if(await ensureFreshSessionWithRetries()){ cb(); return; }
   _afterAuthSuccess = cb;
   openAuthOverlay();
@@ -13826,7 +13866,13 @@ function playServerEvents(events,onDone){
     // 4 hits in one simultaneous blob. Now every hit gets its own beat:
     // a tighter gap when it's chained right after another hit (so a flurry
     // of swings still reads as fast and punchy), the normal gap otherwise.
+    // 'multi_attack' has no animation of its own anymore (see PendingCombo) -
+    // it just tags the swing that's about to land - so it must NOT consume
+    // its own 420ms beat (that would silently insert dead air before every
+    // combo swing) or reset prevWasHit (that would cost the tight 260ms
+    // chained-hit gap on the very swing it's announcing).
     if(e.t==='hit'){ delay+=prevWasHit?260:420; prevWasHit=true; }
+    else if(e.t==='multi_attack'){ /* zero-delay, doesn't touch prevWasHit */ }
     else { delay+=420; prevWasHit=false; }
   });
   // Trailing buffer so the very last event's own flourish (impact, flight,
@@ -13851,6 +13897,13 @@ function insertDeployedCardEarly(slotId,side,card){
   slot.innerHTML=renderCard(card,false,-1,extraClass);
   slot.classList.add('has-card');
 }
+
+/** Combo state for an in-flight multi-swing attack, keyed by 'side:slot'.
+ * Set by the 'multi_attack' event (see playSingleEvent) that always fires
+ * immediately before its swing's 'hit' event, and consumed/cleared by that
+ * 'hit' - so attackSequence() knows "this is swing 2 of 3" and can render
+ * an escalating combo beat instead of a plain single-attack animation. */
+const PendingCombo={};
 
 function playSingleEvent(e){
   try{
@@ -13887,7 +13940,9 @@ function playSingleEvent(e){
         const tgtSlotId=sideSlotToId(e.defSide,e.defSlot);
         const tgtCard=findCardBySideSlot(e.defSide,e.defSlot);
         const applyHit=()=>livePatchCardHp(e.defSide,e.defSlot,e.dmg);
-        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,e.atkSide===State.mySide,applyHit);
+        const comboKey=e.atkSide+':'+e.atkSlot;
+        const combo=PendingCombo[comboKey]; delete PendingCombo[comboKey];
+        if(atkCard) Anim.attackSequence(atkSlotId,tgtSlotId,atkCard,tgtCard,e.dmg,e.element,e.atkSide===State.mySide,applyHit,'hit',combo);
         else applyHit(); // no attacker card on file (shouldn't normally happen) - still keep HP in sync
         break;
       }
@@ -13999,8 +14054,13 @@ function playSingleEvent(e){
         showToast(e.side===State.mySide?'You were unable to act this turn!':'Opponent was unable to act this turn!');
         break;
       case 'multi_attack': {
-        const slotId=sideSlotToId(e.side,e.slot);
-        if(slotId) Anim.statusFloat(slotId,'BONUS HIT!','#facc15');
+        // Fired right before EVERY swing of a multi-swing attack (both
+        // guaranteed:N and a chance-rolled bonus swing) — buffered here and
+        // consumed by the very next 'hit' event for this same attacker slot,
+        // so that swing's attackSequence() renders as a distinct combo beat
+        // (escalating shake/flash + a swing counter) instead of looking like
+        // an ordinary single attack repeated back to back. See PendingCombo.
+        PendingCombo[e.side+':'+e.slot]={index:e.swing,total:e.total};
         break;
       }
       // 'weapon_use' / 'defense_use' / 'burn_penalty' / 'soak_reduce' / 'excess' / 'ability':
