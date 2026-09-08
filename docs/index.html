@@ -12484,11 +12484,38 @@ const Net={
           // revoked, or this is dev mode without a session at all). Try a
           // silent refresh-and-retry once before bothering the player with
           // the login screen again.
+          //
+          // Routed through ensureFreshSessionWithRetries (backoff + "waking
+          // up the server" UI) rather than a single bare ensureFreshSession()
+          // call: this WS handshake happens the instant the socket opens,
+          // which is exactly when a cold-booting Render backend is most
+          // likely to answer the FIRST refresh attempt with a transient
+          // 429/502/503/504 rather than a real "this token is invalid".
+          // ensureFreshSession() itself already knows the difference (it
+          // only nulls Player.session on an explicit 401/403 from the
+          // server), so ok===false here does NOT mean the session is gone -
+          // only checking Player.session afterward tells us that for real.
+          // Wiping/prompting on every transient failure, like this used to,
+          // is exactly the "asks you to log in even though you're already
+          // logged in" bug called out on ensureFreshSessionWithRetries -
+          // this call site just wasn't going through it yet.
           this.authed=false;
           if(!this._authRetried && Player.session && Player.session.refreshToken){
             this._authRetried=true;
-            Auth.ensureFreshSession().then(ok=>{
-              if(ok) this.authenticate(); else { Player.session=null; savePlayer(); openAuthOverlay(); }
+            ensureFreshSessionWithRetries().then(ok=>{
+              if(ok){ this.authenticate(); return; }
+              this._authRetried=false;
+              if(!Player.session){
+                // ensureFreshSession already confirmed (401/403) the refresh
+                // token itself is dead and cleared it - a real login is
+                // unavoidable here.
+                openAuthOverlay();
+              }
+              // else: every attempt was transient (server still waking up /
+              // network blip). Session is untouched, so just let the socket's
+              // own reconnect timer bring us back and try the handshake
+              // again shortly, instead of nagging with a login screen the
+              // player doesn't actually need.
             });
           } else {
             this._authRetried=false;
