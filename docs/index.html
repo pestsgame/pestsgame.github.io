@@ -13701,7 +13701,26 @@ function sideSlotToId(side,slot){
  * already carries it - this is what reads it back out for the early-insert
  * animation. */
 function cardFromMirrorBySlot(side,slotType){
-  if(!ServerStateMirror) return null;
+  if(!ServerStateMirror){
+    // Fallback for local/offline sims (e.g. the Tutorial's bot-match engine),
+    // which have no ServerStateMirror at all (that only ever gets populated by
+    // a real networked match's 'state' messages). Those sims mutate
+    // State.player/State.enemy directly and synchronously *before* pushing the
+    // 'deploy' event (see TutEngine.deploy), so by the time this runs, State
+    // already reflects the post-mutation board - safe to read from here, same
+    // reasoning findFullCardByInstanceId's local fallback below already uses.
+    // Without this, the tutorial's deploy/swap always read back a null card
+    // here and playSingleEvent's `if(slotId&&card)` guard silently skipped
+    // insertDeployedCardEarly + Anim.deployAnim entirely - i.e. this was the
+    // whole reason deploy/swap never animated in the tutorial.
+    const local=(side===State.mySide)?State.player:State.enemy;
+    if(!local) return null;
+    if(slotType==='slot1')return local.activeCard;
+    if(slotType==='slot2')return local.activeCard2;
+    if(slotType==='weapon')return local.weaponCard;
+    if(slotType==='defense')return local.defenseCard;
+    return null;
+  }
   const entity=(side===State.mySide)?ServerStateMirror.you:ServerStateMirror.opponent;
   if(!entity) return null;
   if(slotType==='slot1')return entity.activeCard;
