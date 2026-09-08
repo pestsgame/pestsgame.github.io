@@ -12218,7 +12218,26 @@ const Net={
         hideChangePasswordFields();
         showToast('✦ Password updated!');
         break;
-      case 'queue_status': this.inQueue=msg.inQueue; break;
+      case 'queue_status':
+        this.inQueue=msg.inQueue;
+        // On Render's free plan, the main server also fires its own server-to-
+        // server GET /health at each configured game-server URL right when we
+        // queue (see gameServers.staticUrls() server-side) - but that request
+        // can keep getting 429'd at Cloudflare's edge even with browser-like
+        // headers set on it, since Cloudflare's bot scoring leans on TLS
+        // fingerprinting a plain Node fetch can't fake. This browser making
+        // the exact same GET, from the exact same page the player is already
+        // using, doesn't have that problem - so fire it too, in parallel,
+        // fire-and-forget. mode:'no-cors' since we don't need to read the
+        // response, just trigger Render's wake-on-request behavior; a failed/
+        // opaque response is fine and expected while it's still cold-starting.
+        if(msg.wakeUrls&&msg.wakeUrls.length){
+          msg.wakeUrls.forEach(u=>{
+            try{ fetch(u.replace(/\/$/,'')+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{}); }
+            catch(e){}
+          });
+        }
+        break;
       // Server-authoritative ETA for the current queue wait - see
       // sendQueueEstimate/scheduleQueueEstimate server-side for what this
       // number actually is (never the true bot-fallback delay, never a
