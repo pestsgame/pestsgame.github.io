@@ -105,7 +105,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
   animation:coinToss 3.1s forwards;
 }
 /* Tumbles end-over-end around its horizontal axis (rotateX), the way an
- * actual tossed coin flips, alternating which face points at the camera —
+ * actual tossed coin flips, alternating which face points at the camera,
  * NOT rotateY, which spins it flat around a vertical axis like a top or a
  * record instead of flipping it. rotateY is kept as a small secondary
  * wobble only (a few degrees), real coin tosses aren't perfectly
@@ -335,7 +335,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Rajdhani',sans-serif;hei
 }
 
 /* ══════════════════════════════════════
-   REVIVE PICKER OVERLAY — its own modal, a distinct necromantic gold/
+   REVIVE PICKER OVERLAY, its own modal, a distinct necromantic gold/
    violet palette so it never reads as just another inspect screen, with
    a scrollable grid of graveyard tiles instead of a stacked button list. */
 #revive-picker-overlay{
@@ -4010,7 +4010,7 @@ img.market-coin-icon{width:14px;height:14px;object-fit:contain;vertical-align:mi
 </div>
 
 <!-- Same quick round-trip pattern, used while a salvage_cards request is in
-     flight — without it, tapping "Salvage Selected" and waiting on the
+     flight, without it, tapping "Salvage Selected" and waiting on the
      server's authoritative result felt like the game had frozen. -->
 <div id="salvage-loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,20,.75);z-index:2100;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;font-family:'Cinzel',serif;">
   <div style="display:flex;gap:8px;">
@@ -4672,7 +4672,7 @@ const log = (...a) => console.log('[AoP]', ...a);
    one loop walking one array. Each entry's `update(el,t)` also writes via
    `transform`/`opacity` only (never top/left/width/height), so the browser
    can composite these on the GPU instead of re-running layout every frame
-   — that layout thrash, multiplied by however many particles were alive
+  , that layout thrash, multiplied by however many particles were alive
    at once, was the real cost behind "particles feel heavy". ── */
 const AnimPool=(()=>{
   let items=[],running=false;
@@ -4717,7 +4717,7 @@ const Anim={
   particle(x,y,color,size,vx,vy,life){
     if(!this.layer)return;
     const p=document.createElement('div');
-    // left/top are set once at creation only — movement from here on is
+    // left/top are set once at creation only, movement from here on is
     // done purely via `transform`, which is compositor-only (no layout,
     // no repaint of surrounding elements), unlike animating left/top.
     p.style.cssText=`position:fixed;left:${x}px;top:${y}px;width:${size}px;height:${size}px;
@@ -4734,7 +4734,7 @@ const Anim={
 
   /* colorA/colorB let callers (e.g. the pack impact reveal) tint the burst
      to match a specific rarity color instead of the neutral silver/white
-     combat default — pass nothing to get the original in-battle look. */
+     combat default, pass nothing to get the original in-battle look. */
   burst(x,y,count,pw,colorA,colorB){
     if(!this.layer)return;
     const cA=colorA||this.NC, cB=colorB||this.NW;
@@ -4764,7 +4764,7 @@ const Anim={
     if(!this.layer)return;
     const r=document.createElement('div');
     // Sized to its final maxR up front and box-sizing:border-box so the
-    // later border-width tween can't change the box's outer dimensions —
+    // later border-width tween can't change the box's outer dimensions,
     // the "expansion" is done with transform:scale() instead of animating
     // width/height, which otherwise forces layout every single frame.
     r.style.cssText=`position:fixed;left:${x}px;top:${y}px;width:${maxR}px;height:${maxR}px;
@@ -5464,7 +5464,7 @@ function inspectCard(index){
 
 /** Board-card counterpart to inspectCard: opens the same overlay for
  * whatever's in `side`'s `slot`, any time, either side, your turn or not,
- * acted or not — inspecting itself is never gated, only which action
+ * acted or not, inspecting itself is never gated, only which action
  * buttons show up underneath is (see below). Read-only (Close only, no
  * buttons) unless it's your own card, your MAIN turn, and it hasn't
  * acted yet. */
@@ -5497,7 +5497,7 @@ function inspectBoardCard(side,slot){
   if(canActNow){
     const te=card.topEffect;
     // A `passive` top effect (e.g. a self-revive passive like Vemdak's) is
-    // automatic, not a player-chosen action, so it never gets a button —
+    // automatic, not a player-chosen action, so it never gets a button,
     // only `attack` and `ability` top effects do.
     if(te?.type==='attack'){
       btns+=`<button class="inspect-btn inspect-btn-attack" onclick="chooseAttack('${jsq(slot)}',0)">${escapeHtml(te.name)} <span style="opacity:.7">${te.value}</span></button>`;
@@ -5720,7 +5720,7 @@ function boardSlotClick(side,slot){
  * targets the enemy at all: self/side fires immediately with nothing further
  * to pick, same as a self/side ability heal, and 'ally' arms the board for a
  * click on either of the CASTER'S OWN slots (self included), exactly like
- * chooseAbility's ally-heal — it reuses the same pendingAbilityTargetKind so
+ * chooseAbility's ally-heal, it reuses the same pendingAbilityTargetKind so
  * boardSlotClick/updateUI's existing ally-targeting/highlight code handles it. */
 function chooseAttack(slot,atkIndex){
   const card=slot==='slot1'?State.player.activeCard:State.player.activeCard2;
@@ -5787,7 +5787,7 @@ function openRevivePicker(slot){
   const graveyard=State.player.graveyard||[];
   const title=document.getElementById('revive-picker-title');
   const grid=document.getElementById('revive-picker-grid');
-  title.textContent=`${card.name} — Choose a Creature to Revive`;
+  title.textContent=`${card.name}, Choose a Creature to Revive`;
   if(!graveyard.length){
     grid.innerHTML=`<div class="revive-picker-empty">No dead creatures to revive.</div>`;
   }else{
@@ -6000,7 +6000,7 @@ function renderEquipCard(card,interactable,index=-1,extraClass=''){
   const bonusLabel=isWpn?'DMG +':'DEF ';
   // Amp/damp/add effect breakdowns used to be recomputed here from raw card
   // fields (ampEffects/dampEffects/addEffects), duplicating what's already
-  // written in cards.json's `description`. Just show that description now —
+  // written in cards.json's `description`. Just show that description now,
   // it's the single source of truth and stays in sync with the card design.
   const desc=card.description||(CardById[card.baseId||card.id]||{}).description||'';
   return`<div class="card ${ic} ${extraClass}" data-instance-id="${card.instanceId||''}" style="${rarityCardStyle(card.rarity)}" ${onclick}>
@@ -6104,7 +6104,7 @@ function updateUI(){
   const renderPlayerSlot=(slotId,card,slot)=>{
     const el=document.getElementById(slotId);
     // Inspecting is always available, whoever's turn it is, acted or not,
-    // see boardSlotClick/inspectBoardCard — only the action BUTTONS inside
+    // see boardSlotClick/inspectBoardCard, only the action BUTTONS inside
     // the inspect panel are conditional, so the slot itself never disables
     // pointer-events anymore.
     el.style.cursor='';
@@ -6113,7 +6113,7 @@ function updateUI(){
     el.innerHTML=renderCard(card,false,-1,cls);
     el.classList.add('has-card');
     // Highlighted as a legal click target while an in-progress ability
-    // awaits an ally target (see chooseAbility/boardSlotClick) — includes
+    // awaits an ally target (see chooseAbility/boardSlotClick), includes
     // the acting card's own slot, a self-target is a legal "ally" pick.
     (State.pendingAbilityTargetKind==='ally')?el.classList.add('targetable'):el.classList.remove('targetable');
   };
@@ -6194,9 +6194,9 @@ function updateUI(){
     } else if(!canAct){hint.textContent='';hint.style.color='#fbbf24';}
     else if(sel){
       const selCard=sel==='slot1'?State.player.activeCard:State.player.activeCard2;
-      if(State.pendingAbilityTargetKind==='ally') hint.textContent=`${selCard?.name||''} — click either of your creatures to target (itself included)`;
-      else if(State.pendingAtkIndex!==null) hint.textContent=`${selCard?.name||''} — click an enemy card to attack (or click it again to cancel)`;
-      else if(State.pendingAbilityTargetKind==='enemy') hint.textContent=`${selCard?.name||''} — click an enemy card to target (or click it again to cancel)`;
+      if(State.pendingAbilityTargetKind==='ally') hint.textContent=`${selCard?.name||''}, click either of your creatures to target (itself included)`;
+      else if(State.pendingAtkIndex!==null) hint.textContent=`${selCard?.name||''}, click an enemy card to attack (or click it again to cancel)`;
+      else if(State.pendingAbilityTargetKind==='enemy') hint.textContent=`${selCard?.name||''}, click an enemy card to target (or click it again to cancel)`;
       else hint.textContent=`${selCard?.name||''} selected`;
       hint.style.color='#fbbf24';
     }else if(noTargets){
@@ -6300,7 +6300,7 @@ function escapeHtml(s){
  * card ids contain a literal apostrophe (jester's_blade, frostland's_devil,
  * knight's_shield), which broke the naive `'${id}'` interpolation used
  * throughout this file: the apostrophe closed the JS string early, turning
- * the whole handler into a silent syntax error — e.g. those three cards'
+ * the whole handler into a silent syntax error, e.g. those three cards'
  * tiles in the Card Book / Deck Builder / Trade / Bazaar were simply
  * unclickable, with nothing in the console to point at why. Escaping just
  * the apostrophe (and backslash, for the same reason) is enough to keep it
@@ -6567,7 +6567,7 @@ function renderRefreshIcon(size=13){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M5.5 9a7 7 0 0112.3-2.7M18.5 15a7 7 0 01-12.3 2.7"/></svg>`;
 }
 /** Padlock glyph used anywhere something is rank-gated or otherwise
- * locked (shop packs, feature tabs, revive tiles, lock toasts) — mirrors
+ * locked (shop packs, feature tabs, revive tiles, lock toasts), mirrors
  * the outline used on the locked feature-tab overlay, no emoji, ever. */
 function renderLockIcon(size=14){
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>`;
@@ -7124,7 +7124,7 @@ function renderQuestSkeleton(){
  * truth for anything rendered in the panel. Optimistic claims (see
  * claimQuest/collectMilestone) have already animated and updated the
  * panel at click-time, so this just replaces the local guess with
- * whatever's actually true server-side — matches it in the overwhelming
+ * whatever's actually true server-side, matches it in the overwhelming
  * majority of cases (nothing visibly changes), and self-corrects it in the
  * rare case a claim didn't actually go through (the matching 'error' fires
  * essentially simultaneously and reverts the flourish, see
@@ -7314,7 +7314,7 @@ function renderQuestJournal(state){
  * just to see their own click register. The actual claim is still sent for
  * real and re-verified server-side (claimQuestReward re-checks completion
  * and non-double-claiming regardless of what this client thinks), this
- * only fails in a genuine race (another tab/device claiming it first) —
+ * only fails in a genuine race (another tab/device claiming it first),
  * see revertOptimisticClaim for what happens then. */
 function claimQuest(questId){
   if(!QuestState) return;
@@ -8731,12 +8731,12 @@ function renderSpectateHalf(key, side, activeCls, weaponCls, defenseCls, sideIdx
 
 /* ── Presence heartbeat, starts only once the player is actually "on"
  * (past auth, into the app), never before. Fires every 45s to tell the
- * server "still here" — short enough that a single active player keeps
+ * server "still here", short enough that a single active player keeps
  * the (free-tier, sleeps-after-50s-idle) server process awake by itself,
  * so a lone player in a match doesn't hit a cold-start mid-game.
  * Skips a beat (but keeps the interval running, so it resumes on its own)
  * whenever there's nothing to report: no click in the last 10 minutes, or
- * the tab isn't the visible/foreground one right now — no point telling
+ * the tab isn't the visible/foreground one right now, no point telling
  * the server "still here" for a tab that functionally isn't. ── */
 const PRESENCE_HEARTBEAT_MS=45*1000;
 const PRESENCE_IDLE_LIMIT_MS=10*60*1000;
@@ -8814,7 +8814,7 @@ function enterArena(){
     // with the tutorial instead of dropping them straight into an empty menu.
     // The tutorial runs entirely locally (TutEngine, no server round-trips at
     // all), so it shouldn't have to sit through a server connection wait just
-    // to start — kick the connection off in the background regardless, so
+    // to start, kick the connection off in the background regardless, so
     // it's likely already authenticated by the time the player finishes and
     // actually wants to queue for a real match.
     if(!aopHasSeenTutorial()){
@@ -9424,7 +9424,7 @@ function rarityRank(r){return RARITY_ORDER.indexOf(r);}
 
 /* ── VESTIGE SALVAGE SYSTEM (client) ──────────────────────────────────
  * Mirrors Engine.VESTIGE_SALVAGE_VALUES / Engine.VESTIGE_PACK_COSTS in
- * server/game-engine.js exactly — display/UX only, the server re-derives
+ * server/game-engine.js exactly, display/UX only, the server re-derives
  * both independently and never trusts these. Salvage tab itself unlocks
  * at Iron (see SALVAGE_UNLOCK_TIER / featureUnlocked('Iron') calls below),
  * same "peak rank crossed it at least once" gate as Bazaar/Tournaments. */
@@ -9617,7 +9617,7 @@ const FEATURED_SVG=`<svg width="90" height="90" viewBox="0 0 64 64" fill="none" 
   </svg>`;
 
 /* ── PACK DEFINITIONS ─────────────────────────────────── */
-/* `minRank`, when set, is a RANK_LADDER_TIERS name — the buyer's PEAK rank
+/* `minRank`, when set, is a RANK_LADDER_TIERS name, the buyer's PEAK rank
  * (Player.peakRank, highest ever reached, never follows a later losing
  * streak back down) must have crossed into that tier at least once. This
  * is purely a display/UX gate (packUnlocked() below); the server is the
@@ -9664,7 +9664,7 @@ const PACK_DEFS=[
    size:7,  cost:500, minRank:'Gold',
    weights:{common:25,uncommon:30,rare:28,epic:15,legendary:1.8,mythic:0.2,fabled:0},
    guarantees:[], filter:null,
-   desc:"Your first real high-rarity hunt. A huge step up from Standard — Mythic is still a freak occurrence."},
+   desc:"Your first real high-rarity hunt. A huge step up from Standard, Mythic is still a freak occurrence."},
   {id:'champions_pile',    currency:'gold', theme:'champion',  artH:150, badge:'Champion', name:"Champion's Pile",
    size:7,  cost:700, minRank:'Gold',
    weights:{common:22,uncommon:27,rare:28,epic:18,legendary:4.2,mythic:0.6,fabled:0},
@@ -9679,12 +9679,12 @@ const PACK_DEFS=[
    size:8,  cost:1000, minRank:'Diamond',
    weights:{common:16,uncommon:22,rare:27,epic:22,legendary:11,mythic:1.8,fabled:0.2},
    guarantees:[], filter:null,
-   desc:'Diamond-unlocked. The first pack where Fabled enters normal progression — still fucking rare.'},
+   desc:'Diamond-unlocked. The first pack where Fabled enters normal progression, still fucking rare.'},
   {id:'mythos_collection',   currency:'gold', theme:'mythos',    artH:150, badge:'Mythos',   name:'Mythos Collection',
    size:10, cost:1500, minRank:'Mythic',
    weights:{common:10,uncommon:16,rare:25,epic:24,legendary:18,mythic:6,fabled:1},
    guarantees:[], filter:null,
-   desc:'Mythic-unlocked. The big endgame pack — Legendary+ is expected, Fabled is the jackpot.'},
+   desc:'Mythic-unlocked. The big endgame pack, Legendary+ is expected, Fabled is the jackpot.'},
   {id:'collectors_mass',     currency:'gems', theme:'collector', artH:150, badge:'Bulk',     name:"Collector's Mass",
    size:15, cost:75, minRank:'Gold',
    weights:{common:38,uncommon:32,rare:21,epic:7.5,legendary:1.3,mythic:0.2,fabled:0},
@@ -9796,8 +9796,8 @@ function renderFeaturedBanner(){
 function renderShop(){
   // Each piece renders independently, on purpose: this used to be one
   // unbroken chain (banner, then gold packs, then gem packs, then the
-  // collection strip), so a single exception anywhere in it — including in
-  // the collection strip, which has since been removed entirely — silently
+  // collection strip), so a single exception anywhere in it, including in
+  // the collection strip, which has since been removed entirely, silently
   // killed everything after it too, which is exactly how "no premium packs"
   // and a broken collection strip showed up together: whatever threw first
   // took the rest of the shop down with it. Isolating each section means a
@@ -10113,7 +10113,7 @@ function salvageGoToPage(delta){
   renderSalvageCollection();
 }
 
-/** Builds the CURRENT PAGE of the salvage grid — same bounding strategy as
+/** Builds the CURRENT PAGE of the salvage grid, same bounding strategy as
  * renderDBCollection() in the deckbuilder: however big the collection is,
  * only one page's worth of cards (SALVAGE_PAGE_SIZE) ever gets built at
  * once, so opening the tab or finishing a salvage (either of which can
@@ -10143,7 +10143,7 @@ function renderSalvageCollection(){
   const pageIds=ids.slice(_salvagePage*SALVAGE_PAGE_SIZE,_salvagePage*SALVAGE_PAGE_SIZE+SALVAGE_PAGE_SIZE);
   const idsKey=_salvagePage+'|'+pageIds.join(',');
   if(grid.dataset.idsKey===idsKey){
-    // Same page, same set of owned cards as last render — just sync owned
+    // Same page, same set of owned cards as last render, just sync owned
     // counts + stepper bounds/selection on the slots that already exist.
     pageIds.forEach(id=>syncSalvageSlot(id,counts[id]||0));
     return;
@@ -10197,7 +10197,7 @@ function updateSalvagePageControls(page,totalPages){
   const nextBtn=document.getElementById('salvage-page-next'); if(nextBtn)nextBtn.disabled=page>=totalPages-1;
 }
 
-/** Refreshes a single slot's selected/owned/stepper state in place —
+/** Refreshes a single slot's selected/owned/stepper state in place,
  * no renderCard(), no innerHTML, no touching any other card on the page. */
 function syncSalvageSlot(cardId,owned){
   const ref=_salvageSlotRefs[cardId];
@@ -10221,11 +10221,11 @@ function salvageStep(cardId,delta){
 }
 
 /** Selects every duplicate copy (owned qty - 1) of every owned card,
- * leaving exactly one of each behind — the common "clean up my binder"
+ * leaving exactly one of each behind, the common "clean up my binder"
  * one-click action seen in most card games' disenchant/salvage screens.
  * This touches the selection totals for the WHOLE collection (that's the
  * point of the button), but only syncs DOM for cards on the current page
- * — refs for other pages simply don't exist yet, and get built with the
+ *, refs for other pages simply don't exist yet, and get built with the
  * correct selection already applied whenever that page is turned to. */
 function salvageSelectDuplicates(){
   const counts=salvageOwnedCounts();
@@ -10511,8 +10511,8 @@ function firePackParticles(bestRarity){
   if(!wrap) return;
   const rect=wrap.getBoundingClientRect();
   const originX=rect.left+rect.width/2,originY=rect.top+52;
-  // Explicit per-rarity table (rather than a chained ternary) so fabled —
-  // the rarest tier — can't silently fall through to the generic "else"
+  // Explicit per-rarity table (rather than a chained ternary) so fabled,
+  // the rarest tier, can't silently fall through to the generic "else"
   // bucket the way it used to and end up weaker-looking than mythic.
   const COUNT_BY_RARITY   ={fabled:170, mythic:120, legendary:90, epic:65, rare:40};
   const SPEED_BOOST_BY_RARITY={fabled:4,   mythic:3,   legendary:2,  epic:1};
@@ -10534,7 +10534,7 @@ function firePackParticles(bestRarity){
     const ctx=canvas.getContext('2d');
     ctx.clearRect(0,0,canvas.width,canvas.height);
     _particles=_particles.filter(p=>p.alpha>0.02);
-    // No per-particle ctx.save()/ctx.restore() and no ctx.shadowBlur here —
+    // No per-particle ctx.save()/ctx.restore() and no ctx.shadowBlur here,
     // shadowBlur runs a real blur convolution on every single shape it
     // draws, and with up to 170 particles alive at once for a fabled pull
     // (~40% of them marked "glowing"), that was dozens of expensive blur
@@ -10743,7 +10743,7 @@ function playLoadingEnterTransition(el){
 ══════════════════════════════════════ */
 
 const IMPACT_CFG={
-  /* starColor is the comet's hot core — this stays a plain white for
+  /* starColor is the comet's hot core, this stays a plain white for
      every rarity (that's just how a bright light "shines white at the
      very center" regardless of what color it's glowing). starGlow is
      what actually needs to read as the rarity's own color: it now
@@ -10751,7 +10751,7 @@ const IMPACT_CFG={
      red, mythic magenta, fabled cyan) instead of the old amber that
      had accidentally been copied over from epic's color. starGlow2 is
      just a secondary accent shade from the same hue family (except
-     fabled, which intentionally mixes in gold — that's the same
+     fabled, which intentionally mixes in gold, that's the same
      cyan/magenta/gold shimmer already used on the Fabled rarity badge
      elsewhere in the app, not a mistake). */
   legendary: {shakeAmp:20, zoom:false, color:'#ef4444', colorRgb:'239,68,68',
@@ -10806,7 +10806,7 @@ function drawSpeedLines(canvas,cx,cy,o){
   ctx.save();
   ctx.strokeStyle=o.color;
   ctx.shadowColor=o.color;
-  ctx.shadowBlur=6; // trimmed from 10 — this is a one-shot burst of up to
+  ctx.shadowBlur=6; // trimmed from 10, this is a one-shot burst of up to
                     // ~66 individually-blurred strokes, so the blur radius
                     // directly multiplies the frame's cost; still glows,
                     // noticeably cheaper to rasterize.
@@ -10867,7 +10867,7 @@ let _starRaf=null;
 
 /** Comet trail, drawn as ONE stroked path with a gradient instead of the
  * old approach (a separate ctx.shadowBlur'd stroke() call PER trail
- * point — up to ~20 individual blur passes per trail per frame). Each
+ * point, up to ~20 individual blur passes per trail per frame). Each
  * point's fade is roughly linear in its age, so a 2-stop gradient across
  * the oldest→newest surviving points reproduces the same fade using one
  * draw call and one blur pass instead of twenty. With up to six comets
@@ -10893,7 +10893,7 @@ function drawCometTrail(ctx,trail,now,cfg,accelerating,widthMul,alphaMul,color){
   ctx.lineCap='round';
   ctx.lineJoin='round';
   ctx.shadowColor=color;
-  ctx.shadowBlur=accelerating?16:9; // trimmed from 24/13 — same one-pass
+  ctx.shadowBlur=accelerating?16:9; // trimmed from 24/13, same one-pass
                                      // cost either way now, kept moderate
                                      // since it still runs every frame.
   ctx.lineWidth=Math.max(0.6,cfg.coreSize*0.85*widthMul);
@@ -10906,7 +10906,7 @@ function drawCometTrail(ctx,trail,now,cfg,accelerating,widthMul,alphaMul,color){
 }
 
 /** The halo + hot core dot are pixel-identical every time this rarity's
- * comet is drawn (scale is always 1 at every call site) — so instead of
+ * comet is drawn (scale is always 1 at every call site), so instead of
  * calling ctx.createRadialGradient() and re-running ctx.shadowBlur on a
  * filled arc EVERY frame for every comet (up to 6 of them for fabled),
  * bake that halo+dot into a small offscreen sprite ONCE per rarity and
@@ -10943,7 +10943,7 @@ function drawCometCore(ctx,x,y,cfg,scale){
   const s=sprite.size*scale;
   ctx.drawImage(sprite.canvas,x-s/2,y-s/2,s,s);
 
-  // four-point glint cross through the core, classic "star" glint —
+  // four-point glint cross through the core, classic "star" glint,
   // stays a live vector draw, it's just two strokes with no gradient
   // or blur, cheap enough to redraw every frame as-is.
   const r=cfg.coreSize*scale;
@@ -11040,7 +11040,7 @@ function runCometFlightDuo(ctx,W,H,cx,cy,cfg,onCollide){
    the six starting points are further from center than a simple
    left/right pair, and fabled's own starSpeed/starAccel run slower
    to start, the whole flight naturally takes noticeably longer than
-   legendary or mythic's — before the extra frame1/frame2/stage2
+   legendary or mythic's, before the extra frame1/frame2/stage2
    holds add even more time on top of that. */
 function runCometFlightMulti(ctx,W,H,cx,cy,cfg,onCollide){
   const n=cfg.starCount;
@@ -11087,7 +11087,7 @@ function runCometFlightMulti(ctx,W,H,cx,cy,cfg,onCollide){
 
     if(minDist<=6){
       collided=true;
-      // one bright frame of the collision flash before handing off —
+      // one bright frame of the collision flash before handing off,
       // a bigger radius than the two-star version since six comets
       // are slamming together here, not just two.
       ctx.clearRect(0,0,W,H);
@@ -11405,7 +11405,7 @@ function serverWaitStatusText(elapsedMs=0){
   if(!Net.connected){
     const secs=Math.round((elapsedMs||0)/1000);
     if(secs<8) return 'Could not reach the arena server, retrying…';
-    return `Waking up the arena server — this can take up to a minute (${secs}s so far)…`;
+    return `Waking up the arena server, this can take up to a minute (${secs}s so far)…`;
   }
   if(!Net.authed || !hasLocalIdentity()) return 'Connected, waiting on the server…';
   return 'Ready!';
@@ -11876,7 +11876,7 @@ const Auth = {
    * False if there's no session to refresh, or the server just isn't
    * reachable right now. Player.session is only ever CLEARED when the
    * main server explicitly says the refresh token itself is no good
-   * (401/403, see handleAuthRefresh's invalid_session case) — a 429
+   * (401/403, see handleAuthRefresh's invalid_session case), a 429
    * (rate-limited at Render/Cloudflare's edge), a 502/503/504 (the main
    * server is a free-tier instance still cold-booting from sleep, which
    * this project's own wake-ping comments note can take 30-60+ seconds),
@@ -11965,13 +11965,13 @@ async function requireAuthThen(cb){
 /** Retries ensureFreshSession() with backoff instead of giving up on the
  * first failure. The main server is a free-tier instance that spins down
  * after idle and can take 30-60+ seconds to wake back up on the next
- * request (see game-registry.js's wake-ping comments) — the very first
+ * request (see game-registry.js's wake-ping comments), the very first
  * refresh attempt right after it's been asleep is EXPECTED to fail with a
  * transient status (429 from the edge, 502/503/504 while it boots) or a
  * timeout, not a sign the session itself is bad. ensureFreshSession only
  * clears Player.session when the server explicitly rejects the refresh
  * token (401/403), so that's the one case this bails out of immediately
- * with no retries — no amount of waiting fixes an actually-invalid
+ * with no retries, no amount of waiting fixes an actually-invalid
  * session. Shows the same connecting overlay used elsewhere, with a
  * running estimate, so a real cold start reads as "hang on, waking the
  * server up" instead of silently sitting there before eventually dumping
@@ -12002,7 +12002,7 @@ async function ensureFreshSessionWithRetries(){
 function authWaitStatusText(elapsedMs){
   const secs=Math.round(elapsedMs/1000);
   if(secs<8) return 'Reconnecting to your account…';
-  return `Waking up the arena server — this can take up to a minute (${secs}s so far)…`;
+  return `Waking up the arena server, this can take up to a minute (${secs}s so far)…`;
 }
 let _authCloseTimer=null;
 function openAuthOverlay(){
@@ -12122,7 +12122,7 @@ const Net={
       // auto-reconnect during an active match's grace window, so any drop
       // that happened anywhere else (menus, quest journal, market, etc.)
       // just left the socket dead until something incidentally called
-      // connect() again — e.g. a "Claim" click sent through the dead socket
+      // connect() again, e.g. a "Claim" click sent through the dead socket
       // via the old bare Net.send() would silently vanish into nothing,
       // which is exactly why claiming used to need two presses: the first
       // click's request never actually left the browser. sendWhenReady()
@@ -12975,7 +12975,7 @@ function applyServerProfile(p){
   if(typeof p.losses==='number')Player.losses=p.losses;
   if(p.rank)Player.rank=p.rank;
   // peakRank is the highest rank this account has EVER reached (server-
-  // tracked, never follows rank back down after a losing streak) — it's
+  // tracked, never follows rank back down after a losing streak), it's
   // what the shop compares pack.minRank against, see packUnlocked() below.
   if(p.peakRank)Player.peakRank=p.peakRank;
   if(typeof p.icon==='string')Player.icon=p.icon;
@@ -14055,7 +14055,7 @@ function playSingleEvent(e){
         break;
       case 'multi_attack': {
         // Fired right before EVERY swing of a multi-swing attack (both
-        // guaranteed:N and a chance-rolled bonus swing) — buffered here and
+        // guaranteed:N and a chance-rolled bonus swing), buffered here and
         // consumed by the very next 'hit' event for this same attacker slot,
         // so that swing's attackSequence() renders as a distinct combo beat
         // (escalating shake/flash + a swing counter) instead of looking like
@@ -14232,14 +14232,14 @@ function renderGameOverRankPanel(oldRank,newRank,casual){
     newMedalEl.innerHTML='';
     slot.classList.remove('swap');
     rpEl.innerHTML=casual
-      ? '<span style="color:var(--txt-muted);">Casual match — no rank change</span>'
+      ? '<span style="color:var(--txt-muted);">Casual match, no rank change</span>'
       : '<span class="go-rp-shimmer"></span>';
     renderGameOverLadderPips(oldRank,oldRank);
     return;
   }
 
   if(casual){
-    rpEl.innerHTML='<span style="color:var(--txt-muted);">Casual match — no rank change</span>';
+    rpEl.innerHTML='<span style="color:var(--txt-muted);">Casual match, no rank change</span>';
     newMedalEl.innerHTML=''; slot.classList.remove('swap');
     renderGameOverLadderPips(oldRank,newRank);
     return;
@@ -14952,7 +14952,7 @@ const TutEngine=(()=>{
   }
 
   /** Mirrors the real server's Engine.executeAbilityEffect (heal/effects)
-   * and the revive branch of handleUseAbility — a card's non-passive
+   * and the revive branch of handleUseAbility, a card's non-passive
    * `ability` top effect only ever fires from an explicit use_ability
    * intent, same as attacking, never automatically on deploy (see deploy()
    * below, which no longer calls this at all). `target` is a board slot
@@ -15455,7 +15455,7 @@ const Tutorial={
     this.hideBox();
     document.getElementById('main').classList.remove('tut-active');
     hideHandTray();
-    // One-time reward for going through the tutorial at all — doesn't require
+    // One-time reward for going through the tutorial at all, doesn't require
     // finishing every step, just reaching this exit (early-quit included), the
     // server is the one that actually dedupes this to "once ever per account".
     Net.sendWhenReady({type:'tutorial_bonus'});
@@ -15776,7 +15776,7 @@ async function runTutorial(){
    per-account in grantTutorialBonus) even on a device where a different
    account already ran through it. currentAccountId() pulls the account's
    id straight out of the Supabase access token already sitting in
-   Player.session — pure local decode, no network call, so this stays
+   Player.session, pure local decode, no network call, so this stays
    just as instant as the old flag. Falls back to a single shared key
    when there's no session yet (dev-mode/guest play).
    Wrapped in try/catch since storage can be blocked (private browsing,
@@ -15798,7 +15798,7 @@ function aopHasSeenTutorial(){
     if(localStorage.getItem(key)==='1') return true;
     // One-time migration off the old shared flag, so whoever's already
     // logged in when this ships doesn't get the tutorial forced on them
-    // again just because of this change. Runs at most once ever — doing
+    // again just because of this change. Runs at most once ever, doing
     // this on every check instead would let a brand-new account inherit
     // "seen" from whichever account set the legacy flag, reintroducing
     // the exact bug this is fixing.
@@ -15875,7 +15875,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 // A reload/tab-close mid-match used to leave the match "technically active"
 // server-side (the normal reconnect grace window, meant for a genuine
-// network drop) until it eventually timed out on its own — meanwhile the
+// network drop) until it eventually timed out on its own, meanwhile the
 // reloaded client would come back into the lobby still thinking it's in
 // that match (stray match effects/HUD bits, and "already in a match"
 // blocking new matchmaking) for however long that grace window lasted.
@@ -15885,7 +15885,7 @@ document.addEventListener('visibilitychange',()=>{
 // is fully cleared server-side before the new page load even finishes.
 // pagehide is what actually fires reliably across browsers (including the
 // back/forward cache case beforeunload can miss); beforeunload is kept
-// alongside it purely as a belt-and-suspenders for older engines — sending
+// alongside it purely as a belt-and-suspenders for older engines, sending
 // the same forfeit twice is harmless (handleForfeit -> finish() is a no-op
 // once the match is already over).
 function _forfeitOnUnload(){ if(State.mp&&!State._mpOver){ GameNet.send({type:'forfeit'}); State.mp=false; } }
