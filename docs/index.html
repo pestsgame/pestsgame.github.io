@@ -6043,7 +6043,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
   let teRows='';
   if(te.type==='attack'){
     const sfx=te.effects.map(e=>{const n=Effects[e.type]?.name||e.type;return e.duration>=9999?n:`${n} (lasts ${e.duration} turns)`;}).join(', ');
-    teRows=`<div class="card-eff-row atk"><span class="eff-label">ATK</span><span class="eff-name">${te.name}</span>${elemBadge(te.element)}<span class="eff-val">${te.value}</span></div>${sfx?`<div class="eff-sfx">+ ${sfx}</div>`:''}`;
+    teRows=`<div class="card-eff-row atk"><span class="eff-label">ATK</span><span class="eff-name">${te.name}</span>${elemBadge(te.element)}<span class="eff-val">${te.value}</span></div>${te.description?`<div class="eff-sfx">${escapeHtml(te.description)}</div>`:''}${sfx?`<div class="eff-sfx">+ ${sfx}</div>`:''}`;
   }else if(te.type==='passive'){
     teRows=`<div class="card-eff-row psv"><span class="eff-label">PSV</span><span class="eff-name">${te.name}</span><span class="eff-val b">*</span></div><div class="eff-sfx">${te.description||''}</div>`;
   }else if(te.type==='ability'){
@@ -6069,6 +6069,7 @@ function renderCard(card,interactable,index=-1,extraClass=''){
     <div class="card-footer">
       ${teRows}
       <div class="card-eff-row atk"><span class="eff-label">ATK</span><span class="eff-name">${ba.name}</span>${elemBadge(ba.element)}<span class="eff-val">${ba.damage}</span></div>
+      ${ba.description?`<div class="eff-sfx">${escapeHtml(ba.description)}</div>`:''}
       ${baSfx?`<div class="eff-sfx">+ ${baSfx}</div>`:''}
     </div>
     ${cardSetBarHtml(card)}
